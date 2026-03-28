@@ -2,8 +2,9 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 
+from config import MEMBRE_ROLE_NAME
 from Service.activites import activities
-from Service.utils import ActivitySelect
+from Service.utils import ActivitySelect, is_membre
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -19,6 +20,11 @@ class MassUp(commands.Cog):
     @app_commands.command(name="massup", description="Ping tous les joueurs inscrits à une activité")
     @app_commands.describe(message="Message optionnel à joindre au ping")
     async def massup(self, interaction: discord.Interaction, message: str | None = None):
+        if not is_membre(interaction.user):
+            await interaction.response.send_message(
+                f"⛔ Tu dois avoir le rôle **{MEMBRE_ROLE_NAME}** pour utiliser cette commande.", ephemeral=True
+            )
+            return
         if not activities:
             await interaction.response.send_message("ℹ️ Aucune activité en cours.", ephemeral=True)
             return

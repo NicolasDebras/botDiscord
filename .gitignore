@@ -137,6 +137,11 @@ celerybeat.pid
 # Claude
 .claude/
 
+# Données runtime (créées automatiquement)
+bal.json
+bal_log.json
+templates.json
+
 # Environments
 .env
 .envrc

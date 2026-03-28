@@ -4,7 +4,7 @@ import discord
 
 from datetime import datetime, timezone
 
-from config import ADMIN_ROLE_NAME, SETTINGS_FILE, DEFAULT_BAL_RATE, BAL_LOG_FILE, BAL_LOG_MAX
+from config import ADMIN_ROLE_NAME, GM_ROLE_NAME, MEMBRE_ROLE_NAME, SETTINGS_FILE, DEFAULT_BAL_RATE, BAL_LOG_FILE, BAL_LOG_MAX
 
 
 # ── HELPER : vérification du rôle admin ──────────────────────────────────────
@@ -12,6 +12,14 @@ def is_admin(member: discord.Member) -> bool:
     return (
         member.guild_permissions.administrator
         or any(r.name == ADMIN_ROLE_NAME for r in member.roles)
+    )
+
+
+# ── HELPER : vérification du rôle membre ─────────────────────────────────────
+def is_membre(member: discord.Member) -> bool:
+    return (
+        member.guild_permissions.administrator
+        or any(r.name in (ADMIN_ROLE_NAME, GM_ROLE_NAME, MEMBRE_ROLE_NAME) for r in member.roles)
     )
 
 

@@ -5,9 +5,9 @@ from datetime import datetime, timezone
 from discord.ext import commands
 from discord import app_commands
 
-from config import ADMIN_ROLE_NAME
+from config import ADMIN_ROLE_NAME, MEMBRE_ROLE_NAME
 from Service.activites import activities
-from Service.utils import is_admin, ActivitySelect, append_bal_log, load_bal_log
+from Service.utils import is_admin, is_membre, ActivitySelect, append_bal_log, load_bal_log
 
 BAL_FILE = "bal.json"
 
@@ -103,6 +103,11 @@ class Bal(commands.Cog):
     # =========================================================================
     @app_commands.command(name="monbal", description="Voir ton solde BAL")
     async def monbal(self, interaction: discord.Interaction):
+        if not is_membre(interaction.user):
+            await interaction.response.send_message(
+                f"⛔ Tu dois avoir le rôle **{MEMBRE_ROLE_NAME}** pour utiliser cette commande.", ephemeral=True
+            )
+            return
         bal   = load_bal()
         solde = bal.get(str(interaction.user.id), 0)
         await interaction.response.send_message(
@@ -115,6 +120,11 @@ class Bal(commands.Cog):
     # =========================================================================
     @app_commands.command(name="classement", description="Voir le classement BAL du serveur")
     async def classement(self, interaction: discord.Interaction):
+        if not is_membre(interaction.user):
+            await interaction.response.send_message(
+                f"⛔ Tu dois avoir le rôle **{MEMBRE_ROLE_NAME}** pour utiliser cette commande.", ephemeral=True
+            )
+            return
         bal = load_bal()
         if not bal:
             await interaction.response.send_message("ℹ️ Aucune donnée BAL pour le moment.", ephemeral=True)

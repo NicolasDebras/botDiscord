@@ -5,8 +5,8 @@ from discord.ext import commands
 from discord import app_commands
 from datetime import datetime
 
-from config import ROLES, DEFAULT_TEMPLATES, ACTIVITY_COLORS, DEFAULT_COLOR, TEMPLATES_FILE, ADMIN_ROLE_NAME
-from Service.utils import load_settings, append_bal_log
+from config import ROLES, DEFAULT_TEMPLATES, ACTIVITY_COLORS, DEFAULT_COLOR, TEMPLATES_FILE, ADMIN_ROLE_NAME, MEMBRE_ROLE_NAME
+from Service.utils import load_settings, append_bal_log, is_membre
 
 # ── STOCKAGE EN MÉMOIRE  {message_id: data} ──────────────────────────────────
 # Importé par d'autres cogs si besoin (ex: bal.py)
@@ -134,6 +134,11 @@ class RoleSelect(discord.ui.Select):
         )
 
     async def callback(self, interaction: discord.Interaction):
+        if not is_membre(interaction.user):
+            await interaction.response.send_message(
+                f"⛔ Tu dois avoir le rôle **{MEMBRE_ROLE_NAME}** pour t'inscrire.", ephemeral=True
+            )
+            return
         chosen_role = self.values[0]
         data = activities.get(self.activity_id)
         if not data:
@@ -189,6 +194,11 @@ class LeaveButton(discord.ui.Button):
         self.activity_id = activity_id
 
     async def callback(self, interaction: discord.Interaction):
+        if not is_membre(interaction.user):
+            await interaction.response.send_message(
+                f"⛔ Tu dois avoir le rôle **{MEMBRE_ROLE_NAME}** pour te retirer.", ephemeral=True
+            )
+            return
         data = activities.get(self.activity_id)
         if not data:
             await interaction.response.send_message("❌ Activité introuvable.", ephemeral=True)
@@ -475,6 +485,11 @@ class Activites(commands.Cog):
         nbplayer:     app_commands.Range[int, 1, 50] | None = None,
         bal:          bool = False,
     ):
+        if not is_membre(interaction.user):
+            await interaction.response.send_message(
+                f"⛔ Tu dois avoir le rôle **{MEMBRE_ROLE_NAME}** pour créer une activité.", ephemeral=True
+            )
+            return
         all_templates = load_all_templates()
 
         # Résolution du template (insensible à la casse)
@@ -513,6 +528,11 @@ class Activites(commands.Cog):
     # ── /templates ───────────────────────────────────────────────────────────
     @app_commands.command(name="templates", description="Afficher les templates de compositions disponibles")
     async def list_templates(self, interaction: discord.Interaction):
+        if not is_membre(interaction.user):
+            await interaction.response.send_message(
+                f"⛔ Tu dois avoir le rôle **{MEMBRE_ROLE_NAME}** pour utiliser cette commande.", ephemeral=True
+            )
+            return
         all_templates = load_all_templates()
         embed = discord.Embed(title="📋 Templates de compositions", color=0x3498DB)
         for name, tdata in all_templates.items():

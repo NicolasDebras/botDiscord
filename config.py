@@ -8,9 +8,11 @@ TOKEN = os.environ["DISCORD_TOKEN"]
 
 # ── ADMIN ─────────────────────────────────────────────────────────────────────
 # Nom exact du rôle Discord autorisé à utiliser les commandes admin
-ADMIN_ROLE_NAME = "Officer"
+ADMIN_ROLE_NAME  = "Officer"
 # Nom exact du rôle Guild Master (accès aux commandes sensibles)
-GM_ROLE_NAME    = "GM"
+GM_ROLE_NAME     = "Maitre de guilde"
+# Rôle minimum requis pour utiliser les commandes membres
+MEMBRE_ROLE_NAME = "Membre"
 
 # ── GUILD ID (sync instantanée des slash commands) ────────────────────────────
 GUILD_ID = int(os.environ["DISCORD_GUILD_ID"])
