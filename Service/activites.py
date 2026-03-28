@@ -12,6 +12,41 @@ from Service.utils import load_settings, append_bal_log, is_membre
 # Importé par d'autres cogs si besoin (ex: bal.py)
 activities: dict[int, dict] = {}
 
+ACTIVITIES_FILE = "activities.json"
+
+
+def save_activities() -> None:
+    data = {}
+    for msg_id, act in activities.items():
+        data[str(msg_id)] = {
+            "creator":     act["creator"],
+            "created_at":  act["created_at"].isoformat() if isinstance(act["created_at"], datetime) else act["created_at"],
+            "template":    act["template"],
+            "max_players": act["max_players"],
+            "bal":         act["bal"],
+            "slots":       {role: [[uid, name] for uid, name in members] for role, members in act["slots"].items()},
+            "channel_id":  act["channel_id"],
+        }
+    with open(ACTIVITIES_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+def load_activities() -> None:
+    if not os.path.exists(ACTIVITIES_FILE):
+        return
+    with open(ACTIVITIES_FILE, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    for msg_id_str, act in data.items():
+        try:
+            act["created_at"] = datetime.fromisoformat(act["created_at"])
+        except Exception:
+            act["created_at"] = datetime.utcnow()
+        act["slots"] = {
+            role: [(entry[0], entry[1]) for entry in members]
+            for role, members in act["slots"].items()
+        }
+        activities[int(msg_id_str)] = act
+
 
 # ── HELPERS BAL LOCAUX (évite l'import circulaire avec bal.py) ────────────────
 def _load_bal() -> dict[str, int]:
@@ -178,6 +213,7 @@ class RoleSelect(discord.ui.Select):
                     break
 
         slots.setdefault(chosen_role, []).append((user_id, user_name))
+        save_activities()
 
         await interaction.message.edit(embed=build_embed(data), view=build_view(self.activity_id))
         await interaction.response.send_message(f"✅ Inscrit en **{chosen_role}** !", ephemeral=True)
@@ -219,6 +255,7 @@ class LeaveButton(discord.ui.Button):
             await interaction.response.send_message("ℹ️ Tu n'es pas inscrit à cette activité.", ephemeral=True)
             return
 
+        save_activities()
         await interaction.message.edit(embed=build_embed(data), view=build_view(self.activity_id))
         await interaction.response.send_message("👋 Tu t'es retiré de l'activité.", ephemeral=True)
 
@@ -322,6 +359,7 @@ class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
 
         # Supprimer l'activité
         activities.pop(self.activity_id, None)
+        save_activities()
 
         # Mettre à jour le message original : même rendu, titre préfixé
         fin_embed       = build_embed(data)
@@ -388,6 +426,7 @@ class FinActiButton(discord.ui.Button):
 
         # Activité Libre → clôture directe, sans calcul BAL
         activities.pop(self.activity_id, None)
+        save_activities()
 
         fin_embed       = build_embed(data)
         fin_embed.title = f"🏁 FIN  ·  {fin_embed.title}"
@@ -424,6 +463,7 @@ class CancelButton(discord.ui.Button):
             return
 
         del activities[self.activity_id]
+        save_activities()
         embed = discord.Embed(
             title="🚫 Activité annulée",
             description=f"L'activité a été annulée par {interaction.user.display_name}.",
@@ -469,6 +509,21 @@ async def template_autocomplete(
 class Activites(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+
+    @commands.Cog.listener()
+    async def on_ready(self):
+        load_activities()
+        for msg_id in list(activities.keys()):
+            data = activities[msg_id]
+            try:
+                channel = self.bot.get_channel(data["channel_id"])
+                if channel:
+                    msg = await channel.fetch_message(msg_id)
+                    await msg.edit(view=build_view(msg_id))
+            except Exception:
+                activities.pop(msg_id, None)
+        save_activities()
+        print(f"   {len(activities)} activité(s) rechargée(s) depuis le fichier.")
 
     # ── /acti ────────────────────────────────────────────────────────────────
     @app_commands.command(name="acti", description="Créer une activité de guilde Albion Online")
@@ -523,6 +578,7 @@ class Activites(commands.Cog):
         await interaction.response.send_message(embed=build_embed(data))
         message = await interaction.original_response()
         activities[message.id] = data
+        save_activities()
         await message.edit(view=build_view(message.id))
 
     # ── /templates ───────────────────────────────────────────────────────────

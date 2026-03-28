@@ -141,7 +141,7 @@ class Bal(commands.Cog):
 
         embed = discord.Embed(title="🏆 Classement BAL", description="\n".join(lines), color=0xF1C40F)
         embed.set_footer(text=f"{len(sorted_bal)} joueurs au total")
-        await interaction.response.send_message(embed=embed)
+        await interaction.response.send_message(embed=embed, delete_after=300)
 
     # =========================================================================
     # /paybal  — distribuer les BAL aux participants d'une activité
@@ -199,7 +199,7 @@ class Bal(commands.Cog):
                 description=f"**{montant} BAL** versés à {len(payes)} participant(s) :\n\n{lines}",
                 color=0xF1C40F,
             )
-            await inter.response.send_message(embed=embed)
+            await inter.response.send_message(embed=embed, delete_after=300)
 
         view = discord.ui.View(timeout=60)
         view.add_item(ActivitySelect(on_select, "💰 Quelle activité payer ?"))

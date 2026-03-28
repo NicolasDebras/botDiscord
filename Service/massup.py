@@ -51,7 +51,7 @@ class MassUp(commands.Cog):
             if message:
                 intro += f"> {message}\n"
 
-            await inter.response.send_message(intro + mentions)
+            await inter.response.send_message(intro + mentions, delete_after=300)
 
         view = discord.ui.View(timeout=60)
         view.add_item(ActivitySelect(on_select, "📢 Quelle activité convoquer ?"))

@@ -5,7 +5,7 @@ from discord.ext import commands
 from discord import app_commands
 
 from config import ADMIN_ROLE_NAME, GM_ROLE_NAME, TEMPLATES_FILE, ROLES, DEFAULT_BAL_RATE, DEFAULT_TEMPLATES
-from Service.activites import activities, build_embed, build_view, get_pf1, load_all_templates
+from Service.activites import activities, build_embed, build_view, get_pf1, load_all_templates, save_activities
 from Service.utils import is_admin, ActivitySelect, load_settings, save_settings
 
 
@@ -103,6 +103,7 @@ class Admin(commands.Cog):
             except Exception:
                 pass
 
+            save_activities()
             await inter.response.send_message(
                 f"✅ **{target_name}** a été retiré de l'activité.", ephemeral=True
             )
@@ -196,6 +197,7 @@ class Admin(commands.Cog):
             except Exception:
                 pass
 
+            save_activities()
             await inter.response.send_message(
                 f"✅ **{target_name}** {action} en **{chosen_role}** !", ephemeral=True
             )

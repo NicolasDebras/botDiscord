@@ -141,6 +141,7 @@ celerybeat.pid
 bal.json
 bal_log.json
 templates.json
+activities.json
 
 # Environments
 .env
