@@ -1,7 +1,7 @@
 import os
 
 # ── CONFIG ──────────────────────────────────────────────────────────────────
-TOKEN = "MTQ4MDU2MTk2ODc3MDQ0OTQ0OA.G0XEIt.Aj5PQlr4ngF0rHJwPsjbiR_Jl0aeIHm9ujkj7A"
+TOKEN = os.environ["DISCORD_TOKEN"]
 
 # ── ADMIN ─────────────────────────────────────────────────────────────────────
 # Nom exact du rôle Discord autorisé à utiliser les commandes admin
@@ -10,8 +10,7 @@ ADMIN_ROLE_NAME = "Officer"
 GM_ROLE_NAME    = "GM"
 
 # ── GUILD ID (sync instantanée des slash commands) ────────────────────────────
-# Mets l'ID de ton serveur Discord ici (clic droit sur le serveur → Copier l'ID)
-GUILD_ID = 1470811059865780236
+GUILD_ID = int(os.environ["DISCORD_GUILD_ID"])
  
 # ── FICHIER DE TEMPLATES PERSISTANT ──────────────────────────────────────────
 TEMPLATES_FILE = "templates.json"
