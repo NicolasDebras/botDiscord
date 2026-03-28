@@ -33,6 +33,7 @@ async def on_ready():
 
 # ── LANCEMENT ────────────────────────────────────────────────────────────────
 async def main():
+    print(TOKEN)
     async with bot:
         for ext in EXTENSIONS:
             try:

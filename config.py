@@ -1,4 +1,7 @@
 import os
+from dotenv import load_dotenv
+
+load_dotenv(override=True)
 
 # ── CONFIG ──────────────────────────────────────────────────────────────────
 TOKEN = os.environ["DISCORD_TOKEN"]
