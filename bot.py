@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands
 import asyncio
 
-from config import TOKEN, GUILD_ID
+from config import TOKEN
 
 # ── INTENTS ──────────────────────────────────────────────────────────────────
 intents = discord.Intents.default()
@@ -23,12 +23,12 @@ EXTENSIONS = [
 # ── EVENTS ───────────────────────────────────────────────────────────────────
 @bot.event
 async def on_ready():
-    guild = discord.Object(id=GUILD_ID)
-    bot.tree.copy_global_to(guild=guild)
-    synced = await bot.tree.sync(guild=guild)
+    for guild in bot.guilds:
+        bot.tree.copy_global_to(guild=guild)
+        synced = await bot.tree.sync(guild=guild)
+        print(f"   {len(synced)} slash command(s) synchronisées sur {guild.name} ({guild.id})")
     print(f"✅ Bot connecté en tant que {bot.user}  ({bot.user.id})")
     print(f"   Cogs chargés : {', '.join(EXTENSIONS)}")
-    print(f"   {len(synced)} slash command(s) synchronisées sur le serveur {GUILD_ID}.")
 
 
 # ── LANCEMENT ────────────────────────────────────────────────────────────────
