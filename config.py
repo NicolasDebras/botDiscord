@@ -81,7 +81,41 @@ DEFAULT_TEMPLATES: dict[str, dict] = {
         "image":       "https://media.discordapp.net/attachments/1486773126888165437/1486773128792375437/thaisalbion3.png?ex=69c80a60&is=69c6b8e0&hm=a2846dc24737560c373df6276ab8e847e82544e87add31b550e31e223cc7cd2f&=&format=webp&quality=lossless",
         "pf_1": {
             "TANK": 1, "OFF TANK": 1, "FROST": 1,
-            "DAMME": 1, "SCOOT": 1, "MAIN HEAL": 1, "IRON ROOT": 1,  "DPS": 3,
+            "DAMME": 1, "SCOOT": 1, "MAIN HEAL": 1, "IRON ROOT": 1, "DPS": 3,
+        },
+    },
+    "G3 PF1": {
+        "description": "Compo principale G3 — Remplir en priorité · T8 mini",
+        "type_acti":   "PVP",
+        "image":       "",
+        "pf_1": {
+            "TANK": 3,
+            "SUPPORT":   5,
+            "HEAL": 4,
+            "DPS":  8,
+        },
+        "specs": {
+            "TANK": "1H Masse controle (×2)  ·  Tank flex",
+            "SUPPORT":   "Serpent  ·  Locus  ·  Incube  ·  Mande ténèbres  ·  Malédiction de vie",
+            "HEAL": "Sancti (×2)  ·  Sancti druide  ·  Naturel druide",
+            "DPS":  "Pointes  ·  Tranchante  ·  BR  ·  Brassards (×2)  ·  MDPS (×2)  ·  Arc Long / Aria (500+)",
+        },
+    },
+    "G3 PF2": {
+        "description": "Compo secondaire ZvZ G3 — PF2",
+        "type_acti":   "PVP",
+        "image":       "",
+        "pf_1": {
+            "TANK": 1,
+            "SUPPORT":   7,
+            "HEAL": 4,
+            "DPS":  8,
+        },
+        "specs": {
+            "TANK": "Second repack (golem)",
+            "SUPPORT":   "1h arcane/heavy  ·  Bec de Corbin  ·  GA  ·  Locus  ·  Incube  ·  Damnation  ·  Malédiction de vie",
+            "HEAL": "Exalté  ·  Sancti  ·  Sancti druide  ·  Effrené druide",
+            "DPS":  "Pointes/ursines  ·  Spirit  ·  Perma  ·  BR  ·  Mains infernales (×2)  ·  DPS clap range (×2)",
         },
     },
 }
