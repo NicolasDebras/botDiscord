@@ -118,9 +118,13 @@ class Admin(commands.Cog):
     # /addacti  — ajouter un joueur dans une activité (ou changer de rôle)
     # =========================================================================
     @app_commands.command(name="addacti", description="[ADMIN] Ajouter un joueur à une activité (ou changer son rôle)")
-    @app_commands.describe(joueur="Le joueur à ajouter", role="Le rôle à lui attribuer")
+    @app_commands.describe(
+        joueur = "Le joueur à ajouter",
+        role   = "Le rôle à lui attribuer",
+        weapon = "Arme jouée (requis pour les activités PVP, ex: Serpent, Locus...)",
+    )
     @app_commands.autocomplete(role=role_autocomplete)
-    async def addacti(self, interaction: discord.Interaction, joueur: discord.Member, role: str):
+    async def addacti(self, interaction: discord.Interaction, joueur: discord.Member, role: str, weapon: str = ""):
         if not await self.check_admin(interaction):
             return
 
@@ -165,8 +169,12 @@ class Admin(commands.Cog):
 
             # Vérif slot du rôle
             all_templates = load_all_templates()
-            if template in all_templates:
-                max_role = get_pf1(all_templates[template]).get(chosen_role, 999)
+            tdata = all_templates.get(template, {}) if template else {}
+            if tdata:
+                is_pf2   = chosen_role.startswith("PF2:")
+                rn       = chosen_role[4:] if is_pf2 else chosen_role
+                from Service.activites import get_pf2
+                max_role = get_pf2(tdata).get(rn, 999) if is_pf2 else get_pf1(tdata).get(chosen_role, 999)
                 in_role  = [e[0] for e in slots.get(chosen_role, [])]
                 if len(in_role) >= max_role and target_id not in in_role:
                     await inter.response.send_message(
@@ -188,7 +196,7 @@ class Admin(commands.Cog):
                         action = "déplacé"
                         break
 
-            slots[chosen_role].append((target_id, target_name, ""))
+            slots[chosen_role].append((target_id, target_name, weapon))
 
             try:
                 channel = inter.client.get_channel(data["channel_id"])
@@ -198,8 +206,9 @@ class Admin(commands.Cog):
                 pass
 
             save_activities()
+            weapon_info = f"  —  {weapon}" if weapon else ""
             await inter.response.send_message(
-                f"✅ **{target_name}** {action} en **{chosen_role}** !", ephemeral=True
+                f"✅ **{target_name}** {action} en **{chosen_role}**{weapon_info} !", ephemeral=True
             )
 
         view = discord.ui.View(timeout=60)
