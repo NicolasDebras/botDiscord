@@ -183,81 +183,91 @@ def build_view(activity_id: int) -> discord.ui.View:
     return ActivityView(activity_id)
 
 
-# ── MODAL INSCRIPTION (spécialisation) ───────────────────────────────────────
-class SpecModal(discord.ui.Modal):
-    def __init__(self, activity_id: int, chosen_role: str, hint_spec: str = ""):
-        role_display = chosen_role[4:] + " (PF2)" if chosen_role.startswith("PF2:") else chosen_role
-        super().__init__(title=f"Inscription — {role_display}"[:45])
+# ── HELPER : logique d'inscription mutualisée ────────────────────────────────
+async def _register_player(
+    interaction: discord.Interaction,
+    activity_id: int,
+    chosen_role: str,
+    spec: str,
+) -> None:
+    data = activities.get(activity_id)
+    if not data:
+        await interaction.response.send_message("❌ Activité introuvable.", ephemeral=True)
+        return
+
+    user_id   = interaction.user.id
+    user_name = interaction.user.display_name
+    slots     = data["slots"]
+    max_p     = data["max_players"]
+    template  = data.get("template")
+
+    total      = sum(len(v) for v in slots.values())
+    already_in = any(entry[0] == user_id for members in slots.values() for entry in members)
+    if total >= max_p and not already_in:
+        await interaction.response.send_message(f"⛔ L'activité est complète ({max_p} joueurs max).", ephemeral=True)
+        return
+
+    all_templates = load_all_templates()
+    if template in all_templates:
+        tdata     = all_templates[template]
+        role_name = chosen_role[4:] if chosen_role.startswith("PF2:") else chosen_role
+        max_role  = get_pf2(tdata).get(role_name, 999) if chosen_role.startswith("PF2:") else get_pf1(tdata).get(chosen_role, 999)
+        current_in_role = [entry[0] for entry in slots.get(chosen_role, [])]
+        if len(current_in_role) >= max_role and user_id not in current_in_role:
+            label = f"{role_name} PF2" if chosen_role.startswith("PF2:") else chosen_role
+            await interaction.response.send_message(f"⛔ Plus de place en **{label}** ({max_role} max).", ephemeral=True)
+            return
+
+    for role, members in slots.items():
+        for entry in list(members):
+            if entry[0] == user_id:
+                members.remove(entry)
+                break
+
+    slots.setdefault(chosen_role, []).append((user_id, user_name, spec))
+    save_activities()
+
+    try:
+        channel = interaction.client.get_channel(data["channel_id"])
+        msg     = await channel.fetch_message(activity_id)
+        await msg.edit(embed=build_embed(data), view=build_view(activity_id))
+    except Exception:
+        pass
+
+    label   = f"{chosen_role[4:]} PF2" if chosen_role.startswith("PF2:") else chosen_role
+    confirm = f"✅ Inscrit en **{label}**{f'  —  {spec}' if spec else ''} !"
+    await interaction.response.send_message(confirm, ephemeral=True)
+
+
+# ── SELECT SPÉCIALISATION (PVP uniquement) ────────────────────────────────────
+class SpecSelect(discord.ui.Select):
+    def __init__(self, activity_id: int, chosen_role: str, specs_list: list[str]):
         self.activity_id = activity_id
         self.chosen_role = chosen_role
-
-        placeholder = (hint_spec if hint_spec else "Ex : Arc Long, Sancti, 1H Masse...")[:100]
-        self.spec_input = discord.ui.TextInput(
-            label="Votre spécialisation / build",
-            placeholder=placeholder,
-            required=False,
-            max_length=100,
+        options = [
+            discord.SelectOption(label=s[:100], value=s[:100])
+            for s in specs_list
+        ]
+        super().__init__(
+            placeholder="🎯  Choisis ta spécialisation...",
+            min_values=1,
+            max_values=1,
+            options=options,
         )
-        self.add_item(self.spec_input)
 
-    async def on_submit(self, interaction: discord.Interaction):
+    async def callback(self, interaction: discord.Interaction):
         if not is_membre(interaction.user):
             await interaction.response.send_message(
                 f"⛔ Tu dois avoir le rôle **{MEMBRE_ROLE_NAME}** pour t'inscrire.", ephemeral=True
             )
             return
+        await _register_player(interaction, self.activity_id, self.chosen_role, self.values[0])
 
-        spec        = self.spec_input.value.strip()
-        chosen_role = self.chosen_role
-        data        = activities.get(self.activity_id)
-        if not data:
-            await interaction.response.send_message("❌ Activité introuvable.", ephemeral=True)
-            return
 
-        user_id   = interaction.user.id
-        user_name = interaction.user.display_name
-        slots     = data["slots"]
-        max_p     = data["max_players"]
-        template  = data.get("template")
-
-        # Vérif slot max global
-        total      = sum(len(v) for v in slots.values())
-        already_in = any(entry[0] == user_id for members in slots.values() for entry in members)
-        if total >= max_p and not already_in:
-            await interaction.response.send_message(f"⛔ L'activité est complète ({max_p} joueurs max).", ephemeral=True)
-            return
-
-        # Vérif slot max du rôle
-        all_templates = load_all_templates()
-        if template in all_templates:
-            tdata     = all_templates[template]
-            role_name = chosen_role[4:] if chosen_role.startswith("PF2:") else chosen_role
-            max_role  = get_pf2(tdata).get(role_name, 999) if chosen_role.startswith("PF2:") else get_pf1(tdata).get(chosen_role, 999)
-            current_in_role = [entry[0] for entry in slots.get(chosen_role, [])]
-            if len(current_in_role) >= max_role and user_id not in current_in_role:
-                label = f"{role_name} PF2" if chosen_role.startswith("PF2:") else chosen_role
-                await interaction.response.send_message(f"⛔ Plus de place en **{label}** ({max_role} max).", ephemeral=True)
-                return
-
-        # Changer de rôle si déjà inscrit ailleurs
-        for role, members in slots.items():
-            for entry in list(members):
-                if entry[0] == user_id:
-                    members.remove(entry)
-                    break
-
-        slots.setdefault(chosen_role, []).append((user_id, user_name, spec))
-        save_activities()
-
-        try:
-            channel = interaction.client.get_channel(data["channel_id"])
-            msg     = await channel.fetch_message(self.activity_id)
-            await msg.edit(embed=build_embed(data), view=build_view(self.activity_id))
-        except Exception:
-            pass
-
-        confirm = f"✅ Inscrit en **{chosen_role}**{f'  —  {spec}' if spec else ''} !"
-        await interaction.response.send_message(confirm, ephemeral=True)
+class SpecSelectView(discord.ui.View):
+    def __init__(self, activity_id: int, chosen_role: str, specs_list: list[str]):
+        super().__init__(timeout=120)
+        self.add_item(SpecSelect(activity_id, chosen_role, specs_list))
 
 
 # ── SELECT MENU ──────────────────────────────────────────────────────────────
@@ -299,14 +309,27 @@ class RoleSelect(discord.ui.Select):
         template      = data.get("template")
         all_templates = load_all_templates()
         tdata         = all_templates.get(template, {}) if template else {}
+        type_acti     = tdata.get("type_acti", "")
 
         if chosen_role.startswith("PF2:"):
-            role_name = chosen_role[4:]
-            hint_spec = tdata.get("specs_pf2", {}).get(role_name, "")
+            hint_spec = tdata.get("specs_pf2", {}).get(chosen_role[4:], "")
         else:
             hint_spec = get_specs(tdata).get(chosen_role, "")
 
-        await interaction.response.send_modal(SpecModal(self.activity_id, chosen_role, hint_spec))
+        # PVP avec specs → dropdown des spés disponibles
+        if type_acti == "PVP" and hint_spec:
+            specs_list = [s.strip() for s in hint_spec.split("·") if s.strip()]
+            if specs_list:
+                role_display = (chosen_role[4:] + " (PF2)") if chosen_role.startswith("PF2:") else chosen_role
+                await interaction.response.send_message(
+                    f"🎯 **{role_display}** — Quelle sera ta spécialisation ?",
+                    view=SpecSelectView(self.activity_id, chosen_role, specs_list),
+                    ephemeral=True,
+                )
+                return
+
+        # PVE ou pas de specs → inscription directe
+        await _register_player(interaction, self.activity_id, chosen_role, "")
 
 
 # ── BOUTON SE RETIRER ────────────────────────────────────────────────────────
