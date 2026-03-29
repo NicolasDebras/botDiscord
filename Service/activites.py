@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -92,8 +93,8 @@ def get_pf2(template_data: dict) -> dict[str, int]:
 
 
 def get_specs(template_data: dict) -> dict[str, str]:
-    """Retourne les specs requises par rôle pour PF1."""
-    return template_data.get("specs", {})
+    """Retourne les armes/specs requises par rôle pour PF1 ('weapon' ou 'specs' pour rétrocompat)."""
+    return template_data.get("weapon", template_data.get("specs", {}))
 
 
 # ── CONSTRUCTION DE L'EMBED ──────────────────────────────────────────────────
@@ -131,7 +132,7 @@ def build_embed(data: dict) -> discord.Embed:
     pf1       = get_pf1(tdata) if tdata else {}
     pf2       = get_pf2(tdata) if tdata else {}
     specs     = get_specs(tdata) if tdata else {}
-    specs_pf2 = tdata.get("specs_pf2", {}) if tdata else {}
+    specs_pf2 = tdata.get("weapon_pf2", tdata.get("specs_pf2", {})) if tdata else {}
 
     pf1_keys      = list(pf1.keys()) if pf1 else list(ROLES.keys())
     pf2_keys      = [f"PF2:{r}" for r in pf2.keys()]
@@ -239,35 +240,62 @@ async def _register_player(
     await interaction.response.send_message(confirm, ephemeral=True)
 
 
-# ── SELECT SPÉCIALISATION (PVP uniquement) ────────────────────────────────────
-class SpecSelect(discord.ui.Select):
-    def __init__(self, activity_id: int, chosen_role: str, specs_list: list[str]):
+# ── MODAL NIVEAU DE SPÉ (PVP — après sélection de l'arme) ────────────────────
+class SpecLevelModal(discord.ui.Modal):
+    def __init__(self, activity_id: int, chosen_role: str, chosen_weapon: str):
+        super().__init__(title=f"⚔️ {chosen_weapon}"[:45])
+        self.activity_id    = activity_id
+        self.chosen_role    = chosen_role
+        self.chosen_weapon  = chosen_weapon
+
+        self.level_input = discord.ui.TextInput(
+            label="Niveau de spécialisation (1 — 1000)",
+            placeholder="Ex : 750",
+            required=True,
+            max_length=4,
+        )
+        self.add_item(self.level_input)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            level = int(self.level_input.value.strip())
+            if not (1 <= level <= 1000):
+                raise ValueError()
+        except ValueError:
+            await interaction.response.send_message(
+                "❌ Le niveau doit être un entier entre **1** et **1000**.", ephemeral=True
+            )
+            return
+        spec = f"{self.chosen_weapon} ({level})"
+        await _register_player(interaction, self.activity_id, self.chosen_role, spec)
+
+
+# ── SELECT ARME (PVP uniquement) ─────────────────────────────────────────────
+class WeaponSelect(discord.ui.Select):
+    def __init__(self, activity_id: int, chosen_role: str, weapons_list: list[str]):
         self.activity_id = activity_id
         self.chosen_role = chosen_role
-        options = [
-            discord.SelectOption(label=s[:100], value=s[:100])
-            for s in specs_list
-        ]
+        options = []
+        for w in weapons_list:
+            clean = re.sub(r"\s*\(×\d+\)", "", w).strip()
+            options.append(discord.SelectOption(label=clean[:100], value=clean[:100]))
         super().__init__(
-            placeholder="🎯  Choisis ta spécialisation...",
+            placeholder="⚔️  Choisis ton arme...",
             min_values=1,
             max_values=1,
             options=options,
         )
 
     async def callback(self, interaction: discord.Interaction):
-        if not is_membre(interaction.user):
-            await interaction.response.send_message(
-                f"⛔ Tu dois avoir le rôle **{MEMBRE_ROLE_NAME}** pour t'inscrire.", ephemeral=True
-            )
-            return
-        await _register_player(interaction, self.activity_id, self.chosen_role, self.values[0])
+        await interaction.response.send_modal(
+            SpecLevelModal(self.activity_id, self.chosen_role, self.values[0])
+        )
 
 
-class SpecSelectView(discord.ui.View):
-    def __init__(self, activity_id: int, chosen_role: str, specs_list: list[str]):
+class WeaponSelectView(discord.ui.View):
+    def __init__(self, activity_id: int, chosen_role: str, weapons_list: list[str]):
         super().__init__(timeout=120)
-        self.add_item(SpecSelect(activity_id, chosen_role, specs_list))
+        self.add_item(WeaponSelect(activity_id, chosen_role, weapons_list))
 
 
 # ── SELECT MENU ──────────────────────────────────────────────────────────────
@@ -312,23 +340,23 @@ class RoleSelect(discord.ui.Select):
         type_acti     = tdata.get("type_acti", "")
 
         if chosen_role.startswith("PF2:"):
-            hint_spec = tdata.get("specs_pf2", {}).get(chosen_role[4:], "")
+            hint_spec = tdata.get("weapon_pf2", tdata.get("specs_pf2", {})).get(chosen_role[4:], "")
         else:
             hint_spec = get_specs(tdata).get(chosen_role, "")
 
-        # PVP avec specs → dropdown des spés disponibles
+        # PVP avec armes → dropdown des armes puis modal niveau
         if type_acti == "PVP" and hint_spec:
-            specs_list = [s.strip() for s in hint_spec.split("·") if s.strip()]
-            if specs_list:
+            weapons_list = [w.strip() for w in hint_spec.split("·") if w.strip()]
+            if weapons_list:
                 role_display = (chosen_role[4:] + " (PF2)") if chosen_role.startswith("PF2:") else chosen_role
                 await interaction.response.send_message(
-                    f"🎯 **{role_display}** — Quelle sera ta spécialisation ?",
-                    view=SpecSelectView(self.activity_id, chosen_role, specs_list),
+                    f"⚔️ **{role_display}** — Quelle arme joues-tu ?",
+                    view=WeaponSelectView(self.activity_id, chosen_role, weapons_list),
                     ephemeral=True,
                 )
                 return
 
-        # PVE ou pas de specs → inscription directe
+        # PVE ou pas d'armes → inscription directe sans popup
         await _register_player(interaction, self.activity_id, chosen_role, "")
 
 

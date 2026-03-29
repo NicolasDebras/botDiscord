@@ -315,11 +315,11 @@ class Admin(commands.Cog):
             "type_acti":   type_acti.value,
             "image":       image,
             "pf_1":        pf1,
-            "specs":       specs,
+            "weapon":      specs,
         }
         if pf2:
-            entry["pf_2"]       = pf2
-            entry["specs_pf2"]  = specs_pf2
+            entry["pf_2"]        = pf2
+            entry["weapon_pf2"]  = specs_pf2
         custom[nom] = entry
         save_custom_templates(custom)
 
