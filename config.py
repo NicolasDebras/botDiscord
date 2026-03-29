@@ -90,13 +90,13 @@ DEFAULT_TEMPLATES: dict[str, dict] = {
         "image":       "https://cdn.discordapp.com/attachments/94518390546255872/1284345624732635230/fatwizardBlick.gif?ex=69c9e512&is=69c89392&hm=4053fd8f86c884ba21d4193d893b325268ce1c54bba2c643419971a59d494875&",
         "pf_1": {"TANK": 3, "SUPPORT": 5, "HEAL": 4, "DPS": 8},
         "pf_2": {"TANK": 1, "SUPPORT": 7, "HEAL": 4, "DPS": 8},
-        "specs": {
+        "weapon": {
             "TANK":    "1H Masse controle (×2)  ·  Tank flex",
             "SUPPORT": "Serpent  ·  Locus  ·  Incube  ·  Mande ténèbres  ·  Malédiction de vie",
             "HEAL":    "Sancti (×2)  ·  Sancti druide  ·  Naturel druide",
             "DPS":     "Pointes  ·  Tranchante  ·  BR  ·  Brassards (×2)  ·  MDPS (×2)  ·  Arc Long / Aria (500+)",
         },
-        "specs_pf2": {
+        "weapon_pf2": {
             "TANK":    "Second repack (golem)",
             "SUPPORT": "1h arcane/heavy  ·  Bec de Corbin  ·  GA  ·  Locus  ·  Incube  ·  Damnation  ·  Malédiction de vie",
             "HEAL":    "Exalté  ·  Sancti  ·  Sancti druide  ·  Effrené druide",
