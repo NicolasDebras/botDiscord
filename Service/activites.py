@@ -27,6 +27,7 @@ def save_activities() -> None:
             "bal":         act["bal"],
             "slots":       {role: [list(entry) for entry in members] for role, members in act["slots"].items()},
             "channel_id":  act["channel_id"],
+            "waitlist":    [[uid, name] for uid, name in act.get("waitlist", [])],
         }
     with open(ACTIVITIES_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
@@ -42,11 +43,12 @@ def load_activities() -> None:
             act["created_at"] = datetime.fromisoformat(act["created_at"])
         except Exception:
             act["created_at"] = datetime.utcnow()
-        # Normalise en 3-tuple (uid, name, spec) — rétrocompatibilité anciens fichiers 2-tuple
         act["slots"] = {
             role: [(entry[0], entry[1], entry[2] if len(entry) > 2 else "") for entry in members]
             for role, members in act["slots"].items()
         }
+        act.setdefault("waitlist", [])
+        act["waitlist"] = [(e[0], e[1]) for e in act["waitlist"]]
         activities[int(msg_id_str)] = act
 
 
@@ -176,6 +178,12 @@ def build_embed(data: dict) -> discord.Embed:
         value=f"**Pay Out :** {payout_line}    **Inscrits :** {total_inscrits}/{max_p}",
         inline=False,
     )
+
+    waitlist = data.get("waitlist", [])
+    if waitlist:
+        wl_value = "\n".join(f"{i+1}. <@{uid}>" for i, (uid, _) in enumerate(waitlist))
+        embed.add_field(name=f"⏳ Liste d'attente  [{len(waitlist)}]", value=wl_value, inline=False)
+
     return embed
 
 
@@ -205,7 +213,28 @@ async def _register_player(
     total      = sum(len(v) for v in slots.values())
     already_in = any(entry[0] == user_id for members in slots.values() for entry in members)
     if total >= max_p and not already_in:
-        await interaction.response.send_message(f"⛔ L'activité est complète ({max_p} joueurs max).", ephemeral=True)
+        all_templates = load_all_templates()
+        has_wl = all_templates.get(template, {}).get("has_waitlist", False) if template else False
+        if has_wl:
+            waitlist = data.setdefault("waitlist", [])
+            in_wl    = any(uid == user_id for uid, _ in waitlist)
+            if in_wl:
+                await interaction.response.send_message("ℹ️ Tu es déjà en liste d'attente.", ephemeral=True)
+            else:
+                waitlist.append((user_id, user_name))
+                save_activities()
+                try:
+                    channel = interaction.client.get_channel(data["channel_id"])
+                    msg     = await channel.fetch_message(activity_id)
+                    await msg.edit(embed=build_embed(data), view=build_view(activity_id))
+                except Exception:
+                    pass
+                pos = len(waitlist)
+                await interaction.response.send_message(
+                    f"⏳ L'activité est complète — tu es en **position {pos}** sur la liste d'attente.", ephemeral=True
+                )
+        else:
+            await interaction.response.send_message(f"⛔ L'activité est complète ({max_p} joueurs max).", ephemeral=True)
         return
 
     all_templates = load_all_templates()
@@ -381,8 +410,9 @@ class LeaveButton(discord.ui.Button):
             await interaction.response.send_message("❌ Activité introuvable.", ephemeral=True)
             return
 
-        user_id = interaction.user.id
-        removed = False
+        user_id  = interaction.user.id
+        removed  = False
+        # Retrait des slots
         for members in data["slots"].values():
             for entry in list(members):
                 if entry[0] == user_id:
@@ -391,6 +421,15 @@ class LeaveButton(discord.ui.Button):
                     break
             if removed:
                 break
+
+        # Retrait de la waitlist si pas dans les slots
+        if not removed:
+            waitlist = data.get("waitlist", [])
+            for entry in list(waitlist):
+                if entry[0] == user_id:
+                    waitlist.remove(entry)
+                    removed = True
+                    break
 
         if not removed:
             await interaction.response.send_message("ℹ️ Tu n'es pas inscrit à cette activité.", ephemeral=True)
@@ -615,6 +654,57 @@ class CancelButton(discord.ui.Button):
         await interaction.response.send_message("✅ Activité annulée.", ephemeral=True)
 
 
+# ── BOUTON LISTE D'ATTENTE ────────────────────────────────────────────────────
+class WaitlistButton(discord.ui.Button):
+    def __init__(self, activity_id: int):
+        super().__init__(
+            label="Liste d'attente", emoji="⏳",
+            style=discord.ButtonStyle.secondary,
+            custom_id=f"waitlist_{activity_id}",
+        )
+        self.activity_id = activity_id
+
+    async def callback(self, interaction: discord.Interaction):
+        if not is_membre(interaction.user):
+            await interaction.response.send_message(
+                f"⛔ Tu dois avoir le rôle **{MEMBRE_ROLE_NAME}** pour t'inscrire.", ephemeral=True
+            )
+            return
+        data = activities.get(self.activity_id)
+        if not data:
+            await interaction.response.send_message("❌ Activité introuvable.", ephemeral=True)
+            return
+
+        user_id   = interaction.user.id
+        user_name = interaction.user.display_name
+        slots     = data["slots"]
+        waitlist  = data.setdefault("waitlist", [])
+
+        # Si déjà dans les slots → pas besoin de la waitlist
+        if any(entry[0] == user_id for members in slots.values() for entry in members):
+            await interaction.response.send_message(
+                "ℹ️ Tu es déjà inscrit à l'activité.", ephemeral=True
+            )
+            return
+
+        # Toggle : rejoindre ou quitter la waitlist
+        for entry in list(waitlist):
+            if entry[0] == user_id:
+                waitlist.remove(entry)
+                save_activities()
+                await interaction.message.edit(embed=build_embed(data), view=build_view(self.activity_id))
+                await interaction.response.send_message("👋 Tu t'es retiré de la liste d'attente.", ephemeral=True)
+                return
+
+        waitlist.append((user_id, user_name))
+        save_activities()
+        await interaction.message.edit(embed=build_embed(data), view=build_view(self.activity_id))
+        pos = len(waitlist)
+        await interaction.response.send_message(
+            f"⏳ Inscrit en liste d'attente — position **{pos}**.", ephemeral=True
+        )
+
+
 # ── VUE PRINCIPALE ───────────────────────────────────────────────────────────
 class ActivityView(discord.ui.View):
     def __init__(self, activity_id: int):
@@ -634,6 +724,8 @@ class ActivityView(discord.ui.View):
 
         self.add_item(RoleSelect(activity_id, roles_to_show))
         self.add_item(LeaveButton(activity_id))
+        if tdata.get("has_waitlist"):
+            self.add_item(WaitlistButton(activity_id))
         self.add_item(FinActiButton(activity_id))
         self.add_item(CancelButton(activity_id))
 
@@ -721,6 +813,7 @@ class Activites(commands.Cog):
             "bal":         bal,
             "slots":       slots,
             "channel_id":  interaction.channel_id,
+            "waitlist":    [],
         }
 
         await interaction.response.send_message(embed=build_embed(data))

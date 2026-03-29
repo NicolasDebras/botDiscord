@@ -33,6 +33,7 @@ ROLES: dict[str, str] = {
     "CALLER":    "📢",
     "SCOOT":     "🏃",
     "FROST":     "❄️",
+    "COBRA/GA":  "🏹",
 }
  
 # ── TYPES D'ACTIVITÉS ────────────────────────────────────────────────────────
@@ -79,9 +80,11 @@ DEFAULT_TEMPLATES: dict[str, dict] = {
         "description": "Compo beban Raid AVA",
         "type_acti":   "PVE",
         "image":       "https://media.discordapp.net/attachments/1486773126888165437/1486773128792375437/thaisalbion3.png?ex=69c80a60&is=69c6b8e0&hm=a2846dc24737560c373df6276ab8e847e82544e87add31b550e31e223cc7cd2f&=&format=webp&quality=lossless",
+        "has_waitlist": True,
         "pf_1": {
             "TANK": 1, "OFF TANK": 1, "FROST": 1,
-            "DAMME": 1, "SCOOT": 1, "MAIN HEAL": 1, "IRON ROOT": 1, "DPS": 3,
+            "DAMME": 1, "SCOOT": 1, "MAIN HEAL": 1, "IRON ROOT": 1,
+            "DPS": 3, "COBRA/GA": 1,
         },
     },
     "G3": {
