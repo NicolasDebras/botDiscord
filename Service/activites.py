@@ -24,7 +24,7 @@ def save_activities() -> None:
             "template":    act["template"],
             "max_players": act["max_players"],
             "bal":         act["bal"],
-            "slots":       {role: [[uid, name] for uid, name in members] for role, members in act["slots"].items()},
+            "slots":       {role: [list(entry) for entry in members] for role, members in act["slots"].items()},
             "channel_id":  act["channel_id"],
         }
     with open(ACTIVITIES_FILE, "w", encoding="utf-8") as f:
@@ -41,8 +41,9 @@ def load_activities() -> None:
             act["created_at"] = datetime.fromisoformat(act["created_at"])
         except Exception:
             act["created_at"] = datetime.utcnow()
+        # Normalise en 3-tuple (uid, name, spec) — rétrocompatibilité anciens fichiers 2-tuple
         act["slots"] = {
-            role: [(entry[0], entry[1]) for entry in members]
+            role: [(entry[0], entry[1], entry[2] if len(entry) > 2 else "") for entry in members]
             for role, members in act["slots"].items()
         }
         activities[int(msg_id_str)] = act
@@ -87,6 +88,11 @@ def get_pf1(template_data: dict) -> dict[str, int]:
     return {k: v for k, v in template_data.items() if isinstance(v, int)}
 
 
+def get_specs(template_data: dict) -> dict[str, str]:
+    """Retourne les spécialisations requises par rôle (clé 'specs' optionnelle)."""
+    return template_data.get("specs", {})
+
+
 # ── CONSTRUCTION DE L'EMBED ──────────────────────────────────────────────────
 def build_embed(data: dict) -> discord.Embed:
     template = data.get("template")
@@ -120,17 +126,27 @@ def build_embed(data: dict) -> discord.Embed:
 
     slots: dict[str, list] = data["slots"]
     pf1           = get_pf1(tdata) if tdata else {}
+    specs         = get_specs(tdata) if tdata else {}
     roles_to_show = _sort_roles(list(pf1.keys()) if pf1 else list(ROLES.keys()))
 
     for role in roles_to_show:
-        emoji   = ROLES.get(role, "🔹")
-        members = slots.get(role, [])
-        max_r   = pf1.get(role, "∞") if pf1 else "∞"
+        emoji      = ROLES.get(role, "🔹")
+        members    = slots.get(role, [])
+        max_r      = pf1.get(role, "∞") if pf1 else "∞"
+        role_spec  = specs.get(role, "")
 
-        value = "\n\n".join(f"<@{uid}>" for uid, _ in members) if members else "*Personne*"
+        lines = []
+        for entry in members:
+            uid         = entry[0]
+            player_spec = entry[2] if len(entry) > 2 else ""
+            lines.append(f"<@{uid}>{f'  —  {player_spec}' if player_spec else ''}")
+        value = "\n\n".join(lines) if lines else "*Personne*"
         count = f"{len(members)}/{max_r}" if isinstance(max_r, int) else str(len(members))
 
-        embed.add_field(name=f"{emoji} {role}  [{count}]", value=value, inline=False)
+        field_name = f"{emoji} {role}  [{count}]"
+        if role_spec:
+            field_name = f"{field_name}  ·  {role_spec}"
+        embed.add_field(name=field_name[:256], value=value, inline=False)
 
     payout_line    = "💰 BAL" if bal else "🆓 Libre"
     total_inscrits = sum(len(v) for v in slots.values())
@@ -145,6 +161,80 @@ def build_embed(data: dict) -> discord.Embed:
 # ── CONSTRUCTION DE LA VUE ───────────────────────────────────────────────────
 def build_view(activity_id: int) -> discord.ui.View:
     return ActivityView(activity_id)
+
+
+# ── MODAL INSCRIPTION (spécialisation) ───────────────────────────────────────
+class SpecModal(discord.ui.Modal):
+    def __init__(self, activity_id: int, chosen_role: str, hint_spec: str = ""):
+        super().__init__(title=f"Inscription — {chosen_role}"[:45])
+        self.activity_id = activity_id
+        self.chosen_role = chosen_role
+
+        placeholder = (f"Requis : {hint_spec}" if hint_spec else "Ex : Arc Long, Sancti, 1H Masse...")[:100]
+        self.spec_input = discord.ui.TextInput(
+            label="Spécialisation / Build",
+            placeholder=placeholder,
+            default=hint_spec,
+            required=False,
+            max_length=100,
+        )
+        self.add_item(self.spec_input)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        if not is_membre(interaction.user):
+            await interaction.response.send_message(
+                f"⛔ Tu dois avoir le rôle **{MEMBRE_ROLE_NAME}** pour t'inscrire.", ephemeral=True
+            )
+            return
+
+        spec        = self.spec_input.value.strip()
+        chosen_role = self.chosen_role
+        data        = activities.get(self.activity_id)
+        if not data:
+            await interaction.response.send_message("❌ Activité introuvable.", ephemeral=True)
+            return
+
+        user_id   = interaction.user.id
+        user_name = interaction.user.display_name
+        slots     = data["slots"]
+        max_p     = data["max_players"]
+        template  = data.get("template")
+
+        # Vérif slot max global
+        total      = sum(len(v) for v in slots.values())
+        already_in = any(entry[0] == user_id for members in slots.values() for entry in members)
+        if total >= max_p and not already_in:
+            await interaction.response.send_message(f"⛔ L'activité est complète ({max_p} joueurs max).", ephemeral=True)
+            return
+
+        # Vérif slot max du rôle
+        all_templates = load_all_templates()
+        if template in all_templates:
+            max_role        = get_pf1(all_templates[template]).get(chosen_role, 999)
+            current_in_role = [entry[0] for entry in slots.get(chosen_role, [])]
+            if len(current_in_role) >= max_role and user_id not in current_in_role:
+                await interaction.response.send_message(f"⛔ Plus de place en **{chosen_role}** ({max_role} max).", ephemeral=True)
+                return
+
+        # Changer de rôle si déjà inscrit ailleurs
+        for role, members in slots.items():
+            for entry in list(members):
+                if entry[0] == user_id:
+                    members.remove(entry)
+                    break
+
+        slots.setdefault(chosen_role, []).append((user_id, user_name, spec))
+        save_activities()
+
+        try:
+            channel = interaction.client.get_channel(data["channel_id"])
+            msg     = await channel.fetch_message(self.activity_id)
+            await msg.edit(embed=build_embed(data), view=build_view(self.activity_id))
+        except Exception:
+            pass
+
+        confirm = f"✅ Inscrit en **{chosen_role}**{f'  —  {spec}' if spec else ''} !"
+        await interaction.response.send_message(confirm, ephemeral=True)
 
 
 # ── SELECT MENU ──────────────────────────────────────────────────────────────
@@ -174,49 +264,17 @@ class RoleSelect(discord.ui.Select):
                 f"⛔ Tu dois avoir le rôle **{MEMBRE_ROLE_NAME}** pour t'inscrire.", ephemeral=True
             )
             return
-        chosen_role = self.values[0]
         data = activities.get(self.activity_id)
         if not data:
             await interaction.response.send_message("❌ Activité introuvable.", ephemeral=True)
             return
 
-        user_id   = interaction.user.id
-        user_name = interaction.user.display_name
-        slots     = data["slots"]
-        max_p     = data["max_players"]
-        template  = data.get("template")
-
-        # Vérif slot max global
-        total      = sum(len(v) for v in slots.values())
-        already_in = any(uid == user_id for members in slots.values() for uid, _ in members)
-        if total >= max_p and not already_in:
-            await interaction.response.send_message(f"⛔ L'activité est complète ({max_p} joueurs max).", ephemeral=True)
-            return
-
-        # Vérif slot max du rôle
+        chosen_role   = self.values[0]
+        template      = data.get("template")
         all_templates = load_all_templates()
-        if template in all_templates:
-            max_role        = get_pf1(all_templates[template]).get(chosen_role, 999)
-            current_in_role = [uid for uid, _ in slots.get(chosen_role, [])]
-            if len(current_in_role) >= max_role and user_id not in current_in_role:
-                await interaction.response.send_message(f"⛔ Plus de place en **{chosen_role}** ({max_role} max).", ephemeral=True)
-                return
+        hint_spec     = get_specs(all_templates.get(template, {})).get(chosen_role, "") if template else ""
 
-        # Changer de rôle si déjà inscrit ailleurs
-        for role, members in slots.items():
-            for entry in list(members):
-                if entry[0] == user_id:
-                    if role == chosen_role:
-                        await interaction.response.send_message(f"✅ Tu es déjà inscrit en **{chosen_role}**.", ephemeral=True)
-                        return
-                    members.remove(entry)
-                    break
-
-        slots.setdefault(chosen_role, []).append((user_id, user_name))
-        save_activities()
-
-        await interaction.message.edit(embed=build_embed(data), view=build_view(self.activity_id))
-        await interaction.response.send_message(f"✅ Inscrit en **{chosen_role}** !", ephemeral=True)
+        await interaction.response.send_modal(SpecModal(self.activity_id, chosen_role, hint_spec))
 
 
 # ── BOUTON SE RETIRER ────────────────────────────────────────────────────────
@@ -337,8 +395,8 @@ class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
         nb_scoot      = len(scoot_members)
         scoot_total   = scoot_amount * nb_scoot
 
-        other_members = [(uid, name) for role, members in data["slots"].items()
-                         for uid, name in members if role != "SCOOT"]
+        other_members = [(entry[0], entry[1]) for role, members in data["slots"].items()
+                         for entry in members if role != "SCOOT"]
         nb_others     = len(other_members)
         remaining     = distributable - scoot_total
         part_indiv    = remaining // nb_others if nb_others > 0 else 0
@@ -350,7 +408,8 @@ class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
             key      = str(uid)
             bal[key] = bal.get(key, 0) + part_indiv
             log_entries.append({"uid": key, "name": name, "delta": part_indiv, "total": bal[key]})
-        for uid, name in scoot_members:
+        for entry in scoot_members:
+            uid, name = entry[0], entry[1]
             key      = str(uid)
             bal[key] = bal.get(key, 0) + scoot_amount
             log_entries.append({"uid": key, "name": name, "delta": scoot_amount, "total": bal[key]})

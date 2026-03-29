@@ -188,7 +188,7 @@ class Admin(commands.Cog):
                         action = "déplacé"
                         break
 
-            slots[chosen_role].append((target_id, target_name))
+            slots[chosen_role].append((target_id, target_name, ""))
 
             try:
                 channel = inter.client.get_channel(data["channel_id"])
@@ -218,6 +218,7 @@ class Admin(commands.Cog):
         description = "Description courte du template",
         type_acti   = "Type d'activité",
         json_roles  = 'Rôles en JSON (ex: {"TANK": 2, "HEAL": 2, "DPS": 6})',
+        json_specs  = 'Spés requises par rôle, optionnel (ex: {"DPS": "Arc Long", "TANK": "1H Masse"})',
         image       = "URL de l'image à afficher dans l'embed (optionnel)",
     )
     @app_commands.choices(type_acti=[
@@ -232,11 +233,12 @@ class Admin(commands.Cog):
         json_roles:  str,
         description: str = "",
         image:       str = "",
+        json_specs:  str = "",
     ):
         if not await self.check_admin(interaction):
             return
 
-        # Parser le JSON
+        # Parser les rôles
         try:
             roles_dict: dict = json.loads(json_roles)
         except json.JSONDecodeError as e:
@@ -252,6 +254,21 @@ class Admin(commands.Cog):
             )
             return
 
+        # Parser les specs (optionnel)
+        specs: dict[str, str] = {}
+        if json_specs.strip():
+            try:
+                specs_raw = json.loads(json_specs)
+                if not isinstance(specs_raw, dict):
+                    raise ValueError("not a dict")
+                specs = {k.upper(): str(v) for k, v in specs_raw.items()}
+            except (json.JSONDecodeError, ValueError) as e:
+                await interaction.response.send_message(
+                    f"❌ json_specs invalide : `{e}`\n\nExemple :\n```json\n{{\"DPS\": \"Arc Long\", \"TANK\": \"1H Masse\"}}\n```",
+                    ephemeral=True,
+                )
+                return
+
         if nom in DEFAULT_TEMPLATES:
             await interaction.response.send_message(
                 f"❌ **{nom}** est un template par défaut, il ne peut pas être écrasé.", ephemeral=True
@@ -266,11 +283,15 @@ class Admin(commands.Cog):
             "type_acti":   type_acti.value,
             "image":       image,
             "pf_1":        pf1,
+            "specs":       specs,
         }
         save_custom_templates(custom)
 
         tag     = "🔴 PVP" if type_acti.value == "PVP" else "🟢 PVE"
-        preview = "\n".join(f"  {ROLES.get(r, '🔹')} **{r}** × {n}" for r, n in pf1.items())
+        preview = "\n".join(
+            f"  {ROLES.get(r, '🔹')} **{r}** × {n}{f'  ·  {specs[r]}' if r in specs else ''}"
+            for r, n in pf1.items()
+        )
         total   = sum(pf1.values())
         await interaction.response.send_message(
             f"✅ Template **{nom}** {action} — {tag} — {total} joueurs\n{preview}",
