@@ -214,12 +214,14 @@ class Admin(commands.Cog):
     # =========================================================================
     @app_commands.command(name="addtemplate", description="[ADMIN] Ajouter un template de composition (format JSON)")
     @app_commands.describe(
-        nom         = "Nom du template (ex: ZvZ Lilium)",
-        description = "Description courte du template",
-        type_acti   = "Type d'activité",
-        json_roles  = 'Rôles en JSON (ex: {"TANK": 2, "HEAL": 2, "DPS": 6})',
-        json_specs  = 'Spés requises par rôle, optionnel (ex: {"DPS": "Arc Long", "TANK": "1H Masse"})',
-        image       = "URL de l'image à afficher dans l'embed (optionnel)",
+        nom            = "Nom du template (ex: ZvZ Lilium)",
+        description    = "Description courte du template",
+        type_acti      = "Type d'activité",
+        json_roles     = 'Rôles PF1 en JSON (ex: {"TANK": 2, "HEAL": 2, "DPS": 6})',
+        json_roles_pf2 = 'Rôles PF2 en JSON optionnel (ex: {"TANK": 1, "HEAL": 4, "DPS": 8})',
+        json_specs     = 'Spés PF1 par rôle, optionnel (ex: {"DPS": "Arc Long", "TANK": "1H Masse"})',
+        json_specs_pf2 = 'Spés PF2 par rôle, optionnel (ex: {"DPS": "DPS clap range"})',
+        image          = "URL de l'image à afficher dans l'embed (optionnel)",
     )
     @app_commands.choices(type_acti=[
         app_commands.Choice(name="PVP", value="PVP"),
@@ -227,13 +229,15 @@ class Admin(commands.Cog):
     ])
     async def addtemplate(
         self,
-        interaction: discord.Interaction,
-        nom:         str,
-        type_acti:   app_commands.Choice[str],
-        json_roles:  str,
-        description: str = "",
-        image:       str = "",
-        json_specs:  str = "",
+        interaction:    discord.Interaction,
+        nom:            str,
+        type_acti:      app_commands.Choice[str],
+        json_roles:     str,
+        description:    str = "",
+        image:          str = "",
+        json_specs:     str = "",
+        json_roles_pf2: str = "",
+        json_specs_pf2: str = "",
     ):
         if not await self.check_admin(interaction):
             return
@@ -275,24 +279,62 @@ class Admin(commands.Cog):
             )
             return
 
+        # Parser PF2 (optionnel)
+        pf2: dict[str, int] = {}
+        if json_roles_pf2.strip():
+            try:
+                pf2_raw = json.loads(json_roles_pf2)
+                if not isinstance(pf2_raw, dict) or not all(isinstance(v, int) and v > 0 for v in pf2_raw.values()):
+                    raise ValueError("invalid format")
+                pf2 = {k.upper(): v for k, v in pf2_raw.items()}
+            except (json.JSONDecodeError, ValueError) as e:
+                await interaction.response.send_message(
+                    f"❌ json_roles_pf2 invalide : `{e}`", ephemeral=True
+                )
+                return
+
+        # Parser specs PF2 (optionnel)
+        specs_pf2: dict[str, str] = {}
+        if json_specs_pf2.strip():
+            try:
+                sp2_raw = json.loads(json_specs_pf2)
+                if not isinstance(sp2_raw, dict):
+                    raise ValueError("not a dict")
+                specs_pf2 = {k.upper(): str(v) for k, v in sp2_raw.items()}
+            except (json.JSONDecodeError, ValueError) as e:
+                await interaction.response.send_message(
+                    f"❌ json_specs_pf2 invalide : `{e}`", ephemeral=True
+                )
+                return
+
         pf1    = {k.upper(): v for k, v in roles_dict.items()}
         custom = load_custom_templates()
         action = "mis à jour" if nom in custom else "ajouté"
-        custom[nom] = {
+        entry  = {
             "description": description,
             "type_acti":   type_acti.value,
             "image":       image,
             "pf_1":        pf1,
             "specs":       specs,
         }
+        if pf2:
+            entry["pf_2"]       = pf2
+            entry["specs_pf2"]  = specs_pf2
+        custom[nom] = entry
         save_custom_templates(custom)
 
-        tag     = "🔴 PVP" if type_acti.value == "PVP" else "🟢 PVE"
-        preview = "\n".join(
+        tag      = "🔴 PVP" if type_acti.value == "PVP" else "🟢 PVE"
+        preview  = "\n".join(
             f"  {ROLES.get(r, '🔹')} **{r}** × {n}{f'  ·  {specs[r]}' if r in specs else ''}"
             for r, n in pf1.items()
         )
-        total   = sum(pf1.values())
+        total = sum(pf1.values())
+        if pf2:
+            preview += "\n  ── PF2 ──\n" + "\n".join(
+                f"  {ROLES.get(r, '🔹')} **{r}** × {n}{f'  ·  {specs_pf2[r]}' if r in specs_pf2 else ''}"
+                for r, n in pf2.items()
+            )
+            total += sum(pf2.values())
         await interaction.response.send_message(
             f"✅ Template **{nom}** {action} — {tag} — {total} joueurs\n{preview}",
             ephemeral=True,

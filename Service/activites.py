@@ -62,9 +62,12 @@ def _save_bal(data: dict[str, int]) -> None:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
-# ── HELPER : tri des rôles — SCOOT toujours en dernier ───────────────────────
+# ── HELPER : tri des rôles — PF1 d'abord, PF2 ensuite, SCOOT toujours en dernier
 def _sort_roles(roles: list[str]) -> list[str]:
-    return [r for r in roles if r != "SCOOT"] + [r for r in roles if r == "SCOOT"]
+    pf1   = [r for r in roles if not r.startswith("PF2:") and r != "SCOOT"]
+    pf2   = [r for r in roles if r.startswith("PF2:")]
+    scoot = [r for r in roles if r == "SCOOT"]
+    return pf1 + pf2 + scoot
 
 
 # ── HELPER : tous les templates (défaut + custom) ────────────────────────────
@@ -77,19 +80,19 @@ def load_all_templates() -> dict[str, dict]:
 
 
 def get_pf1(template_data: dict) -> dict[str, int]:
-    """Retourne les rôles (pf_1) d'un template.
-
-    Gère les deux formats :
-    - Nouveau : {"description": ..., "type_acti": ..., "pf_1": {rôle: slots}}
-    - Ancien   : {rôle: slots}  (rétrocompatibilité templates.json existants)
-    """
+    """Retourne les rôles pf_1. Gère l'ancien format {rôle: int} pour la rétrocompatibilité."""
     if "pf_1" in template_data:
         return template_data["pf_1"]
     return {k: v for k, v in template_data.items() if isinstance(v, int)}
 
 
+def get_pf2(template_data: dict) -> dict[str, int]:
+    """Retourne les rôles pf_2 (optionnel — vide si template mono-party)."""
+    return template_data.get("pf_2", {})
+
+
 def get_specs(template_data: dict) -> dict[str, str]:
-    """Retourne les spécialisations requises par rôle (clé 'specs' optionnelle)."""
+    """Retourne les specs requises par rôle pour PF1."""
     return template_data.get("specs", {})
 
 
@@ -125,15 +128,31 @@ def build_embed(data: dict) -> discord.Embed:
     embed.set_footer(text=f"Organisé par {creator}  •  Max {max_p} joueurs")
 
     slots: dict[str, list] = data["slots"]
-    pf1           = get_pf1(tdata) if tdata else {}
-    specs         = get_specs(tdata) if tdata else {}
-    roles_to_show = _sort_roles(list(pf1.keys()) if pf1 else list(ROLES.keys()))
+    pf1       = get_pf1(tdata) if tdata else {}
+    pf2       = get_pf2(tdata) if tdata else {}
+    specs     = get_specs(tdata) if tdata else {}
+    specs_pf2 = tdata.get("specs_pf2", {}) if tdata else {}
 
-    for role in roles_to_show:
-        emoji      = ROLES.get(role, "🔹")
-        members    = slots.get(role, [])
-        max_r      = pf1.get(role, "∞") if pf1 else "∞"
-        role_spec  = specs.get(role, "")
+    pf1_keys      = list(pf1.keys()) if pf1 else list(ROLES.keys())
+    pf2_keys      = [f"PF2:{r}" for r in pf2.keys()]
+    roles_to_show = _sort_roles(pf1_keys + pf2_keys)
+
+    pf2_header_done = False
+    for role_key in roles_to_show:
+        is_pf2    = role_key.startswith("PF2:")
+        role_name = role_key[4:] if is_pf2 else role_key
+        emoji     = ROLES.get(role_name, "🔹")
+        members   = slots.get(role_key, [])
+
+        if is_pf2:
+            if not pf2_header_done:
+                embed.add_field(name="─────────────────────────\n🔶  PF2", value="\u200b", inline=False)
+                pf2_header_done = True
+            max_r     = pf2.get(role_name, "∞")
+            role_spec = specs_pf2.get(role_name, "")
+        else:
+            max_r     = pf1.get(role_key, "∞") if pf1 else "∞"
+            role_spec = specs.get(role_key, "")
 
         lines = []
         for entry in members:
@@ -143,7 +162,8 @@ def build_embed(data: dict) -> discord.Embed:
         value = "\n\n".join(lines) if lines else "*Personne*"
         count = f"{len(members)}/{max_r}" if isinstance(max_r, int) else str(len(members))
 
-        field_name = f"{emoji} {role}  [{count}]"
+        label      = f"{role_name} PF2" if is_pf2 else role_name
+        field_name = f"{emoji} {label}  [{count}]"
         if role_spec:
             field_name = f"{field_name}  ·  {role_spec}"
         embed.add_field(name=field_name[:256], value=value, inline=False)
@@ -166,15 +186,15 @@ def build_view(activity_id: int) -> discord.ui.View:
 # ── MODAL INSCRIPTION (spécialisation) ───────────────────────────────────────
 class SpecModal(discord.ui.Modal):
     def __init__(self, activity_id: int, chosen_role: str, hint_spec: str = ""):
-        super().__init__(title=f"Inscription — {chosen_role}"[:45])
+        role_display = chosen_role[4:] + " (PF2)" if chosen_role.startswith("PF2:") else chosen_role
+        super().__init__(title=f"Inscription — {role_display}"[:45])
         self.activity_id = activity_id
         self.chosen_role = chosen_role
 
-        placeholder = (f"Requis : {hint_spec}" if hint_spec else "Ex : Arc Long, Sancti, 1H Masse...")[:100]
+        placeholder = (hint_spec if hint_spec else "Ex : Arc Long, Sancti, 1H Masse...")[:100]
         self.spec_input = discord.ui.TextInput(
-            label="Spécialisation / Build",
+            label="Votre spécialisation / build",
             placeholder=placeholder,
-            default=hint_spec,
             required=False,
             max_length=100,
         )
@@ -210,10 +230,13 @@ class SpecModal(discord.ui.Modal):
         # Vérif slot max du rôle
         all_templates = load_all_templates()
         if template in all_templates:
-            max_role        = get_pf1(all_templates[template]).get(chosen_role, 999)
+            tdata     = all_templates[template]
+            role_name = chosen_role[4:] if chosen_role.startswith("PF2:") else chosen_role
+            max_role  = get_pf2(tdata).get(role_name, 999) if chosen_role.startswith("PF2:") else get_pf1(tdata).get(chosen_role, 999)
             current_in_role = [entry[0] for entry in slots.get(chosen_role, [])]
             if len(current_in_role) >= max_role and user_id not in current_in_role:
-                await interaction.response.send_message(f"⛔ Plus de place en **{chosen_role}** ({max_role} max).", ephemeral=True)
+                label = f"{role_name} PF2" if chosen_role.startswith("PF2:") else chosen_role
+                await interaction.response.send_message(f"⛔ Plus de place en **{label}** ({max_role} max).", ephemeral=True)
                 return
 
         # Changer de rôle si déjà inscrit ailleurs
@@ -241,15 +264,18 @@ class SpecModal(discord.ui.Modal):
 class RoleSelect(discord.ui.Select):
     def __init__(self, activity_id: int, roles: list[str]):
         self.activity_id = activity_id
-        options = [
-            discord.SelectOption(
-                label=role,
-                emoji=ROLES.get(role, "🔹"),
-                description=f"S'inscrire en tant que {role}",
-                value=role,
-            )
-            for role in roles
-        ]
+        options = []
+        for role_key in roles:
+            is_pf2    = role_key.startswith("PF2:")
+            role_name = role_key[4:] if is_pf2 else role_key
+            label     = f"{role_name} (PF2)" if is_pf2 else role_name
+            desc      = f"PF2 — S'inscrire en {role_name}" if is_pf2 else f"S'inscrire en tant que {role_name}"
+            options.append(discord.SelectOption(
+                label=label[:100],
+                emoji=ROLES.get(role_name, "🔹"),
+                description=desc[:100],
+                value=role_key,
+            ))
         super().__init__(
             placeholder="📋  Choisis ton rôle...",
             min_values=1,
@@ -272,7 +298,13 @@ class RoleSelect(discord.ui.Select):
         chosen_role   = self.values[0]
         template      = data.get("template")
         all_templates = load_all_templates()
-        hint_spec     = get_specs(all_templates.get(template, {})).get(chosen_role, "") if template else ""
+        tdata         = all_templates.get(template, {}) if template else {}
+
+        if chosen_role.startswith("PF2:"):
+            role_name = chosen_role[4:]
+            hint_spec = tdata.get("specs_pf2", {}).get(role_name, "")
+        else:
+            hint_spec = get_specs(tdata).get(chosen_role, "")
 
         await interaction.response.send_modal(SpecModal(self.activity_id, chosen_role, hint_spec))
 
@@ -542,8 +574,12 @@ class ActivityView(discord.ui.View):
 
         all_templates = load_all_templates()
         template      = data.get("template")
-        pf1           = get_pf1(all_templates[template]) if template in all_templates else {}
-        roles_to_show = _sort_roles(list(pf1.keys()) if pf1 else list(ROLES.keys()))
+        tdata         = all_templates.get(template, {}) if template else {}
+        pf1           = get_pf1(tdata) if tdata else {}
+        pf2           = get_pf2(tdata) if tdata else {}
+        pf1_keys      = list(pf1.keys()) if pf1 else list(ROLES.keys())
+        pf2_keys      = [f"PF2:{r}" for r in pf2.keys()]
+        roles_to_show = _sort_roles(pf1_keys + pf2_keys)
 
         self.add_item(RoleSelect(activity_id, roles_to_show))
         self.add_item(LeaveButton(activity_id))
@@ -596,7 +632,7 @@ class Activites(commands.Cog):
         self,
         interaction:  discord.Interaction,
         nametemplate: str,
-        nbplayer:     app_commands.Range[int, 1, 50] | None = None,
+        nbplayer:     app_commands.Range[int, 1, 100] | None = None,
         bal:          bool = False,
     ):
         if not is_membre(interaction.user):
@@ -620,9 +656,11 @@ class Activites(commands.Cog):
             )
             return
 
-        pf1      = get_pf1(all_templates[template_name])
-        slots    = {role: [] for role in pf1}
-        nbplayer = nbplayer or sum(pf1.values())
+        pf1   = get_pf1(all_templates[template_name])
+        pf2   = get_pf2(all_templates[template_name])
+        slots = {role: [] for role in pf1}
+        slots.update({f"PF2:{role}": [] for role in pf2})
+        nbplayer = nbplayer or (sum(pf1.values()) + sum(pf2.values()))
 
         data = {
             "creator":     interaction.user.display_name,
