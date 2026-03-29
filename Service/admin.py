@@ -1,12 +1,13 @@
 import discord
 import json
 import os
+import re
 from discord.ext import commands
 from discord import app_commands
 
 from config import ADMIN_ROLE_NAME, GM_ROLE_NAME, TEMPLATES_FILE, ROLES, DEFAULT_BAL_RATE, DEFAULT_TEMPLATES
-from Service.activites import activities, build_embed, build_view, get_pf1, load_all_templates, save_activities
-from Service.utils import is_admin, ActivitySelect, load_settings, save_settings
+from Service.activites import activities, build_embed, build_view, get_pf1, get_pf2, load_all_templates, save_activities
+from Service.utils import is_admin, is_membre, ActivitySelect, load_settings, save_settings
 
 
 # ── HELPER : chargement/sauvegarde des templates JSON ────────────────────────
@@ -34,6 +35,95 @@ async def role_autocomplete(
     ][:25]
 
 
+# ── FLOW ARME + NIVEAU pour /addacti PVP ─────────────────────────────────────
+class AdminSpecLevelModal(discord.ui.Modal):
+    def __init__(self, msg_id: int, target_id: int, target_name: str,
+                 chosen_role: str, chosen_weapon: str, data: dict):
+        super().__init__(title=f"⚔️ {chosen_weapon}"[:45])
+        self.msg_id        = msg_id
+        self.target_id     = target_id
+        self.target_name   = target_name
+        self.chosen_role   = chosen_role
+        self.chosen_weapon = chosen_weapon
+        self.data          = data
+        self.level_input   = discord.ui.TextInput(
+            label="Niveau de spécialisation (1 — 1000)",
+            placeholder="Ex : 750",
+            required=True,
+            max_length=4,
+        )
+        self.add_item(self.level_input)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            level = int(self.level_input.value.strip())
+            if not (1 <= level <= 1000):
+                raise ValueError()
+        except ValueError:
+            await interaction.response.send_message(
+                "❌ Le niveau doit être un entier entre **1** et **1000**.", ephemeral=True
+            )
+            return
+
+        spec  = f"{self.chosen_weapon} ({level})"
+        data  = self.data
+        slots = data["slots"]
+
+        action = "ajouté"
+        for r, members in slots.items():
+            for entry in list(members):
+                if entry[0] == self.target_id:
+                    members.remove(entry)
+                    action = "déplacé"
+                    break
+
+        slots.setdefault(self.chosen_role, []).append((self.target_id, self.target_name, spec))
+        save_activities()
+
+        try:
+            channel = interaction.client.get_channel(data["channel_id"])
+            msg     = await channel.fetch_message(self.msg_id)
+            await msg.edit(embed=build_embed(data), view=build_view(self.msg_id))
+        except Exception:
+            pass
+
+        label = f"{self.chosen_role[4:]} PF2" if self.chosen_role.startswith("PF2:") else self.chosen_role
+        await interaction.response.send_message(
+            f"✅ **{self.target_name}** {action} en **{label}**  —  {spec} !", ephemeral=True
+        )
+
+
+class AdminWeaponSelect(discord.ui.Select):
+    def __init__(self, msg_id: int, target_id: int, target_name: str,
+                 chosen_role: str, weapons_list: list[str], data: dict):
+        self.msg_id      = msg_id
+        self.target_id   = target_id
+        self.target_name = target_name
+        self.chosen_role = chosen_role
+        self.data        = data
+        options = [
+            discord.SelectOption(
+                label=re.sub(r"\s*\(×\d+\)", "", w).strip()[:100],
+                value=re.sub(r"\s*\(×\d+\)", "", w).strip()[:100],
+            )
+            for w in weapons_list
+        ]
+        super().__init__(placeholder="⚔️  Choisis l'arme du joueur...", options=options)
+
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.send_modal(
+            AdminSpecLevelModal(self.msg_id, self.target_id, self.target_name,
+                                self.chosen_role, self.values[0], self.data)
+        )
+
+
+class AdminWeaponSelectView(discord.ui.View):
+    def __init__(self, msg_id: int, target_id: int, target_name: str,
+                 chosen_role: str, weapons_list: list[str], data: dict):
+        super().__init__(timeout=120)
+        self.add_item(AdminWeaponSelect(msg_id, target_id, target_name, chosen_role, weapons_list, data))
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # COG ADMIN
 # ══════════════════════════════════════════════════════════════════════════════
@@ -54,17 +144,19 @@ class Admin(commands.Cog):
     # =========================================================================
     # /kickacti  — virer un joueur d'une activité
     # =========================================================================
-    @app_commands.command(name="kickacti", description="[ADMIN] Retirer un joueur d'une activité en cours")
+    @app_commands.command(name="kickacti", description="Retirer un joueur d'une activité (organisateur ou Officier)")
     @app_commands.describe(joueur="Le joueur à retirer de l'activité")
     async def kickacti(self, interaction: discord.Interaction, joueur: discord.Member):
-        if not await self.check_admin(interaction):
+        if not is_membre(interaction.user):
+            await interaction.response.send_message(
+                "⛔ Tu n'as pas accès à cette commande.", ephemeral=True
+            )
             return
 
         if not activities:
             await interaction.response.send_message("ℹ️ Aucune activité en cours.", ephemeral=True)
             return
 
-        # On stocke le joueur ciblé pour le callback du select
         target_id   = joueur.id
         target_name = joueur.display_name
 
@@ -77,6 +169,15 @@ class Admin(commands.Cog):
             data   = activities.get(msg_id)
             if not data:
                 await inter.response.send_message("❌ Activité introuvable.", ephemeral=True)
+                return
+
+            # Vérif : admin OU organisateur de cette activité
+            is_creator = inter.user.display_name == data["creator"]
+            if not (is_admin(inter.user) or is_creator):
+                await inter.response.send_message(
+                    f"⛔ Seul l'organisateur (**{data['creator']}**) ou un **{ADMIN_ROLE_NAME}** peut retirer un joueur.",
+                    ephemeral=True,
+                )
                 return
 
             removed = False
@@ -95,7 +196,6 @@ class Admin(commands.Cog):
                 )
                 return
 
-            # Mettre à jour le message de l'activité
             try:
                 channel = inter.client.get_channel(data["channel_id"])
                 msg     = await channel.fetch_message(msg_id)
@@ -118,13 +218,9 @@ class Admin(commands.Cog):
     # /addacti  — ajouter un joueur dans une activité (ou changer de rôle)
     # =========================================================================
     @app_commands.command(name="addacti", description="[ADMIN] Ajouter un joueur à une activité (ou changer son rôle)")
-    @app_commands.describe(
-        joueur = "Le joueur à ajouter",
-        role   = "Le rôle à lui attribuer",
-        weapon = "Arme jouée (requis pour les activités PVP, ex: Serpent, Locus...)",
-    )
+    @app_commands.describe(joueur="Le joueur à ajouter", role="Le rôle à lui attribuer")
     @app_commands.autocomplete(role=role_autocomplete)
-    async def addacti(self, interaction: discord.Interaction, joueur: discord.Member, role: str, weapon: str = ""):
+    async def addacti(self, interaction: discord.Interaction, joueur: discord.Member, role: str):
         if not await self.check_admin(interaction):
             return
 
@@ -155,12 +251,11 @@ class Admin(commands.Cog):
             if chosen_role not in slots:
                 roles_dispo = ", ".join(f"`{r}`" for r in slots)
                 await inter.response.send_message(
-                    f"❌ Rôle **{chosen_role}** inconnu pour cette activité.\nRôles disponibles : {roles_dispo}",
-                    ephemeral=True,
+                    f"❌ Rôle **{chosen_role}** inconnu.\nRôles disponibles : {roles_dispo}", ephemeral=True
                 )
                 return
 
-            # Vérif slot global (sauf si déjà inscrit = changement de rôle)
+            # Vérif slot global
             total      = sum(len(v) for v in slots.values())
             already_in = any(e[0] == target_id for members in slots.values() for e in members)
             if total >= max_p and not already_in:
@@ -169,46 +264,63 @@ class Admin(commands.Cog):
 
             # Vérif slot du rôle
             all_templates = load_all_templates()
-            tdata = all_templates.get(template, {}) if template else {}
-            if tdata:
-                is_pf2   = chosen_role.startswith("PF2:")
-                rn       = chosen_role[4:] if is_pf2 else chosen_role
-                from Service.activites import get_pf2
-                max_role = get_pf2(tdata).get(rn, 999) if is_pf2 else get_pf1(tdata).get(chosen_role, 999)
-                in_role  = [e[0] for e in slots.get(chosen_role, [])]
-                if len(in_role) >= max_role and target_id not in in_role:
+            tdata    = all_templates.get(template, {}) if template else {}
+            is_pf2   = chosen_role.startswith("PF2:")
+            rn       = chosen_role[4:] if is_pf2 else chosen_role
+            max_role = get_pf2(tdata).get(rn, 999) if is_pf2 else get_pf1(tdata).get(chosen_role, 999)
+            in_role  = [e[0] for e in slots.get(chosen_role, [])]
+            if len(in_role) >= max_role and target_id not in in_role:
+                await inter.response.send_message(
+                    f"⛔ Plus de place en **{chosen_role}** ({max_role} max).", ephemeral=True
+                )
+                return
+
+            # Déjà dans ce même rôle ?
+            for entry in slots.get(chosen_role, []):
+                if entry[0] == target_id:
                     await inter.response.send_message(
-                        f"⛔ Plus de place en **{chosen_role}** ({max_role} max).", ephemeral=True
+                        f"ℹ️ **{target_name}** est déjà en **{chosen_role}**.", ephemeral=True
                     )
                     return
 
-            # Retirer de l'ancien rôle si présent
+            # PVP avec armes → dropdown arme → modal niveau (comme l'inscription)
+            type_acti = tdata.get("type_acti", "")
+            if type_acti == "PVP":
+                hint_spec = (
+                    tdata.get("weapon_pf2", tdata.get("specs_pf2", {})).get(rn, "")
+                    if is_pf2 else
+                    tdata.get("weapon", tdata.get("specs", {})).get(chosen_role, "")
+                )
+                if hint_spec:
+                    weapons_list = [w.strip() for w in hint_spec.split("·") if w.strip()]
+                    if weapons_list:
+                        label = f"{rn} (PF2)" if is_pf2 else chosen_role
+                        await inter.response.send_message(
+                            f"⚔️ **{label}** pour **{target_name}** — Quelle arme ?",
+                            view=AdminWeaponSelectView(msg_id, target_id, target_name, chosen_role, weapons_list, data),
+                            ephemeral=True,
+                        )
+                        return
+
+            # PVE ou pas d'armes → inscription directe
             action = "ajouté"
             for r, members in slots.items():
                 for entry in list(members):
                     if entry[0] == target_id:
-                        if r == chosen_role:
-                            await inter.response.send_message(
-                                f"ℹ️ **{target_name}** est déjà en **{chosen_role}**.", ephemeral=True
-                            )
-                            return
                         members.remove(entry)
                         action = "déplacé"
                         break
 
-            slots[chosen_role].append((target_id, target_name, weapon))
-
+            slots[chosen_role].append((target_id, target_name, ""))
             try:
                 channel = inter.client.get_channel(data["channel_id"])
                 msg     = await channel.fetch_message(msg_id)
                 await msg.edit(embed=build_embed(data), view=build_view(msg_id))
             except Exception:
                 pass
-
             save_activities()
-            weapon_info = f"  —  {weapon}" if weapon else ""
             await inter.response.send_message(
-                f"✅ **{target_name}** {action} en **{chosen_role}**{weapon_info} !", ephemeral=True
+                f"✅ **{target_name}** {action} en **{chosen_role}** !", ephemeral=True
             )
 
         view = discord.ui.View(timeout=60)
