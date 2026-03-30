@@ -89,7 +89,7 @@ class Bal(commands.Cog):
             return
         solde = await db.get_bal(str(interaction.user.id))
         await interaction.response.send_message(
-            f"💰 Ton solde BAL : **{solde}**",
+            f"💰 Ton solde BAL : **{solde:,}**".replace(",", " "),
             ephemeral=True,
         )
 
@@ -115,7 +115,7 @@ class Bal(commands.Cog):
             prefix = medals[i] if i < 3 else f"**{i + 1}.**"
             member = interaction.guild.get_member(int(uid))
             name   = member.display_name if member else f"Inconnu ({uid})"
-            lines.append(f"{prefix} {name} — **{amount}** BAL")
+            lines.append(f"{prefix} {name} — **{amount:,}** BAL".replace(",", " "))
 
         embed = discord.Embed(title="🏆 Classement BAL", description="\n".join(lines), color=0xF1C40F)
         embed.set_footer(text=f"{len(sorted_bal)} joueurs au total")
