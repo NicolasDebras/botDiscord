@@ -1,36 +1,20 @@
 import discord
-import json
-import os
-from datetime import datetime, timezone
+from datetime import datetime
 from discord.ext import commands
 from discord import app_commands
 
+import db
 from config import ADMIN_ROLE_NAME, MEMBRE_ROLE_NAME
 from Service.activites import activities
 from Service.utils import is_admin, is_membre, ActivitySelect, append_bal_log, load_bal_log
 
-BAL_FILE = "bal.json"
-
 # Labels affichés dans /ballog
 ACTION_LABELS = {
-    "addbal":   "➕ Ajout manuel",
-    "retirebal":"➖ Retrait manuel",
-    "paybal":   "💰 PayBAL (activité)",
-    "finacti":  "🏁 Fin d'activité",
+    "addbal":    "➕ Ajout manuel",
+    "retirebal": "➖ Retrait manuel",
+    "paybal":    "💰 PayBAL (activité)",
+    "finacti":   "🏁 Fin d'activité",
 }
-
-
-# ── HELPER : chargement/sauvegarde du fichier BAL ────────────────────────────
-def load_bal() -> dict[str, int]:
-    if not os.path.exists(BAL_FILE):
-        return {}
-    with open(BAL_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-def save_bal(data: dict[str, int]) -> None:
-    with open(BAL_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -59,17 +43,14 @@ class Bal(commands.Cog):
         if not await self.check_admin(interaction):
             return
 
-        bal = load_bal()
-        key = str(joueur.id)
-        bal[key] = bal.get(key, 0) + montant
-        save_bal(bal)
-
-        append_bal_log("addbal", interaction.user.display_name, [
-            {"uid": key, "name": joueur.display_name, "delta": montant, "total": bal[key]}
+        key       = str(joueur.id)
+        new_total = await db.increment_bal(key, montant)
+        await append_bal_log("addbal", interaction.user.display_name, [
+            {"uid": key, "name": joueur.display_name, "delta": montant, "total": new_total}
         ])
 
         await interaction.response.send_message(
-            f"✅ **{joueur.display_name}** : +{montant} BAL  (total : **{bal[key]}**)",
+            f"✅ **{joueur.display_name}** : +{montant} BAL  (total : **{new_total}**)",
             ephemeral=True,
         )
 
@@ -82,19 +63,17 @@ class Bal(commands.Cog):
         if not await self.check_admin(interaction):
             return
 
-        bal = load_bal()
         key    = str(joueur.id)
-        ancien = bal.get(key, 0)
-        reel   = min(montant, ancien)   # montant réellement retiré (plancher à 0)
-        bal[key] = ancien - reel
-        save_bal(bal)
+        ancien = await db.get_bal(key)
+        reel   = min(montant, ancien)   # plancher à 0
+        await db.set_bal(key, ancien - reel)
 
-        append_bal_log("retirebal", interaction.user.display_name, [
-            {"uid": key, "name": joueur.display_name, "delta": -reel, "total": bal[key]}
+        await append_bal_log("retirebal", interaction.user.display_name, [
+            {"uid": key, "name": joueur.display_name, "delta": -reel, "total": ancien - reel}
         ])
 
         await interaction.response.send_message(
-            f"✅ **{joueur.display_name}** : -{reel} BAL  (total : **{bal[key]}**)",
+            f"✅ **{joueur.display_name}** : -{reel} BAL  (total : **{ancien - reel}**)",
             ephemeral=True,
         )
 
@@ -108,8 +87,7 @@ class Bal(commands.Cog):
                 f"⛔ Tu dois avoir le rôle **{MEMBRE_ROLE_NAME}** pour utiliser cette commande.", ephemeral=True
             )
             return
-        bal   = load_bal()
-        solde = bal.get(str(interaction.user.id), 0)
+        solde = await db.get_bal(str(interaction.user.id))
         await interaction.response.send_message(
             f"💰 Ton solde BAL : **{solde}**",
             ephemeral=True,
@@ -125,14 +103,14 @@ class Bal(commands.Cog):
                 f"⛔ Tu dois avoir le rôle **{MEMBRE_ROLE_NAME}** pour utiliser cette commande.", ephemeral=True
             )
             return
-        bal = load_bal()
+        bal = await db.get_all_bal()
         if not bal:
             await interaction.response.send_message("ℹ️ Aucune donnée BAL pour le moment.", ephemeral=True)
             return
 
         sorted_bal = sorted(bal.items(), key=lambda x: x[1], reverse=True)
-        medals = ["🥇", "🥈", "🥉"]
-        lines  = []
+        medals     = ["🥇", "🥈", "🥉"]
+        lines      = []
         for i, (uid, amount) in enumerate(sorted_bal[:20]):
             prefix = medals[i] if i < 3 else f"**{i + 1}.**"
             member = interaction.guild.get_member(int(uid))
@@ -175,23 +153,22 @@ class Bal(commands.Cog):
                 )
                 return
 
-            bal   = load_bal()
             payes: list[tuple[int, str, int]] = []
             log_entries = []
 
             for members in data["slots"].values():
-                for uid, name in members:
-                    key      = str(uid)
-                    bal[key] = bal.get(key, 0) + montant
-                    payes.append((uid, name, bal[key]))
-                    log_entries.append({"uid": key, "name": name, "delta": montant, "total": bal[key]})
+                for entry in members:
+                    uid, name = entry[0], entry[1]
+                    key       = str(uid)
+                    new_total = await db.increment_bal(key, montant)
+                    payes.append((uid, name, new_total))
+                    log_entries.append({"uid": key, "name": name, "delta": montant, "total": new_total})
 
             if not payes:
                 await inter.response.send_message("ℹ️ Aucun participant inscrit à cette activité.", ephemeral=True)
                 return
 
-            save_bal(bal)
-            append_bal_log("paybal", by, log_entries)
+            await append_bal_log("paybal", by, log_entries)
 
             lines = "\n".join(f"<@{uid}> +{montant} (total : **{total}**)" for uid, _, total in payes)
             embed = discord.Embed(
@@ -217,17 +194,16 @@ class Bal(commands.Cog):
         if not await self.check_admin(interaction):
             return
 
-        log = load_bal_log()
+        log = await load_bal_log()
         if not log:
             await interaction.response.send_message("ℹ️ Aucune action BAL enregistrée.", ephemeral=True)
             return
 
-        # Plus récent en premier
-        log_rev    = list(reversed(log))
+        # log est déjà trié du plus récent au plus ancien (ORDER BY id DESC dans db.py)
         per_page   = 10
-        total_page = max(1, (len(log_rev) + per_page - 1) // per_page)
+        total_page = max(1, (len(log) + per_page - 1) // per_page)
         page       = min(page, total_page)
-        slice_     = log_rev[(page - 1) * per_page : page * per_page]
+        slice_     = log[(page - 1) * per_page : page * per_page]
 
         embed = discord.Embed(
             title=f"📋 Historique BAL  —  Page {page}/{total_page}",
@@ -235,7 +211,6 @@ class Bal(commands.Cog):
         )
 
         for entry in slice_:
-            # Formatage date
             try:
                 dt   = datetime.fromisoformat(entry["ts"])
                 date = dt.strftime("%d/%m %H:%M")
@@ -254,7 +229,7 @@ class Bal(commands.Cog):
 
             embed.add_field(name=title_f, value="\n".join(lines) or "—", inline=False)
 
-        embed.set_footer(text=f"{len(log)} action(s) au total  •  max {100} conservées")
+        embed.set_footer(text=f"{len(log)} action(s) au total  •  max 100 conservées")
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
 

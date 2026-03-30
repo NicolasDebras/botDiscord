@@ -52,30 +52,6 @@ ACTIVITY_TYPES: list[str] = [
 # Structure : { nom: { "description": str, "type_acti": "PVP"|"PVE", "image": url|"", "pf_1": {rôle: slots} } }
 # Les templates custom ajoutés via /addtemplate sont dans templates.json
 DEFAULT_TEMPLATES: dict[str, dict] = {
-    "ZvZ Standard": {
-        "description": "Composition standard pour les ZvZ",
-        "type_acti":   "PVP",
-        "image":       "",
-        "pf_1": {"TANK": 5, "HEAL": 5, "DPS": 10, "SUPPORT": 5, "CALLER": 1},
-    },
-    "Small Scale": {
-        "description": "Petit groupe PvP polyvalent",
-        "type_acti":   "PVP",
-        "image":       "",
-        "pf_1": {"TANK": 2, "HEAL": 2, "DPS": 6},
-    },
-    "HCE 5-man": {
-        "description": "Haute Cour des Enfers en groupe de 5",
-        "type_acti":   "PVE",
-        "image":       "",
-        "pf_1": {"TANK": 1, "HEAL": 1, "DPS": 3},
-    },
-    "Ganking Party": {
-        "description": "Groupe de ganking mobile",
-        "type_acti":   "PVP",
-        "image":       "",
-        "pf_1": {"TANK": 1, "DPS": 4},
-    },
     "RAID AVA": {
         "description": "Compo beban Raid AVA",
         "type_acti":   "PVE",
@@ -87,8 +63,14 @@ DEFAULT_TEMPLATES: dict[str, dict] = {
             "DPS": 3, "COBRA/GA": 1,
         },
     },
+    "STATIK": {
+        "description": "Donjon statique PVE — 10 joueurs",
+        "type_acti":   "PVE",
+        "image":       "",
+        "pf_1": {"TANK": 2, "HEAL": 2, "SUPPORT": 1, "DPS": 5},
+    },
     "G3": {
-        "description": "Compo ZvZ Lilium — 40 joueurs (PF1 + PF2) · T8 mini",
+        "description": "Compo ZvZ G3 — 40 joueurs (PF1 + PF2) · T8 mini",
         "type_acti":   "PVP",
         "image":       "https://cdn.discordapp.com/attachments/94518390546255872/1284345624732635230/fatwizardBlick.gif?ex=69c9e512&is=69c89392&hm=4053fd8f86c884ba21d4193d893b325268ce1c54bba2c643419971a59d494875&",
         "pf_1": {"TANK": 3, "SUPPORT": 5, "HEAL": 4, "DPS": 8},

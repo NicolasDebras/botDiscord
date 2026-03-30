@@ -1,10 +1,7 @@
-import json
-import os
 import discord
+import db
 
-from datetime import datetime, timezone
-
-from config import ADMIN_ROLE_NAME, GM_ROLE_NAME, MEMBRE_ROLE_NAME, SETTINGS_FILE, DEFAULT_BAL_RATE, BAL_LOG_FILE, BAL_LOG_MAX
+from config import ADMIN_ROLE_NAME, GM_ROLE_NAME, MEMBRE_ROLE_NAME, DEFAULT_BAL_RATE
 
 
 # ── HELPER : vérification du rôle admin ──────────────────────────────────────
@@ -24,51 +21,27 @@ def is_membre(member: discord.Member) -> bool:
 
 
 # ── HELPERS : settings persistants (taux de rachat, etc.) ────────────────────
-def load_settings() -> dict:
-    if not os.path.exists(SETTINGS_FILE):
-        return {"bal_rate": DEFAULT_BAL_RATE}
-    with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
+async def load_settings() -> dict:
+    rate = await db.get_setting("bal_rate", str(DEFAULT_BAL_RATE))
+    return {"bal_rate": int(rate)}
 
 
-def save_settings(data: dict) -> None:
-    with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+async def save_settings(data: dict) -> None:
+    await db.set_setting("bal_rate", str(data.get("bal_rate", DEFAULT_BAL_RATE)))
 
 
 # ── HELPERS : log BAL ─────────────────────────────────────────────────────────
-def load_bal_log() -> list[dict]:
-    if not os.path.exists(BAL_LOG_FILE):
-        return []
-    with open(BAL_LOG_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
+async def append_bal_log(action: str, by: str, entries: list) -> None:
+    await db.append_bal_log(action, by, entries)
 
 
-def append_bal_log(action: str, by: str, entries: list[dict]) -> None:
-    """Ajoute une entrée au log BAL (max BAL_LOG_MAX entrées conservées).
-
-    entries : liste de {"uid": str, "name": str, "delta": int, "total": int}
-    """
-    log = load_bal_log()
-    log.append({
-        "ts":      datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S"),
-        "action":  action,
-        "by":      by,
-        "entries": entries,
-    })
-    if len(log) > BAL_LOG_MAX:
-        log = log[-BAL_LOG_MAX:]
-    with open(BAL_LOG_FILE, "w", encoding="utf-8") as f:
-        json.dump(log, f, ensure_ascii=False, indent=2)
+async def load_bal_log() -> list:
+    return await db.get_bal_log()
 
 
 # ── SELECT : choix d'une activité en cours ───────────────────────────────────
 class ActivitySelect(discord.ui.Select):
-    """Liste déroulante qui affiche les activités en cours.
-
-    Utilise un import tardif de `activities` pour éviter l'import circulaire
-    avec Service.activites.
-    """
+    """Liste déroulante qui affiche les activités en cours."""
 
     def __init__(self, callback_fn, placeholder: str = "🗡️ Choisis une activité..."):
         from Service.activites import activities   # import tardif

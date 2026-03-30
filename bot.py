@@ -1,8 +1,10 @@
+import os
 import discord
 from discord.ext import commands
 import asyncio
 
 from config import TOKEN
+import db
 
 # ── INTENTS ──────────────────────────────────────────────────────────────────
 intents = discord.Intents.default()
@@ -33,7 +35,13 @@ async def on_ready():
 
 # ── LANCEMENT ────────────────────────────────────────────────────────────────
 async def main():
-    print(TOKEN)
+    # Connexion PostgreSQL
+    database_url = os.environ.get("DATABASE_URL") or os.environ.get("DATABASE_PUBLIC_URL")
+    if not database_url:
+        raise RuntimeError("DATABASE_URL introuvable dans les variables d'environnement.")
+    await db.init_db(database_url)
+    print("✅ Base de données connectée.")
+
     async with bot:
         for ext in EXTENSIONS:
             try:

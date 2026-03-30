@@ -1,26 +1,16 @@
 import discord
 import json
-import os
 import re
 from discord.ext import commands
 from discord import app_commands
 
-from config import ADMIN_ROLE_NAME, GM_ROLE_NAME, TEMPLATES_FILE, ROLES, DEFAULT_BAL_RATE, DEFAULT_TEMPLATES
-from Service.activites import activities, build_embed, build_view, get_pf1, get_pf2, load_all_templates, save_activities
+import db
+from config import ADMIN_ROLE_NAME, GM_ROLE_NAME, ROLES, DEFAULT_BAL_RATE, DEFAULT_TEMPLATES
+from Service.activites import (
+    activities, build_embed, build_view, get_pf1, get_pf2,
+    load_all_templates, save_activities, refresh_templates_cache,
+)
 from Service.utils import is_admin, is_membre, ActivitySelect, load_settings, save_settings
-
-
-# ── HELPER : chargement/sauvegarde des templates JSON ────────────────────────
-def load_custom_templates() -> dict[str, dict[str, int]]:
-    if not os.path.exists(TEMPLATES_FILE):
-        return {}
-    with open(TEMPLATES_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-def save_custom_templates(templates: dict[str, dict[str, int]]) -> None:
-    with open(TEMPLATES_FILE, "w", encoding="utf-8") as f:
-        json.dump(templates, f, ensure_ascii=False, indent=2)
 
 
 # ── AUTOCOMPLÉTION : rôles disponibles ───────────────────────────────────────
@@ -78,7 +68,7 @@ class AdminSpecLevelModal(discord.ui.Modal):
                     break
 
         slots.setdefault(self.chosen_role, []).append((self.target_id, self.target_name, spec))
-        save_activities()
+        await save_activities()
 
         try:
             channel = interaction.client.get_channel(data["channel_id"])
@@ -171,7 +161,6 @@ class Admin(commands.Cog):
                 await inter.response.send_message("❌ Activité introuvable.", ephemeral=True)
                 return
 
-            # Vérif : admin OU organisateur de cette activité
             is_creator = inter.user.display_name == data["creator"]
             if not (is_admin(inter.user) or is_creator):
                 await inter.response.send_message(
@@ -203,7 +192,7 @@ class Admin(commands.Cog):
             except Exception:
                 pass
 
-            save_activities()
+            await save_activities()
             await inter.response.send_message(
                 f"✅ **{target_name}** a été retiré de l'activité.", ephemeral=True
             )
@@ -247,7 +236,6 @@ class Admin(commands.Cog):
             max_p    = data["max_players"]
             template = data.get("template")
 
-            # Vérif que le rôle existe dans cette activité
             if chosen_role not in slots:
                 roles_dispo = ", ".join(f"`{r}`" for r in slots)
                 await inter.response.send_message(
@@ -255,14 +243,12 @@ class Admin(commands.Cog):
                 )
                 return
 
-            # Vérif slot global
             total      = sum(len(v) for v in slots.values())
             already_in = any(e[0] == target_id for members in slots.values() for e in members)
             if total >= max_p and not already_in:
                 await inter.response.send_message(f"⛔ L'activité est complète ({max_p} max).", ephemeral=True)
                 return
 
-            # Vérif slot du rôle
             all_templates = load_all_templates()
             tdata    = all_templates.get(template, {}) if template else {}
             is_pf2   = chosen_role.startswith("PF2:")
@@ -275,7 +261,6 @@ class Admin(commands.Cog):
                 )
                 return
 
-            # Déjà dans ce même rôle ?
             for entry in slots.get(chosen_role, []):
                 if entry[0] == target_id:
                     await inter.response.send_message(
@@ -283,7 +268,7 @@ class Admin(commands.Cog):
                     )
                     return
 
-            # PVP avec armes → dropdown arme → modal niveau (comme l'inscription)
+            # PVP avec armes → dropdown arme → modal niveau
             type_acti = tdata.get("type_acti", "")
             if type_acti == "PVP":
                 hint_spec = (
@@ -318,7 +303,7 @@ class Admin(commands.Cog):
                 await msg.edit(embed=build_embed(data), view=build_view(msg_id))
             except Exception:
                 pass
-            save_activities()
+            await save_activities()
             await inter.response.send_message(
                 f"✅ **{target_name}** {action} en **{chosen_role}** !", ephemeral=True
             )
@@ -363,7 +348,6 @@ class Admin(commands.Cog):
         if not await self.check_admin(interaction):
             return
 
-        # Parser les rôles
         try:
             roles_dict: dict = json.loads(json_roles)
         except json.JSONDecodeError as e:
@@ -379,7 +363,6 @@ class Admin(commands.Cog):
             )
             return
 
-        # Parser les specs (optionnel)
         specs: dict[str, str] = {}
         if json_specs.strip():
             try:
@@ -400,7 +383,6 @@ class Admin(commands.Cog):
             )
             return
 
-        # Parser PF2 (optionnel)
         pf2: dict[str, int] = {}
         if json_roles_pf2.strip():
             try:
@@ -414,7 +396,6 @@ class Admin(commands.Cog):
                 )
                 return
 
-        # Parser specs PF2 (optionnel)
         specs_pf2: dict[str, str] = {}
         if json_specs_pf2.strip():
             try:
@@ -428,10 +409,11 @@ class Admin(commands.Cog):
                 )
                 return
 
-        pf1    = {k.upper(): v for k, v in roles_dict.items()}
-        custom = load_custom_templates()
-        action = "mis à jour" if nom in custom else "ajouté"
-        entry  = {
+        pf1   = {k.upper(): v for k, v in roles_dict.items()}
+        # Vérifier si déjà existant pour le message d'action
+        existing = await db.get_custom_templates()
+        action   = "mis à jour" if nom in existing else "ajouté"
+        entry = {
             "description": description,
             "type_acti":   type_acti.value,
             "image":       image,
@@ -441,8 +423,9 @@ class Admin(commands.Cog):
         if pf2:
             entry["pf_2"]        = pf2
             entry["weapon_pf2"]  = specs_pf2
-        custom[nom] = entry
-        save_custom_templates(custom)
+
+        await db.save_custom_template(nom, entry)
+        await refresh_templates_cache()
 
         tag      = "🔴 PVP" if type_acti.value == "PVP" else "🟢 PVE"
         preview  = "\n".join(
@@ -476,15 +459,14 @@ class Admin(commands.Cog):
             )
             return
 
-        custom = load_custom_templates()
+        custom = await db.get_custom_templates()
         if nom not in custom:
             await interaction.response.send_message(f"❌ Template **{nom}** introuvable.", ephemeral=True)
             return
 
-        del custom[nom]
-        save_custom_templates(custom)
+        await db.delete_custom_template(nom)
+        await refresh_templates_cache()
         await interaction.response.send_message(f"🗑️ Template **{nom}** supprimé.", ephemeral=True)
-
 
     # =========================================================================
     # /setrate  — modifier le taux de rachat guilde
@@ -502,10 +484,9 @@ class Admin(commands.Cog):
             )
             return
 
-        settings = load_settings()
+        settings = await load_settings()
         old_rate = settings.get("bal_rate", DEFAULT_BAL_RATE)
-        settings["bal_rate"] = taux
-        save_settings(settings)
+        await save_settings({"bal_rate": taux})
 
         await interaction.response.send_message(
             f"✅ Taux de rachat mis à jour : **{old_rate} %** → **{taux} %**",

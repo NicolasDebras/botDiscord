@@ -1,68 +1,37 @@
-import json
-import os
 import re
 import discord
 from discord.ext import commands
 from discord import app_commands
 from datetime import datetime
 
-from config import ROLES, DEFAULT_TEMPLATES, ACTIVITY_COLORS, DEFAULT_COLOR, TEMPLATES_FILE, ADMIN_ROLE_NAME, MEMBRE_ROLE_NAME
+import db
+from config import ROLES, DEFAULT_TEMPLATES, ACTIVITY_COLORS, DEFAULT_COLOR, ADMIN_ROLE_NAME, MEMBRE_ROLE_NAME
 from Service.utils import load_settings, append_bal_log, is_membre
 
 # ── STOCKAGE EN MÉMOIRE  {message_id: data} ──────────────────────────────────
-# Importé par d'autres cogs si besoin (ex: bal.py)
 activities: dict[int, dict] = {}
 
-ACTIVITIES_FILE = "activities.json"
+# ── CACHE TEMPLATES CUSTOM (rechargé depuis DB à chaque add/del/on_ready) ────
+_templates_cache: dict[str, dict] = {}
 
 
-def save_activities() -> None:
-    data = {}
-    for msg_id, act in activities.items():
-        data[str(msg_id)] = {
-            "creator":     act["creator"],
-            "created_at":  act["created_at"].isoformat() if isinstance(act["created_at"], datetime) else act["created_at"],
-            "template":    act["template"],
-            "max_players": act["max_players"],
-            "bal":         act["bal"],
-            "slots":       {role: [list(entry) for entry in members] for role, members in act["slots"].items()},
-            "channel_id":  act["channel_id"],
-            "waitlist":    [[uid, name] for uid, name in act.get("waitlist", [])],
-        }
-    with open(ACTIVITIES_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+async def refresh_templates_cache() -> None:
+    global _templates_cache
+    _templates_cache = await db.get_custom_templates()
 
 
-def load_activities() -> None:
-    if not os.path.exists(ACTIVITIES_FILE):
-        return
-    with open(ACTIVITIES_FILE, "r", encoding="utf-8") as f:
-        data = json.load(f)
-    for msg_id_str, act in data.items():
-        try:
-            act["created_at"] = datetime.fromisoformat(act["created_at"])
-        except Exception:
-            act["created_at"] = datetime.utcnow()
-        act["slots"] = {
-            role: [(entry[0], entry[1], entry[2] if len(entry) > 2 else "") for entry in members]
-            for role, members in act["slots"].items()
-        }
-        act.setdefault("waitlist", [])
-        act["waitlist"] = [(e[0], e[1]) for e in act["waitlist"]]
-        activities[int(msg_id_str)] = act
+# ── PERSISTANCE ───────────────────────────────────────────────────────────────
+
+async def save_activities() -> None:
+    """Upserte toutes les activités en mémoire vers la DB."""
+    for msg_id, data in activities.items():
+        await db.save_activity(msg_id, data)
 
 
-# ── HELPERS BAL LOCAUX (évite l'import circulaire avec bal.py) ────────────────
-def _load_bal() -> dict[str, int]:
-    if not os.path.exists("bal.json"):
-        return {}
-    with open("bal.json", "r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-def _save_bal(data: dict[str, int]) -> None:
-    with open("bal.json", "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+async def remove_activity(msg_id: int) -> None:
+    """Supprime une activité de la mémoire ET de la DB."""
+    activities.pop(msg_id, None)
+    await db.delete_activity(msg_id)
 
 
 # ── HELPER : tri des rôles — PF1 d'abord, PF2 ensuite, SCOOT toujours en dernier
@@ -75,27 +44,20 @@ def _sort_roles(roles: list[str]) -> list[str]:
 
 # ── HELPER : tous les templates (défaut + custom) ────────────────────────────
 def load_all_templates() -> dict[str, dict]:
-    custom = {}
-    if os.path.exists(TEMPLATES_FILE):
-        with open(TEMPLATES_FILE, "r", encoding="utf-8") as f:
-            custom = json.load(f)
-    return {**DEFAULT_TEMPLATES, **custom}
+    return {**DEFAULT_TEMPLATES, **_templates_cache}
 
 
 def get_pf1(template_data: dict) -> dict[str, int]:
-    """Retourne les rôles pf_1. Gère l'ancien format {rôle: int} pour la rétrocompatibilité."""
     if "pf_1" in template_data:
         return template_data["pf_1"]
     return {k: v for k, v in template_data.items() if isinstance(v, int)}
 
 
 def get_pf2(template_data: dict) -> dict[str, int]:
-    """Retourne les rôles pf_2 (optionnel — vide si template mono-party)."""
     return template_data.get("pf_2", {})
 
 
 def get_specs(template_data: dict) -> dict[str, str]:
-    """Retourne les armes/specs requises par rôle pour PF1 ('weapon' ou 'specs' pour rétrocompat)."""
     return template_data.get("weapon", template_data.get("specs", {}))
 
 
@@ -107,7 +69,6 @@ def build_embed(data: dict) -> discord.Embed:
     creator  = data["creator"]
     created  = data["created_at"]
 
-    # Couleur : première correspondance dans le nom du template
     color = DEFAULT_COLOR
     if template:
         for key, col in ACTIVITY_COLORS.items():
@@ -222,7 +183,7 @@ async def _register_player(
                 await interaction.response.send_message("ℹ️ Tu es déjà en liste d'attente.", ephemeral=True)
             else:
                 waitlist.append((user_id, user_name))
-                save_activities()
+                await save_activities()
                 try:
                     channel = interaction.client.get_channel(data["channel_id"])
                     msg     = await channel.fetch_message(activity_id)
@@ -255,7 +216,7 @@ async def _register_player(
                 break
 
     slots.setdefault(chosen_role, []).append((user_id, user_name, spec))
-    save_activities()
+    await save_activities()
 
     try:
         channel = interaction.client.get_channel(data["channel_id"])
@@ -273,9 +234,9 @@ async def _register_player(
 class SpecLevelModal(discord.ui.Modal):
     def __init__(self, activity_id: int, chosen_role: str, chosen_weapon: str):
         super().__init__(title=f"⚔️ {chosen_weapon}"[:45])
-        self.activity_id    = activity_id
-        self.chosen_role    = chosen_role
-        self.chosen_weapon  = chosen_weapon
+        self.activity_id   = activity_id
+        self.chosen_role   = chosen_role
+        self.chosen_weapon = chosen_weapon
 
         self.level_input = discord.ui.TextInput(
             label="Niveau de spécialisation (1 — 1000)",
@@ -373,7 +334,6 @@ class RoleSelect(discord.ui.Select):
         else:
             hint_spec = get_specs(tdata).get(chosen_role, "")
 
-        # PVP avec armes → dropdown des armes puis modal niveau
         if type_acti == "PVP" and hint_spec:
             weapons_list = [w.strip() for w in hint_spec.split("·") if w.strip()]
             if weapons_list:
@@ -385,7 +345,6 @@ class RoleSelect(discord.ui.Select):
                 )
                 return
 
-        # PVE ou pas d'armes → inscription directe sans popup
         await _register_player(interaction, self.activity_id, chosen_role, "")
 
 
@@ -410,9 +369,8 @@ class LeaveButton(discord.ui.Button):
             await interaction.response.send_message("❌ Activité introuvable.", ephemeral=True)
             return
 
-        user_id  = interaction.user.id
-        removed  = False
-        # Retrait des slots
+        user_id = interaction.user.id
+        removed = False
         for members in data["slots"].values():
             for entry in list(members):
                 if entry[0] == user_id:
@@ -422,7 +380,6 @@ class LeaveButton(discord.ui.Button):
             if removed:
                 break
 
-        # Retrait de la waitlist si pas dans les slots
         if not removed:
             waitlist = data.get("waitlist", [])
             for entry in list(waitlist):
@@ -435,7 +392,7 @@ class LeaveButton(discord.ui.Button):
             await interaction.response.send_message("ℹ️ Tu n'es pas inscrit à cette activité.", ephemeral=True)
             return
 
-        save_activities()
+        await save_activities()
         await interaction.message.edit(embed=build_embed(data), view=build_view(self.activity_id))
         await interaction.response.send_message("👋 Tu t'es retiré de l'activité.", ephemeral=True)
 
@@ -455,7 +412,6 @@ class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
         self.data        = data
         self.has_scoot   = bool(data["slots"].get("SCOOT"))
 
-        # Champ "Coût de la carte" uniquement pour les activités PVE
         template  = data.get("template")
         all_tpl   = load_all_templates()
         type_acti = all_tpl.get(template, {}).get("type_acti", "") if template else ""
@@ -482,14 +438,12 @@ class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
     async def on_submit(self, interaction: discord.Interaction):
         fmt = lambda n: f"{n:,}".replace(",", " ")
 
-        # Parse les montants
         try:
             total = int(self.recettes.value.replace(" ", "").replace(",", "").replace(".", ""))
         except ValueError:
             await interaction.response.send_message("❌ Montant recettes invalide.", ephemeral=True)
             return
 
-        # Coût de la carte (PVE uniquement, optionnel)
         carte_cost = 0
         if self.is_pve and self.cout_carte.value.strip():
             try:
@@ -507,11 +461,11 @@ class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
                 return
 
         data     = self.data
-        settings = load_settings()
+        settings = await load_settings()
         rate     = settings.get("bal_rate", 90)
 
         part_guilde   = total * rate // 100
-        distributable = part_guilde - carte_cost   # on déduit la carte avant de répartir
+        distributable = part_guilde - carte_cost
 
         scoot_members = data["slots"].get("SCOOT", [])
         nb_scoot      = len(scoot_members)
@@ -523,26 +477,22 @@ class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
         remaining     = distributable - scoot_total
         part_indiv    = remaining // nb_others if nb_others > 0 else 0
 
-        # Créditer les BAL
-        bal         = _load_bal()
+        # Créditer les BAL via DB
         log_entries = []
         for uid, name in other_members:
-            key      = str(uid)
-            bal[key] = bal.get(key, 0) + part_indiv
-            log_entries.append({"uid": key, "name": name, "delta": part_indiv, "total": bal[key]})
+            key       = str(uid)
+            new_total = await db.increment_bal(key, part_indiv)
+            log_entries.append({"uid": key, "name": name, "delta": part_indiv, "total": new_total})
         for entry in scoot_members:
             uid, name = entry[0], entry[1]
-            key      = str(uid)
-            bal[key] = bal.get(key, 0) + scoot_amount
-            log_entries.append({"uid": key, "name": name, "delta": scoot_amount, "total": bal[key]})
-        _save_bal(bal)
-        append_bal_log("finacti", interaction.user.display_name, log_entries)
+            key       = str(uid)
+            new_total = await db.increment_bal(key, scoot_amount)
+            log_entries.append({"uid": key, "name": name, "delta": scoot_amount, "total": new_total})
+        await append_bal_log("finacti", interaction.user.display_name, log_entries)
 
-        # Supprimer l'activité
-        activities.pop(self.activity_id, None)
-        save_activities()
+        # Supprimer l'activité (mémoire + DB)
+        await remove_activity(self.activity_id)
 
-        # Mettre à jour le message original : même rendu, titre préfixé
         fin_embed       = build_embed(data)
         fin_embed.title = f"🏁 FIN  ·  {fin_embed.title}"
         try:
@@ -552,7 +502,6 @@ class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
         except Exception:
             pass
 
-        # Résumé financier en éphémère
         summary = (
             f"✅ **Activité clôturée !**\n\n"
             f"💰 Recettes : **{fmt(total)} silver**\n"
@@ -567,9 +516,8 @@ class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
                 f"📊 BAL crédités — Scoot : **+{fmt(scoot_amount)}** · Reste : **+{fmt(part_indiv)}**"
             )
         else:
-            nb_total = nb_others
             summary += (
-                f"👥 Participants : **{nb_total}**\n"
+                f"👥 Participants : **{nb_others}**\n"
                 f"💵 Part individuelle : **{fmt(part_indiv)} silver**\n"
                 f"📊 BAL crédités : **+{fmt(part_indiv)} BAL / joueur**"
             )
@@ -600,17 +548,14 @@ class FinActiButton(discord.ui.Button):
             )
             return
 
-        # Activité BAL → modal pour saisir les recettes
         if data.get("bal"):
             await interaction.response.send_modal(FinActiModal(self.activity_id, data))
             return
 
-        # Activité Libre → clôture directe, sans calcul BAL
-        activities.pop(self.activity_id, None)
-        save_activities()
-
+        # Activité Libre → clôture directe
         fin_embed       = build_embed(data)
         fin_embed.title = f"🏁 FIN  ·  {fin_embed.title}"
+        await remove_activity(self.activity_id)
         try:
             channel = interaction.client.get_channel(data["channel_id"])
             msg     = await channel.fetch_message(self.activity_id)
@@ -643,8 +588,7 @@ class CancelButton(discord.ui.Button):
             await interaction.response.send_message("⛔ Seul l'organisateur ou un admin peut annuler.", ephemeral=True)
             return
 
-        del activities[self.activity_id]
-        save_activities()
+        await remove_activity(self.activity_id)
         embed = discord.Embed(
             title="🚫 Activité annulée",
             description=f"L'activité a été annulée par {interaction.user.display_name}.",
@@ -680,24 +624,22 @@ class WaitlistButton(discord.ui.Button):
         slots     = data["slots"]
         waitlist  = data.setdefault("waitlist", [])
 
-        # Si déjà dans les slots → pas besoin de la waitlist
         if any(entry[0] == user_id for members in slots.values() for entry in members):
             await interaction.response.send_message(
                 "ℹ️ Tu es déjà inscrit à l'activité.", ephemeral=True
             )
             return
 
-        # Toggle : rejoindre ou quitter la waitlist
         for entry in list(waitlist):
             if entry[0] == user_id:
                 waitlist.remove(entry)
-                save_activities()
+                await save_activities()
                 await interaction.message.edit(embed=build_embed(data), view=build_view(self.activity_id))
                 await interaction.response.send_message("👋 Tu t'es retiré de la liste d'attente.", ephemeral=True)
                 return
 
         waitlist.append((user_id, user_name))
-        save_activities()
+        await save_activities()
         await interaction.message.edit(embed=build_embed(data), view=build_view(self.activity_id))
         pos = len(waitlist)
         await interaction.response.send_message(
@@ -750,7 +692,15 @@ class Activites(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
-        load_activities()
+        # Charger le cache des templates custom depuis la DB
+        await refresh_templates_cache()
+
+        # Charger toutes les activités depuis la DB
+        loaded = await db.load_activities()
+        activities.update(loaded)
+
+        # Vérifier que les messages Discord existent encore
+        to_delete = []
         for msg_id in list(activities.keys()):
             data = activities[msg_id]
             try:
@@ -758,16 +708,22 @@ class Activites(commands.Cog):
                 if channel:
                     msg = await channel.fetch_message(msg_id)
                     await msg.edit(view=build_view(msg_id))
+                else:
+                    to_delete.append(msg_id)
             except Exception:
-                activities.pop(msg_id, None)
-        save_activities()
-        print(f"   {len(activities)} activité(s) rechargée(s) depuis le fichier.")
+                to_delete.append(msg_id)
+
+        for msg_id in to_delete:
+            activities.pop(msg_id, None)
+            await db.delete_activity(msg_id)
+
+        print(f"   {len(activities)} activité(s) rechargée(s) depuis la DB.")
 
     # ── /acti ────────────────────────────────────────────────────────────────
     @app_commands.command(name="acti", description="Créer une activité de guilde Albion Online")
     @app_commands.describe(
         nametemplate = "Template de composition",
-        nbplayer     = "Nombre de joueurs max (1-50) — calculé automatiquement depuis le template",
+        nbplayer     = "Nombre de joueurs max (1-100) — calculé automatiquement depuis le template",
         bal          = "Paiement BAL ? (true = BAL, false = Libre)",
     )
     @app_commands.autocomplete(nametemplate=template_autocomplete)
@@ -785,7 +741,6 @@ class Activites(commands.Cog):
             return
         all_templates = load_all_templates()
 
-        # Résolution du template (insensible à la casse)
         template_name = None
         for key in all_templates:
             if key.lower() == nametemplate.lower():
@@ -819,7 +774,7 @@ class Activites(commands.Cog):
         await interaction.response.send_message(embed=build_embed(data))
         message = await interaction.original_response()
         activities[message.id] = data
-        save_activities()
+        await save_activities()
         await message.edit(view=build_view(message.id))
 
     # ── /templates ───────────────────────────────────────────────────────────

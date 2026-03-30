@@ -1,15 +1,18 @@
 # LiliumBot
 
-Bot Discord pour la gestion des activités et du système BAL de la guilde **Lilium** sur Albion Online.
+Bot Discord pour la gestion des activités et du système BAL de la guilde.
 
 ---
 
 ## Fonctionnalités
 
-- Création d'activités de guilde avec inscription par rôle
-- Gestion des templates de compositions
-- Système BAL (paiement et classement)
-- Commandes d'administration (kick, ajout forcé, templates custom)
+- Création d'activités de guilde avec inscription par rôle (PF1 + PF2)
+- Sélection d'arme et niveau de spécialisation pour les activités PVP
+- Liste d'attente automatique pour certains templates (ex : RAID AVA)
+- Gestion des templates de compositions (défaut + custom)
+- Système BAL : paiement, classement, historique des transactions
+- Commandes d'administration (kick, ajout forcé, templates custom, taux de rachat)
+- Persistance **PostgreSQL** via Railway
 
 ---
 
@@ -17,23 +20,27 @@ Bot Discord pour la gestion des activités et du système BAL de la guilde **Lil
 
 ### Prérequis
 
-- Python 3.10+
+- Python 3.11+
 - Une application Discord avec un bot et son token ([discord.com/developers](https://discord.com/developers/applications))
+- Une base PostgreSQL (Railway, Supabase, ou locale)
 
 ### Dépendances
 
 ```bash
-pip install discord.py
+pip install -r requirements.txt
 ```
 
-### Configuration
+### Variables d'environnement
 
-Dans `config.py`, renseigne :
+Créer un fichier `.env` à la racine :
 
-| Variable | Description |
-|---|---|
-| `TOKEN` | Token de ton bot Discord |
-| `ADMIN_ROLE_NAME` | Nom exact du rôle autorisé à utiliser les commandes admin |
+```env
+DISCORD_TOKEN=ton_token_discord
+DISCORD_GUILD_ID=ton_guild_id
+DATABASE_URL=postgresql://user:password@host:5432/dbname
+```
+
+> Sur **Railway**, `DATABASE_URL` est injecté automatiquement par le plugin PostgreSQL. Pas besoin de le définir manuellement.
 
 ### Lancement
 
@@ -41,27 +48,32 @@ Dans `config.py`, renseigne :
 python bot.py
 ```
 
+Les tables SQL sont créées automatiquement au premier démarrage.
+
 ---
 
 ## Commandes
 
 ### Activités
 
-| Commande | Description |
-|---|---|
-| `/acti` | Créer une activité de guilde |
-| `/templates` | Afficher les templates de compositions disponibles |
+| Commande | Accès | Description |
+|---|---|---|
+| `/acti` | Membre | Créer une activité de guilde |
+| `/templates` | Membre | Afficher les templates disponibles |
 
 **Paramètres de `/acti` :**
-- `type_acti` — Type d'activité (ZvZ, HCE, Ganking…)
-- `nametemplate` — Template de composition à utiliser
-- `nbplayer` — Nombre de joueurs max (calculé automatiquement si un template est choisi)
+- `nametemplate` — Template de composition (autocomplétion)
+- `nbplayer` — Nombre de joueurs max (calculé depuis le template si omis)
 - `bal` — Paiement BAL ? (`true` = BAL, `false` = Libre)
 
-Une fois l'activité créée, les joueurs peuvent :
-- Choisir leur rôle via le menu déroulant
-- Se retirer avec le bouton ❌
-- L'organisateur ou un admin peut annuler avec le bouton 🔴
+Une fois l'activité créée :
+- Les joueurs choisissent leur rôle via le menu déroulant
+- **PVP** : sélection de l'arme puis saisie du niveau de spécialisation (1-1000)
+- **PVE** : inscription directe
+- Bouton ❌ pour se retirer (slots ou liste d'attente)
+- Bouton ⏳ Liste d'attente (sur les templates avec `has_waitlist`)
+- Bouton 🏁 Fin d'activité (organisateur ou Officier) → calcul et crédit BAL automatique
+- Bouton 🔴 Annuler le raid (organisateur ou admin)
 
 ---
 
@@ -69,33 +81,31 @@ Une fois l'activité créée, les joueurs peuvent :
 
 | Commande | Accès | Description |
 |---|---|---|
-| `/monbal` | Tous | Voir son propre solde BAL |
-| `/classement` | Tous | Voir le classement BAL du serveur (top 20) |
-| `/addbal @joueur montant` | Admin | Ajouter des BAL à un joueur |
-| `/retirebal @joueur montant` | Admin | Retirer des BAL à un joueur |
-| `/paybal montant` | Admin | Distribuer des BAL à tous les participants d'une activité |
+| `/monbal` | Membre | Voir son propre solde BAL |
+| `/classement` | Membre | Voir le classement BAL du serveur (top 20) |
+| `/addbal @joueur montant` | Officier | Ajouter des BAL à un joueur |
+| `/retirebal @joueur montant` | Officier | Retirer des BAL à un joueur |
+| `/paybal montant` | Officier | Distribuer des BAL à tous les participants d'une activité |
+| `/ballog` | Officier | Historique des 100 dernières transactions BAL (paginé) |
 
 > `/paybal` ne fonctionne que sur les activités créées avec `bal: true`.
-
-Les données BAL sont sauvegardées dans `bal.json` à la racine du projet.
 
 ---
 
 ### Administration
 
-| Commande | Description |
-|---|---|
-| `/kickacti @joueur` | Retirer un joueur d'une activité en cours |
-| `/addacti @joueur role` | Ajouter ou déplacer un joueur dans une activité |
-| `/addtemplate nom json` | Ajouter un template custom (format JSON) |
-| `/deltemplate nom` | Supprimer un template custom |
+| Commande | Accès | Description |
+|---|---|---|
+| `/kickacti @joueur` | Organisateur ou Officier | Retirer un joueur d'une activité |
+| `/addacti @joueur role` | Officier | Ajouter ou déplacer un joueur dans une activité |
+| `/addtemplate` | Officier | Ajouter un template custom (format JSON) |
+| `/deltemplate nom` | Officier | Supprimer un template custom |
+| `/setrate taux` | Maitre de guilde | Modifier le taux de rachat guilde (%) |
 
 **Exemple `/addtemplate` :**
 ```
-/addtemplate nom:ZvZ Lilium json_roles:{"TANK": 5, "HEAL": 5, "DPS": 10, "CALLER": 1}
+/addtemplate nom:ZvZ Custom type_acti:PVP json_roles:{"TANK": 3, "HEAL": 4, "DPS": 8, "SUPPORT": 5}
 ```
-
-Les templates custom sont sauvegardés dans `templates.json`. Les templates par défaut (définis dans `config.py`) ne peuvent pas être modifiés ou supprimés via les commandes.
 
 ---
 
@@ -103,16 +113,29 @@ Les templates custom sont sauvegardés dans `templates.json`. Les templates par 
 
 ```
 LiliumBot/
-├── bot.py              # Point d'entrée, chargement des cogs
-├── config.py           # Token, rôles, templates, couleurs
-├── bal.json            # Données BAL (généré automatiquement)
-├── templates.json      # Templates custom (généré automatiquement)
+├── bot.py              # Point d'entrée, init DB, chargement des cogs
+├── config.py           # Token, rôles, templates par défaut, couleurs
+├── db.py               # Couche d'accès PostgreSQL (asyncpg)
+├── requirements.txt
 └── Service/
     ├── activites.py    # Commandes /acti et /templates, UI des activités
     ├── admin.py        # Commandes d'administration
     ├── bal.py          # Commandes BAL
-    └── utils.py        # Helpers partagés (is_admin, ActivitySelect)
+    ├── massup.py       # Commande /massup (ping participants)
+    └── utils.py        # Helpers partagés (is_admin, ActivitySelect, settings)
 ```
+
+---
+
+## Templates par défaut
+
+| Template | Type | Composition |
+|---|---|---|
+| RAID AVA | PVE | TANK, OFF TANK, FROST, DAMME, SCOOT, MAIN HEAL, IRON ROOT, DPS ×3, COBRA/GA — liste d'attente activée |
+| G3 | PVP | PF1 : TANK ×3, SUPPORT ×5, HEAL ×4, DPS ×8 · PF2 : TANK ×1, SUPPORT ×7, HEAL ×4, DPS ×8 |
+| STATIK | PVE | TANK ×2, HEAL ×2, SUPPORT ×1, DPS ×5 |
+
+Les templates par défaut sont définis dans `config.py` et ne peuvent pas être modifiés via les commandes. Les templates custom sont stockés en base de données.
 
 ---
 
@@ -131,15 +154,14 @@ LiliumBot/
 | CALLER | 📢 |
 | SCOOT | 🏃 |
 | FROST | ❄️ |
+| COBRA/GA | 🏹 |
 
 ---
 
-## Templates par défaut
+## Déploiement Railway
 
-| Template | Composition |
-|---|---|
-| ZvZ Standard | TANK ×5, HEAL ×5, DPS ×10, SUPPORT ×5, CALLER ×1 |
-| Small Scale | TANK ×2, HEAL ×2, DPS ×6 |
-| HCE 5-man | TANK ×1, HEAL ×1, DPS ×3 |
-| Ganking Party | TANK ×1, DPS ×4 |
-| RAID AVA | TANK, OFF TANK, DPS ×3, FROST, DAMME, SCOOT, MAIN HEAL, IRON ROOT |
+1. Push le repo sur GitHub
+2. Créer un projet Railway depuis le repo
+3. Ajouter le plugin **PostgreSQL** → les variables `DATABASE_URL` et `PGXXX` sont injectées automatiquement
+4. Ajouter les variables d'environnement `DISCORD_TOKEN` et `DISCORD_GUILD_ID`
+5. Railway build et démarre le bot — les tables sont créées au premier démarrage
