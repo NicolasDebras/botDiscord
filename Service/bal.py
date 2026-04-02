@@ -88,10 +88,17 @@ class Bal(commands.Cog):
             )
             return
         solde = await db.get_bal(str(interaction.user.id))
-        await interaction.response.send_message(
-            f"💰 Ton solde BAL : **{solde:,}**".replace(",", " "),
-            ephemeral=True,
-        )
+        name  = interaction.user.display_name.lower()
+        solde_fmt = f"{solde:,}".replace(",", " ")
+
+        easter_eggs = {
+            "lilium122": f"👑 Ah, le chef en personne… Ton solde BAL : **{solde_fmt}**. On espère que c'est à la hauteur de ton ego.",
+            "naej":      f"🏹 Tiens, le sniper de service. Ton solde BAL : **{solde_fmt}**. Essaie de ne pas tout dépenser en flèches.",
+            "arcwolf":   f"🐺 Le loup rôde… Ton solde BAL : **{solde_fmt}**. Toujours à l'affût du bon coup.",
+        }
+
+        msg = next((v for k, v in easter_eggs.items() if k in name), f"💰 Ton solde BAL : **{solde_fmt}**")
+        await interaction.response.send_message(msg, ephemeral=True)
 
     # =========================================================================
     # /baljoueur  — voir le solde BAL d'un joueur spécifique

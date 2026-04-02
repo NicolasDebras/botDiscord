@@ -106,9 +106,17 @@ Une fois l'activité créée :
 | `/setimage nom url` | Officier | Modifier l'image d'un template (laisser url vide pour retirer) |
 | `/setrate taux` | Maitre de guilde | Modifier le taux de rachat guilde (%) |
 
-**Exemple `/addtemplate` :**
+**Exemple `/addtemplate` — ZvZ PF1+PF2 avec specs :**
 ```
-/addtemplate nom:ZvZ Custom type_acti:PVP json_roles:{"TANK": 3, "HEAL": 4, "DPS": 8, "SUPPORT": 5}
+/addtemplate
+  nom: ZvZ Lilium
+  type_acti: PVP
+  description: Compo ZvZ 20v20 double party
+  json_roles: {"TANK": 2, "SUPPORT": 4, "HEAL": 3, "DPS": 6}
+  json_roles_pf2: {"TANK": 1, "SUPPORT": 5, "HEAL": 3, "DPS": 6}
+  json_specs: {"TANK": "1H Masse controle · Tank flex", "SUPPORT": "Serpent · Locus · Incube", "HEAL": "Sancti · Naturel druide", "DPS": "Pointes · BR · Brassards · Arc Long"}
+  json_specs_pf2: {"TANK": "Second repack (golem)", "SUPPORT": "Bec de Corbin · GA · Locus", "HEAL": "Exalté · Sancti", "DPS": "Spirit · Perma · BR · DPS clap range"}
+  image: https://exemple.com/image.png
 ```
 
 ---
