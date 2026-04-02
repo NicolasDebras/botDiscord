@@ -86,6 +86,7 @@ Une fois l'activité créée :
 | `/addbal @joueur montant` | Officier | Ajouter des BAL à un joueur |
 | `/retirebal @joueur montant` | Officier | Retirer des BAL à un joueur |
 | `/paybal montant` | Officier | Distribuer des BAL à tous les participants d'une activité |
+| `/baljoueur @joueur` | Officier | Voir le solde BAL d'un joueur spécifique |
 | `/ballog` | Officier | Historique des 100 dernières transactions BAL (paginé) |
 
 > `/paybal` ne fonctionne que sur les activités créées avec `bal: true`.
