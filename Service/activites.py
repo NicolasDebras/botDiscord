@@ -14,10 +14,18 @@ activities: dict[int, dict] = {}
 # ── CACHE TEMPLATES CUSTOM (rechargé depuis DB à chaque add/del/on_ready) ────
 _templates_cache: dict[str, dict] = {}
 
+# ── CACHE IMAGE OVERRIDES (clé settings : img:{template_name}) ───────────────
+_image_overrides: dict[str, str] = {}
+
 
 async def refresh_templates_cache() -> None:
     global _templates_cache
     _templates_cache = await db.get_custom_templates()
+
+
+async def refresh_image_overrides() -> None:
+    global _image_overrides
+    _image_overrides = await db.get_image_overrides()
 
 
 # ── PERSISTANCE ───────────────────────────────────────────────────────────────
@@ -79,7 +87,7 @@ def build_embed(data: dict) -> discord.Embed:
     all_templates = load_all_templates()
     tdata         = all_templates.get(template, {})
     description   = tdata.get("description", "")
-    image_url     = tdata.get("image", "")
+    image_url     = _image_overrides.get(template, tdata.get("image", ""))
 
     embed = discord.Embed(
         title=f"🗡️  {template or 'Activité'}",
@@ -692,8 +700,9 @@ class Activites(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
-        # Charger le cache des templates custom depuis la DB
+        # Charger les caches depuis la DB
         await refresh_templates_cache()
+        await refresh_image_overrides()
 
         # Charger toutes les activités depuis la DB
         loaded = await db.load_activities()
@@ -732,7 +741,7 @@ class Activites(commands.Cog):
         interaction:  discord.Interaction,
         nametemplate: str,
         nbplayer:     app_commands.Range[int, 1, 100] | None = None,
-        bal:          bool = False,
+        bal:          bool = True,
     ):
         if not is_membre(interaction.user):
             await interaction.response.send_message(

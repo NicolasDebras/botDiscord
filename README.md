@@ -64,7 +64,7 @@ Les tables SQL sont créées automatiquement au premier démarrage.
 **Paramètres de `/acti` :**
 - `nametemplate` — Template de composition (autocomplétion)
 - `nbplayer` — Nombre de joueurs max (calculé depuis le template si omis)
-- `bal` — Paiement BAL ? (`true` = BAL, `false` = Libre)
+- `bal` — Paiement BAL ? (`true` = BAL, `false` = Libre) — **défaut : true**
 
 Une fois l'activité créée :
 - Les joueurs choisissent leur rôle via le menu déroulant
@@ -97,10 +97,11 @@ Une fois l'activité créée :
 
 | Commande | Accès | Description |
 |---|---|---|
-| `/kickacti @joueur` | Organisateur ou Officier | Retirer un joueur d'une activité |
-| `/addacti @joueur role` | Officier | Ajouter ou déplacer un joueur dans une activité |
+| `/kickacti @joueur` | Organisateur, Officier ou Caller | Retirer un joueur d'une activité |
+| `/addacti @joueur role` | Officier ou Caller | Ajouter ou déplacer un joueur dans une activité |
 | `/addtemplate` | Officier | Ajouter un template custom (format JSON) |
 | `/deltemplate nom` | Officier | Supprimer un template custom |
+| `/setimage nom url` | Officier | Modifier l'image d'un template (laisser url vide pour retirer) |
 | `/setrate taux` | Maitre de guilde | Modifier le taux de rachat guilde (%) |
 
 **Exemple `/addtemplate` :**

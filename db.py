@@ -220,6 +220,17 @@ async def delete_custom_template(name: str) -> None:
 
 # ── SETTINGS ──────────────────────────────────────────────────────────────────
 
+async def get_image_overrides() -> dict:
+    """Retourne toutes les overrides d'image {template_name: url}."""
+    async with _pool.acquire() as conn:
+        rows = await conn.fetch("SELECT key, value FROM settings WHERE key LIKE 'img:%'")
+    return {row["key"][4:]: row["value"] for row in rows}
+
+
+async def set_image_override(template_name: str, url: str) -> None:
+    await set_setting(f"img:{template_name}", url)
+
+
 async def get_setting(key: str, default: str = "") -> str:
     async with _pool.acquire() as conn:
         row = await conn.fetchrow("SELECT value FROM settings WHERE key = $1", key)

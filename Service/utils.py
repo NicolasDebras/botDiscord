@@ -1,7 +1,7 @@
 import discord
 import db
 
-from config import ADMIN_ROLE_NAME, GM_ROLE_NAME, MEMBRE_ROLE_NAME, DEFAULT_BAL_RATE
+from config import ADMIN_ROLE_NAME, GM_ROLE_NAME, MEMBRE_ROLE_NAME, CALLER_ROLE_NAME, DEFAULT_BAL_RATE
 
 
 # ── HELPER : vérification du rôle admin ──────────────────────────────────────
@@ -17,6 +17,14 @@ def is_membre(member: discord.Member) -> bool:
     return (
         member.guild_permissions.administrator
         or any(r.name in (ADMIN_ROLE_NAME, GM_ROLE_NAME, MEMBRE_ROLE_NAME) for r in member.roles)
+    )
+
+
+# ── HELPER : vérification du rôle Caller ou admin ────────────────────────────
+def is_caller_or_admin(member: discord.Member) -> bool:
+    return (
+        member.guild_permissions.administrator
+        or any(r.name in (ADMIN_ROLE_NAME, GM_ROLE_NAME, CALLER_ROLE_NAME) for r in member.roles)
     )
 
 

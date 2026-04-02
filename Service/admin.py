@@ -8,9 +8,9 @@ import db
 from config import ADMIN_ROLE_NAME, GM_ROLE_NAME, ROLES, DEFAULT_BAL_RATE, DEFAULT_TEMPLATES
 from Service.activites import (
     activities, build_embed, build_view, get_pf1, get_pf2,
-    load_all_templates, save_activities, refresh_templates_cache,
+    load_all_templates, save_activities, refresh_templates_cache, refresh_image_overrides,
 )
-from Service.utils import is_admin, is_membre, ActivitySelect, load_settings, save_settings
+from Service.utils import is_admin, is_membre, is_caller_or_admin, ActivitySelect, load_settings, save_settings
 
 
 # ── AUTOCOMPLÉTION : rôles disponibles ───────────────────────────────────────
@@ -131,15 +131,24 @@ class Admin(commands.Cog):
             return False
         return True
 
+    async def check_caller_or_admin(self, interaction: discord.Interaction) -> bool:
+        if not is_caller_or_admin(interaction.user):
+            await interaction.response.send_message(
+                "⛔ Tu dois avoir le rôle **Officier** ou **Caller** pour utiliser cette commande.",
+                ephemeral=True,
+            )
+            return False
+        return True
+
     # =========================================================================
     # /kickacti  — virer un joueur d'une activité
     # =========================================================================
     @app_commands.command(name="kickacti", description="Retirer un joueur d'une activité (organisateur ou Officier)")
     @app_commands.describe(joueur="Le joueur à retirer de l'activité")
     async def kickacti(self, interaction: discord.Interaction, joueur: discord.Member):
-        if not is_membre(interaction.user):
+        if not is_caller_or_admin(interaction.user):
             await interaction.response.send_message(
-                "⛔ Tu n'as pas accès à cette commande.", ephemeral=True
+                "⛔ Tu dois avoir le rôle **Officier** ou **Caller** pour utiliser cette commande.", ephemeral=True
             )
             return
 
@@ -162,9 +171,9 @@ class Admin(commands.Cog):
                 return
 
             is_creator = inter.user.display_name == data["creator"]
-            if not (is_admin(inter.user) or is_creator):
+            if not (is_caller_or_admin(inter.user) or is_creator):
                 await inter.response.send_message(
-                    f"⛔ Seul l'organisateur (**{data['creator']}**) ou un **{ADMIN_ROLE_NAME}** peut retirer un joueur.",
+                    f"⛔ Seul l'organisateur (**{data['creator']}**), un **Officier** ou un **Caller** peut retirer un joueur.",
                     ephemeral=True,
                 )
                 return
@@ -210,7 +219,7 @@ class Admin(commands.Cog):
     @app_commands.describe(joueur="Le joueur à ajouter", role="Le rôle à lui attribuer")
     @app_commands.autocomplete(role=role_autocomplete)
     async def addacti(self, interaction: discord.Interaction, joueur: discord.Member, role: str):
-        if not await self.check_admin(interaction):
+        if not await self.check_caller_or_admin(interaction):
             return
 
         if not activities:
@@ -467,6 +476,35 @@ class Admin(commands.Cog):
         await db.delete_custom_template(nom)
         await refresh_templates_cache()
         await interaction.response.send_message(f"🗑️ Template **{nom}** supprimé.", ephemeral=True)
+
+    # =========================================================================
+    # /setimage  — modifier l'image d'un template
+    # =========================================================================
+    @app_commands.command(name="setimage", description="[OFFICIER] Modifier l'image d'un template")
+    @app_commands.describe(nom="Nom du template", url="URL de la nouvelle image (laisser vide pour retirer)")
+    async def setimage(self, interaction: discord.Interaction, nom: str, url: str = ""):
+        if not await self.check_admin(interaction):
+            return
+
+        all_templates = load_all_templates()
+        if nom not in all_templates:
+            templates_list = ", ".join(f"`{k}`" for k in all_templates)
+            await interaction.response.send_message(
+                f"❌ Template **{nom}** introuvable.\nTemplates disponibles : {templates_list}", ephemeral=True
+            )
+            return
+
+        await db.set_image_override(nom, url)
+        await refresh_image_overrides()
+
+        if url:
+            await interaction.response.send_message(
+                f"✅ Image du template **{nom}** mise à jour.", ephemeral=True
+            )
+        else:
+            await interaction.response.send_message(
+                f"✅ Image du template **{nom}** retirée (image par défaut restaurée).", ephemeral=True
+            )
 
     # =========================================================================
     # /setrate  — modifier le taux de rachat guilde
