@@ -815,12 +815,31 @@ class Activites(commands.Cog):
         embed = discord.Embed(title="📋 Templates de compositions", color=0x3498DB)
         for name, tdata in all_templates.items():
             pf1         = get_pf1(tdata)
+            pf2         = get_pf2(tdata)
+            specs       = get_specs(tdata)
+            specs_pf2   = tdata.get("weapon_pf2", tdata.get("specs_pf2", {}))
             type_acti   = tdata.get("type_acti", "—")
             description = tdata.get("description", "")
             tag         = "🔴 PVP" if type_acti == "PVP" else "🟢 PVE" if type_acti == "PVE" else type_acti
-            roles_str   = "  ".join(f"{ROLES.get(r, '🔹')} **{r}** ×{n}" for r, n in pf1.items())
-            value       = f"{tag}  ·  {description}\n{roles_str}" if description else f"{tag}\n{roles_str}"
-            embed.add_field(name=name, value=value, inline=False)
+            total       = sum(pf1.values()) + sum(pf2.values())
+
+            lines = []
+            # PF1
+            for role, n in pf1.items():
+                emoji    = ROLES.get(role, "🔹")
+                spec_str = f"  `{specs[role]}`" if role in specs else ""
+                lines.append(f"{emoji} **{role}** ×{n}{spec_str}")
+            # PF2
+            if pf2:
+                lines.append("🔶 **PF2**")
+                for role, n in pf2.items():
+                    emoji    = ROLES.get(role, "🔹")
+                    spec_str = f"  `{specs_pf2[role]}`" if role in specs_pf2 else ""
+                    lines.append(f"{emoji} **{role}** ×{n}{spec_str}")
+
+            header = f"{tag}  ·  {total} joueurs  ·  {description}" if description else f"{tag}  ·  {total} joueurs"
+            value  = f"*{header}*\n" + "\n".join(lines)
+            embed.add_field(name=name, value=value[:1024], inline=False)
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
