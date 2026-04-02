@@ -62,9 +62,11 @@ Les tables SQL sont créées automatiquement au premier démarrage.
 | `/templates` | Membre | Afficher les templates disponibles |
 
 **Paramètres de `/acti` :**
-- `nametemplate` — Template de composition (autocomplétion)
-- `nbplayer` — Nombre de joueurs max (calculé depuis le template si omis)
+- `nametemplate` — Template de composition (optionnel — sans template : activité PVP libre avec tous les rôles)
+- `nbplayer` — Nombre de joueurs max (obligatoire si pas de template, sinon calculé automatiquement)
 - `bal` — Paiement BAL ? (`true` = BAL, `false` = Libre) — **défaut : true**
+
+> Sans template, une activité PVP est créée avec tous les rôles disponibles. `nbplayer` est alors obligatoire.
 
 Une fois l'activité créée :
 - Les joueurs choisissent leur rôle via le menu déroulant

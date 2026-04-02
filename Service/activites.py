@@ -427,13 +427,20 @@ class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
 
         if self.is_pve:
             self.cout_carte = discord.ui.TextInput(
-                label="Coût de la carte (silver)",
+                label="Coût de la carte (silver)  + Prix des Réparation",
                 placeholder="Laisser vide si pas de carte",
                 required=False,
                 max_length=20,
             )
             self.add_item(self.cout_carte)
-
+        else:
+            self.cout_carte = discord.ui.TextInput(
+                label="Prix des Réparations",
+                placeholder="Laisser vide si pas de réparation",
+                required=False,
+                max_length=20,
+            )
+            self.add_item(self.cout_carte)
         if self.has_scoot:
             self.scoot_pay = discord.ui.TextInput(
                 label="Paiement Scoot (silver/joueur)",
@@ -453,11 +460,12 @@ class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
             return
 
         carte_cost = 0
-        if self.is_pve and self.cout_carte.value.strip():
+        if self.cout_carte.value.strip():
             try:
                 carte_cost = int(self.cout_carte.value.replace(" ", "").replace(",", "").replace(".", ""))
             except ValueError:
-                await interaction.response.send_message("❌ Coût de la carte invalide.", ephemeral=True)
+                label_err = "Coût de la carte" if self.is_pve else "Prix des réparations"
+                await interaction.response.send_message(f"❌ {label_err} invalide.", ephemeral=True)
                 return
 
         scoot_amount = 0
@@ -516,7 +524,8 @@ class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
             f"🏦 Part guilde ({rate} %) : **{fmt(part_guilde)} silver**\n"
         )
         if carte_cost:
-            summary += f"🗺️ Coût de la carte : **-{fmt(carte_cost)} silver** → distributable : **{fmt(distributable)} silver**\n"
+            label_cout = "Coût de la carte + réparations" if self.is_pve else "Prix des réparations"
+            summary += f"🗺️ {label_cout} : **-{fmt(carte_cost)} silver** → distributable : **{fmt(distributable)} silver**\n"
         if self.has_scoot:
             summary += (
                 f"🏃 Scoot ({nb_scoot} joueur(s)) : **{fmt(scoot_amount)} silver/joueur**\n"
@@ -731,15 +740,15 @@ class Activites(commands.Cog):
     # ── /acti ────────────────────────────────────────────────────────────────
     @app_commands.command(name="acti", description="Créer une activité de guilde Albion Online")
     @app_commands.describe(
-        nametemplate = "Template de composition",
-        nbplayer     = "Nombre de joueurs max (1-100) — calculé automatiquement depuis le template",
+        nametemplate = "Template de composition (optionnel — sans template : activité PVP libre)",
+        nbplayer     = "Nombre de joueurs max (obligatoire sans template, sinon calculé automatiquement)",
         bal          = "Paiement BAL ? (true = BAL, false = Libre)",
     )
     @app_commands.autocomplete(nametemplate=template_autocomplete)
     async def acti(
         self,
         interaction:  discord.Interaction,
-        nametemplate: str,
+        nametemplate: str | None = None,
         nbplayer:     app_commands.Range[int, 1, 100] | None = None,
         bal:          bool = True,
     ):
@@ -748,26 +757,36 @@ class Activites(commands.Cog):
                 f"⛔ Tu dois avoir le rôle **{MEMBRE_ROLE_NAME}** pour créer une activité.", ephemeral=True
             )
             return
-        all_templates = load_all_templates()
 
-        template_name = None
-        for key in all_templates:
-            if key.lower() == nametemplate.lower():
-                template_name = key
-                break
+        # ── Sans template : activité PVP libre avec tous les rôles ─────────
+        if not nametemplate:
+            if not nbplayer:
+                await interaction.response.send_message(
+                    "❌ Sans template, le paramètre **nbplayer** est obligatoire.", ephemeral=True
+                )
+                return
+            slots         = {role: [] for role in ROLES}
+            template_name = None
+        else:
+            all_templates = load_all_templates()
+            template_name = None
+            for key in all_templates:
+                if key.lower() == nametemplate.lower():
+                    template_name = key
+                    break
 
-        if template_name is None:
-            templates_list = "\n".join(f"• `{k}`" for k in all_templates)
-            await interaction.response.send_message(
-                f"❌ Template inconnu. Templates disponibles :\n{templates_list}", ephemeral=True
-            )
-            return
+            if template_name is None:
+                templates_list = "\n".join(f"• `{k}`" for k in all_templates)
+                await interaction.response.send_message(
+                    f"❌ Template inconnu. Templates disponibles :\n{templates_list}", ephemeral=True
+                )
+                return
 
-        pf1   = get_pf1(all_templates[template_name])
-        pf2   = get_pf2(all_templates[template_name])
-        slots = {role: [] for role in pf1}
-        slots.update({f"PF2:{role}": [] for role in pf2})
-        nbplayer = nbplayer or (sum(pf1.values()) + sum(pf2.values()))
+            pf1   = get_pf1(all_templates[template_name])
+            pf2   = get_pf2(all_templates[template_name])
+            slots = {role: [] for role in pf1}
+            slots.update({f"PF2:{role}": [] for role in pf2})
+            nbplayer = nbplayer or (sum(pf1.values()) + sum(pf2.values()))
 
         data = {
             "creator":     interaction.user.display_name,
