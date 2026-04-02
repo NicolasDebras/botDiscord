@@ -94,6 +94,20 @@ class Bal(commands.Cog):
         )
 
     # =========================================================================
+    # /baljoueur  — voir le solde BAL d'un joueur spécifique
+    # =========================================================================
+    @app_commands.command(name="baljoueur", description="[ADMIN] Voir le solde BAL d'un joueur")
+    @app_commands.describe(joueur="Le joueur dont tu veux voir le solde")
+    async def baljoueur(self, interaction: discord.Interaction, joueur: discord.Member):
+        if not await self.check_admin(interaction):
+            return
+        solde = await db.get_bal(str(joueur.id))
+        await interaction.response.send_message(
+            f"💰 Solde BAL de **{joueur.display_name}** : **{solde:,}**".replace(",", " "),
+            ephemeral=True,
+        )
+
+    # =========================================================================
     # /classement  — classement BAL du serveur
     # =========================================================================
     @app_commands.command(name="classement", description="Voir le classement BAL du serveur")
