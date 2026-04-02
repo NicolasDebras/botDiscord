@@ -717,10 +717,12 @@ class Activites(commands.Cog):
         loaded = await db.load_activities()
         activities.update(loaded)
 
-        # Vérifier que les messages Discord existent encore
+        # Enregistrer les vues persistantes + vérifier que les messages existent
         to_delete = []
         for msg_id in list(activities.keys()):
             data = activities[msg_id]
+            # Enregistrer la vue pour que les boutons/selects fonctionnent sans re-edit
+            self.bot.add_view(build_view(msg_id))
             try:
                 channel = self.bot.get_channel(data["channel_id"])
                 if channel:
@@ -740,8 +742,8 @@ class Activites(commands.Cog):
     # ── /acti ────────────────────────────────────────────────────────────────
     @app_commands.command(name="acti", description="Créer une activité de guilde Albion Online")
     @app_commands.describe(
-        nametemplate = "Template de composition (optionnel — sans template : activité PVP libre)",
-        nbplayer     = "Nombre de joueurs max (obligatoire sans template, sinon calculé automatiquement)",
+        nametemplate = "Template de composition (optionnel — sans template : activité PVP libre DPS/HEAL/SUPPORT)",
+        nbplayer     = "Nombre de joueurs max (calculé automatiquement depuis le template si renseigné)",
         bal          = "Paiement BAL ? (true = BAL, false = Libre)",
     )
     @app_commands.autocomplete(nametemplate=template_autocomplete)
@@ -758,15 +760,11 @@ class Activites(commands.Cog):
             )
             return
 
-        # ── Sans template : activité PVP libre avec tous les rôles ─────────
+        # ── Sans template : activité PVP libre DPS / HEAL / SUPPORT ────────
         if not nametemplate:
-            if not nbplayer:
-                await interaction.response.send_message(
-                    "❌ Sans template, le paramètre **nbplayer** est obligatoire.", ephemeral=True
-                )
-                return
-            slots         = {role: [] for role in ROLES}
+            slots         = {"DPS": [], "HEAL": [], "SUPPORT": []}
             template_name = None
+            nbplayer      = nbplayer or 100
         else:
             all_templates = load_all_templates()
             template_name = None
