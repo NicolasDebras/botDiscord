@@ -502,6 +502,7 @@ class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
     async def on_submit(self, interaction: discord.Interaction):
         fmt = lambda n: f"{n:,}".replace(",", " ")
 
+        # Valider les montants AVANT le defer (encore dans les 3s)
         try:
             total = int(self.recettes.value.replace(" ", "").replace(",", "").replace(".", ""))
         except ValueError:
@@ -524,6 +525,9 @@ class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
             except ValueError:
                 await interaction.response.send_message("❌ Montant Scoot invalide.", ephemeral=True)
                 return
+
+        # Defer pour éviter le timeout Discord pendant les appels DB
+        await interaction.response.defer()
 
         data     = self.data
         settings = await load_settings()
@@ -587,7 +591,7 @@ class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
                 f"💵 Part individuelle : **{fmt(part_indiv)} silver**\n"
                 f"📊 BAL crédités : **+{fmt(part_indiv)} BAL / joueur**"
             )
-        await interaction.response.send_message(summary)
+        await interaction.followup.send(summary)
 
 
 # ── BOUTON FIN D'ACTIVITÉ ─────────────────────────────────────────────────────
