@@ -103,19 +103,20 @@ class Bal(commands.Cog):
             return
 
         # ── Messages selon le solde ───────────────────────────────────────
+        M = 1_000_000
         if solde == 0:
             msg = f"💸 **{solde_fmt} BAL**… Sale pauvre. Va farm au lieu de traîner ici."
-        elif solde < 50:
+        elif solde < 50 * M:
             msg = f"🪙 **{solde_fmt} BAL**. C'est tout ? Même les recrues font mieux."
-        elif solde < 200:
+        elif solde < 200 * M:
             msg = f"📦 **{solde_fmt} BAL**. Moyen. Tu commences à exister, à peine."
-        elif solde < 500:
+        elif solde < 500 * M:
             msg = f"⚔️ **{solde_fmt} BAL**. Pas mal, tu participes au moins."
-        elif solde < 1000:
+        elif solde < 1_000 * M:
             msg = f"💰 **{solde_fmt} BAL**. Solide. La guilde peut compter sur toi."
-        elif solde < 2000:
+        elif solde < 2_000 * M:
             msg = f"🏆 **{solde_fmt} BAL**. Gros farmer détecté. Respect."
-        elif solde < 5000:
+        elif solde < 5_000 * M:
             msg = f"💎 **{solde_fmt} BAL**. Tu es une machine. T'as pas de vie ou quoi ?"
         else:
             msg = f"👑 **{solde_fmt} BAL**. Légende vivante. On parle de toi dans les tavernes."
