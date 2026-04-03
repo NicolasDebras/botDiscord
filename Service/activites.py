@@ -799,7 +799,7 @@ class Activites(commands.Cog):
     async def acti(
         self,
         interaction:  discord.Interaction,
-        nametemplate: str | None = None,
+        nametemplate: str = "",
         nbplayer:     app_commands.Range[int, 1, 100] | None = None,
         bal:          bool = True,
     ):
