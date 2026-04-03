@@ -587,7 +587,7 @@ class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
                 f"💵 Part individuelle : **{fmt(part_indiv)} silver**\n"
                 f"📊 BAL crédités : **+{fmt(part_indiv)} BAL / joueur**"
             )
-        await interaction.response.send_message(summary, ephemeral=True)
+        await interaction.response.send_message(summary)
 
 
 # ── BOUTON FIN D'ACTIVITÉ ─────────────────────────────────────────────────────
