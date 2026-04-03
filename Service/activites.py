@@ -111,7 +111,7 @@ def build_embed(data: dict) -> discord.Embed:
     image_url     = _image_overrides.get(template, tdata.get("image", ""))
 
     embed = discord.Embed(
-        title=f"🗡️  {template or 'Activité'}",
+        title=f"🗡️  {template or 'Activité'}  de {creator}",
         description=description or None,
         color=color,
         timestamp=created,
