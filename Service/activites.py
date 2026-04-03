@@ -601,21 +601,27 @@ class FinActiButton(discord.ui.Button):
         self.activity_id = activity_id
 
     async def callback(self, interaction: discord.Interaction):
-        data = activities.get(self.activity_id)
-        if not data:
-            await interaction.response.send_message("❌ Activité introuvable.", ephemeral=True)
-            return
+        try:
+            data = activities.get(self.activity_id)
+            if not data:
+                await interaction.response.send_message("❌ Activité introuvable.", ephemeral=True)
+                return
 
-        is_creator = interaction.user.display_name == data["creator"]
-        has_role   = any(r.name == ADMIN_ROLE_NAME for r in interaction.user.roles)
-        if not (is_creator or has_role or interaction.user.guild_permissions.administrator):
-            await interaction.response.send_message(
-                f"⛔ Seul l'organisateur ou un **{ADMIN_ROLE_NAME}** peut clôturer l'activité.", ephemeral=True
-            )
-            return
+            is_creator = interaction.user.display_name == data["creator"]
+            has_role   = any(r.name == ADMIN_ROLE_NAME for r in interaction.user.roles)
+            if not (is_creator or has_role or interaction.user.guild_permissions.administrator):
+                await interaction.response.send_message(
+                    f"⛔ Seul l'organisateur ou un **{ADMIN_ROLE_NAME}** peut clôturer l'activité.", ephemeral=True
+                )
+                return
 
-        if data.get("bal"):
-            await interaction.response.send_modal(FinActiModal(self.activity_id, data))
+            if data.get("bal"):
+                await interaction.response.send_modal(FinActiModal(self.activity_id, data))
+                return
+        except Exception as e:
+            print(f"[FinActiButton] Erreur : {type(e).__name__}: {e}")
+            if not interaction.response.is_done():
+                await interaction.response.send_message(f"❌ Erreur : `{e}`", ephemeral=True)
             return
 
         # Activité Libre → clôture directe
