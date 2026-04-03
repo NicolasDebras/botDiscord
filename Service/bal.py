@@ -87,17 +87,39 @@ class Bal(commands.Cog):
                 f"⛔ Tu dois avoir le rôle **{MEMBRE_ROLE_NAME}** pour utiliser cette commande.", ephemeral=True
             )
             return
-        solde = await db.get_bal(str(interaction.user.id))
-        name  = interaction.user.display_name.lower()
+        solde     = await db.get_bal(str(interaction.user.id))
+        name      = interaction.user.display_name.lower()
         solde_fmt = f"{solde:,}".replace(",", " ")
 
+        # ── Easter eggs joueurs ───────────────────────────────────────────
         easter_eggs = {
             "lilium122": f"👑 Ah, le chef en personne… Ton solde BAL : **{solde_fmt}**. On espère que c'est à la hauteur de ton ego.",
             "naej":      f"🏹 Tiens, le sniper de service. Ton solde BAL : **{solde_fmt}**. Essaie de ne pas tout dépenser en flèches.",
             "arcwolf":   f"🐺 Le loup rôde… Ton solde BAL : **{solde_fmt}**. Toujours à l'affût du bon coup.",
         }
+        egg = next((v for k, v in easter_eggs.items() if k in name), None)
+        if egg:
+            await interaction.response.send_message(egg, ephemeral=True)
+            return
 
-        msg = next((v for k, v in easter_eggs.items() if k in name), f"💰 Ton solde BAL : **{solde_fmt}**")
+        # ── Messages selon le solde ───────────────────────────────────────
+        if solde == 0:
+            msg = f"💸 **{solde_fmt} BAL**… Sale pauvre. Va farm au lieu de traîner ici."
+        elif solde < 50:
+            msg = f"🪙 **{solde_fmt} BAL**. C'est tout ? Même les recrues font mieux."
+        elif solde < 200:
+            msg = f"📦 **{solde_fmt} BAL**. Moyen. Tu commences à exister, à peine."
+        elif solde < 500:
+            msg = f"⚔️ **{solde_fmt} BAL**. Pas mal, tu participes au moins."
+        elif solde < 1000:
+            msg = f"💰 **{solde_fmt} BAL**. Solide. La guilde peut compter sur toi."
+        elif solde < 2000:
+            msg = f"🏆 **{solde_fmt} BAL**. Gros farmer détecté. Respect."
+        elif solde < 5000:
+            msg = f"💎 **{solde_fmt} BAL**. Tu es une machine. T'as pas de vie ou quoi ?"
+        else:
+            msg = f"👑 **{solde_fmt} BAL**. Légende vivante. On parle de toi dans les tavernes."
+
         await interaction.response.send_message(msg, ephemeral=True)
 
     # =========================================================================
