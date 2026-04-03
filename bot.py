@@ -25,8 +25,11 @@ EXTENSIONS = [
 # ── EVENTS ───────────────────────────────────────────────────────────────────
 @bot.event
 async def on_ready():
+    # Vider les commandes globales (évite le doublon global + guild)
+    bot.tree.clear_commands(guild=None)
+    await bot.tree.sync(guild=None)
+
     for guild in bot.guilds:
-        # Clear les commandes globales copiées sur le guild (évite les doublons)
         bot.tree.clear_commands(guild=guild)
         bot.tree.copy_global_to(guild=guild)
         synced = await bot.tree.sync(guild=guild)
