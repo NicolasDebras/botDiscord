@@ -476,7 +476,7 @@ class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
 
         if self.is_pve:
             self.cout_carte = discord.ui.TextInput(
-                label="Coût de la carte (silver)  + Prix des Réparation",
+                label="Carte + Réparations (silver)",
                 placeholder="Laisser vide si pas de carte",
                 required=False,
                 max_length=20,
