@@ -42,6 +42,27 @@ async def remove_activity(msg_id: int) -> None:
     await db.delete_activity(msg_id)
 
 
+# ── HELPERS FORMAT ARMES ─────────────────────────────────────────────────────
+
+def _parse_weapon_slots(hint: str) -> list[tuple[str, str, int]]:
+    """Parse '1H Masse (×2)  ·  Tank flex' → [(display, clean_name, count), ...]"""
+    result = []
+    for part in hint.split("·"):
+        part = part.strip()
+        if not part:
+            continue
+        m     = re.search(r"\(×(\d+)\)", part)
+        count = int(m.group(1)) if m else 1
+        clean = re.sub(r"\s*\(×\d+\)", "", part).strip()
+        result.append((part.strip(), clean, count))
+    return result
+
+
+def _player_weapon(spec: str) -> str:
+    """Extrait le nom d'arme depuis 'WeaponName (750)' → 'WeaponName'."""
+    return re.sub(r"\s*\(\d+\)\s*$", "", spec).strip()
+
+
 # ── HELPER : tri des rôles — PF1 d'abord, PF2 ensuite, SCOOT toujours en dernier
 def _sort_roles(roles: list[str]) -> list[str]:
     pf1   = [r for r in roles if not r.startswith("PF2:") and r != "SCOOT"]
@@ -104,8 +125,9 @@ def build_embed(data: dict) -> discord.Embed:
     pf2       = get_pf2(tdata) if tdata else {}
     specs     = get_specs(tdata) if tdata else {}
     specs_pf2 = tdata.get("weapon_pf2", tdata.get("specs_pf2", {})) if tdata else {}
+    type_acti = tdata.get("type_acti", "") if tdata else ""
 
-    pf1_keys      = list(pf1.keys()) if pf1 else list(ROLES.keys())
+    pf1_keys      = list(pf1.keys()) if pf1 else list(slots.keys())
     pf2_keys      = [f"PF2:{r}" for r in pf2.keys()]
     roles_to_show = _sort_roles(pf1_keys + pf2_keys)
 
@@ -126,19 +148,46 @@ def build_embed(data: dict) -> discord.Embed:
             max_r     = pf1.get(role_key, "∞") if pf1 else "∞"
             role_spec = specs.get(role_key, "")
 
-        lines = []
-        for entry in members:
-            uid         = entry[0]
-            player_spec = entry[2] if len(entry) > 2 else ""
-            lines.append(f"<@{uid}>{f'  —  {player_spec}' if player_spec else ''}")
-        value = "\n\n".join(lines) if lines else "*Personne*"
-        count = f"{len(members)}/{max_r}" if isinstance(max_r, int) else str(len(members))
-
+        count      = f"{len(members)}/{max_r}" if isinstance(max_r, int) else str(len(members))
         label      = f"{role_name} PF2" if is_pf2 else role_name
         field_name = f"{emoji} {label}  [{count}]"
-        if role_spec:
-            field_name = f"{field_name}  ·  {role_spec}"
-        embed.add_field(name=field_name[:256], value=value, inline=False)
+
+        # ── Format PVP avec specs : sous-groupes par arme ─────────────────
+        if type_acti == "PVP" and role_spec:
+            weapon_groups = _parse_weapon_slots(role_spec)
+            lines = []
+            matched_uids: set[int] = set()
+
+            for display, clean_name, n_slots in weapon_groups:
+                lines.append(f"**{display}**")
+                matched = [e for e in members if _player_weapon(e[2]) == clean_name]
+                for entry in matched:
+                    uid   = entry[0]
+                    level = re.search(r"\((\d+)\)", entry[2])
+                    lines.append(f"└ <@{uid}>{f'  ({level.group(1)})' if level else ''}")
+                    matched_uids.add(uid)
+                for _ in range(max(0, n_slots - len(matched))):
+                    lines.append("└ —")
+
+            # Joueurs sans arme reconnue (ajout admin sans spec, etc.)
+            for entry in members:
+                if entry[0] not in matched_uids:
+                    uid  = entry[0]
+                    spec = entry[2] if len(entry) > 2 else ""
+                    lines.append(f"<@{uid}>{f'  —  {spec}' if spec else ''}")
+
+            value = "\n".join(lines) if lines else "*Personne*"
+
+        # ── Format PVE / sans spec : liste simple ────────────────────────
+        else:
+            lines = []
+            for entry in members:
+                uid         = entry[0]
+                player_spec = entry[2] if len(entry) > 2 else ""
+                lines.append(f"<@{uid}>{f'  —  {player_spec}' if player_spec else ''}")
+            value = "\n".join(lines) if lines else "*Personne*"
+
+        embed.add_field(name=field_name[:256], value=value[:1024], inline=False)
 
     payout_line    = "💰 BAL" if bal else "🆓 Libre"
     total_inscrits = sum(len(v) for v in slots.values())

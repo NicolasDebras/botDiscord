@@ -40,7 +40,7 @@ class MassUp(commands.Cog):
                 await inter.response.send_message("❌ Activité introuvable.", ephemeral=True)
                 return
 
-            participants = [uid for members in data["slots"].values() for uid, _ in members]
+            participants = [entry[0] for members in data["slots"].values() for entry in members]
             if not participants:
                 await inter.response.send_message("ℹ️ Aucun joueur inscrit à cette activité.", ephemeral=True)
                 return
