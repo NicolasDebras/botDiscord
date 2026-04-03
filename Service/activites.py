@@ -164,10 +164,10 @@ def build_embed(data: dict) -> discord.Embed:
                 for entry in matched:
                     uid   = entry[0]
                     level = re.search(r"\((\d+)\)", entry[2])
-                    lines.append(f"└ <@{uid}>{f'  ({level.group(1)})' if level else ''}")
+                    lines.append(f"　-<@{uid}>{f'  ({level.group(1)})' if level else ''}")
                     matched_uids.add(uid)
                 for _ in range(max(0, n_slots - len(matched))):
-                    lines.append("└ —")
+                    lines.append("　-—")
 
             # Joueurs sans arme reconnue (ajout admin sans spec, etc.)
             for entry in members:
