@@ -44,16 +44,22 @@ async def remove_activity(msg_id: int) -> None:
 
 # ── HELPERS FORMAT ARMES ─────────────────────────────────────────────────────
 
-def _parse_weapon_slots(hint: str) -> list[tuple[str, str, int]]:
-    """Parse '1H Masse (×2)  ·  Tank flex' → [(display, clean_name, count), ...]"""
+def _parse_weapon_slots(hint: str) -> list[tuple[str, str, int | None]]:
+    """Parse '1H Masse (×2) · Brassards (×infini)' → [(display, clean_name, count|None), ...]
+    count=None = illimité.
+    """
     result = []
     for part in hint.split("·"):
         part = part.strip()
         if not part:
             continue
-        m     = re.search(r"\(×(\d+)\)", part)
-        count = int(m.group(1)) if m else 1
-        clean = re.sub(r"\s*\(×\d+\)", "", part).strip()
+        if re.search(r"\(×(?:infini|∞)\)", part, re.IGNORECASE):
+            count = None
+            clean = re.sub(r"\s*\(×(?:infini|∞)\)", "", part, flags=re.IGNORECASE).strip()
+        else:
+            m     = re.search(r"\(×(\d+)\)", part)
+            count = int(m.group(1)) if m else 1
+            clean = re.sub(r"\s*\(×\d+\)", "", part).strip()
         result.append((part.strip(), clean, count))
     return result
 
@@ -166,8 +172,9 @@ def build_embed(data: dict) -> discord.Embed:
                     level = re.search(r"\((\d+)\)", entry[2])
                     lines.append(f"　-<@{uid}>{f'  ({level.group(1)})' if level else ''}")
                     matched_uids.add(uid)
-                for _ in range(max(0, n_slots - len(matched))):
-                    lines.append("　-—")
+                if n_slots is not None:
+                    for _ in range(max(0, n_slots - len(matched))):
+                        lines.append("　-—")
 
             # Joueurs sans arme reconnue (ajout admin sans spec, etc.)
             for entry in members:
@@ -266,6 +273,28 @@ async def _register_player(
             await interaction.response.send_message(f"⛔ Plus de place en **{label}** ({max_role} max).", ephemeral=True)
             return
 
+        # ── Vérifier la sous-limite d'arme ───────────────────────────────────
+        if spec and tdata.get("type_acti") == "PVP":
+            hint_spec = (
+                tdata.get("weapon_pf2", tdata.get("specs_pf2", {})).get(role_name, "")
+                if chosen_role.startswith("PF2:") else
+                get_specs(tdata).get(chosen_role, "")
+            )
+            if hint_spec:
+                weapon_name = _player_weapon(spec)
+                for _display, clean_name, n_slots in _parse_weapon_slots(hint_spec):
+                    if clean_name == weapon_name and n_slots is not None:
+                        taken = sum(
+                            1 for e in slots.get(chosen_role, [])
+                            if _player_weapon(e[2]) == weapon_name and e[0] != user_id
+                        )
+                        if taken >= n_slots:
+                            await interaction.response.send_message(
+                                f"⛔ Plus de place pour **{weapon_name}** ({n_slots} max).", ephemeral=True
+                            )
+                            return
+                        break
+
     for role, members in slots.items():
         for entry in list(members):
             if entry[0] == user_id:
@@ -319,13 +348,23 @@ class SpecLevelModal(discord.ui.Modal):
 
 # ── SELECT ARME (PVP uniquement) ─────────────────────────────────────────────
 class WeaponSelect(discord.ui.Select):
-    def __init__(self, activity_id: int, chosen_role: str, weapons_list: list[str]):
+    def __init__(self, activity_id: int, chosen_role: str, weapons_list: list[str],
+                 current_members: list):
         self.activity_id = activity_id
         self.chosen_role = chosen_role
         options = []
         for w in weapons_list:
-            clean = re.sub(r"\s*\(×\d+\)", "", w).strip()
+            parsed = _parse_weapon_slots(w)
+            if not parsed:
+                continue
+            _display, clean, n_slots = parsed[0]
+            if n_slots is not None:
+                taken = sum(1 for e in current_members if _player_weapon(e[2]) == clean)
+                if taken >= n_slots:
+                    continue  # arme pleine, on ne la propose pas
             options.append(discord.SelectOption(label=clean[:100], value=clean[:100]))
+        if not options:
+            options = [discord.SelectOption(label="Aucune arme disponible", value="__full__")]
         super().__init__(
             placeholder="⚔️  Choisis ton arme...",
             min_values=1,
@@ -334,15 +373,21 @@ class WeaponSelect(discord.ui.Select):
         )
 
     async def callback(self, interaction: discord.Interaction):
+        if self.values[0] == "__full__":
+            await interaction.response.send_message(
+                "⛔ Toutes les armes sont complètes pour ce rôle.", ephemeral=True
+            )
+            return
         await interaction.response.send_modal(
             SpecLevelModal(self.activity_id, self.chosen_role, self.values[0])
         )
 
 
 class WeaponSelectView(discord.ui.View):
-    def __init__(self, activity_id: int, chosen_role: str, weapons_list: list[str]):
+    def __init__(self, activity_id: int, chosen_role: str, weapons_list: list[str],
+                 current_members: list):
         super().__init__(timeout=120)
-        self.add_item(WeaponSelect(activity_id, chosen_role, weapons_list))
+        self.add_item(WeaponSelect(activity_id, chosen_role, weapons_list, current_members))
 
 
 # ── SELECT MENU ──────────────────────────────────────────────────────────────
@@ -392,12 +437,13 @@ class RoleSelect(discord.ui.Select):
             hint_spec = get_specs(tdata).get(chosen_role, "")
 
         if type_acti == "PVP" and hint_spec:
-            weapons_list = [w.strip() for w in hint_spec.split("·") if w.strip()]
+            weapons_list     = [w.strip() for w in hint_spec.split("·") if w.strip()]
+            current_members  = data["slots"].get(chosen_role, [])
             if weapons_list:
                 role_display = (chosen_role[4:] + " (PF2)") if chosen_role.startswith("PF2:") else chosen_role
                 await interaction.response.send_message(
                     f"⚔️ **{role_display}** — Quelle arme joues-tu ?",
-                    view=WeaponSelectView(self.activity_id, chosen_role, weapons_list),
+                    view=WeaponSelectView(self.activity_id, chosen_role, weapons_list, current_members),
                     ephemeral=True,
                 )
                 return
@@ -547,7 +593,7 @@ class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
 
         data     = self.data
         settings = await load_settings()
-        rate     = settings.get("bal_rate", 90)
+        rate     = settings.get("bal_rate", 85)
 
         part_guilde   = (total - carte_cost) * rate // 100
         distributable = part_guilde + sac_pieces

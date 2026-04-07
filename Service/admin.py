@@ -91,16 +91,25 @@ class AdminWeaponSelect(discord.ui.Select):
         self.target_name = target_name
         self.chosen_role = chosen_role
         self.data        = data
-        options = [
-            discord.SelectOption(
-                label=re.sub(r"\s*\(×\d+\)", "", w).strip()[:100],
-                value=re.sub(r"\s*\(×\d+\)", "", w).strip()[:100],
-            )
-            for w in weapons_list
-        ]
+        from Service.activites import _parse_weapon_slots, _player_weapon
+        current_members = data["slots"].get(chosen_role, [])
+        options = []
+        for w in weapons_list:
+            parsed = _parse_weapon_slots(w)
+            if not parsed:
+                continue
+            _display, clean, n_slots = parsed[0]
+            taken = sum(1 for e in current_members if _player_weapon(e[2]) == clean)
+            label = clean[:97] + (" ✅" if n_slots is None or taken < n_slots else " ⛔")
+            options.append(discord.SelectOption(label=label[:100], value=clean[:100]))
+        if not options:
+            options = [discord.SelectOption(label="Aucune arme disponible", value="__full__")]
         super().__init__(placeholder="⚔️  Choisis l'arme du joueur...", options=options)
 
     async def callback(self, interaction: discord.Interaction):
+        if self.values[0] == "__full__":
+            await interaction.response.send_message("⛔ Aucune arme disponible pour ce rôle.", ephemeral=True)
+            return
         await interaction.response.send_modal(
             AdminSpecLevelModal(self.msg_id, self.target_id, self.target_name,
                                 self.chosen_role, self.values[0], self.data)
