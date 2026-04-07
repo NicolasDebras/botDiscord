@@ -457,7 +457,7 @@ class LeaveButton(discord.ui.Button):
 # ── MODAL FIN D'ACTIVITÉ ─────────────────────────────────────────────────────
 class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
     recettes = discord.ui.TextInput(
-        label="Recettes totales générées (silver)",
+        label="VM du coffre",
         placeholder="Ex : 10000000",
         required=True,
         max_length=20,
@@ -490,6 +490,14 @@ class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
                 max_length=20,
             )
             self.add_item(self.cout_carte)
+        self.sac_pieces = discord.ui.TextInput(
+            label="montant des pièces",
+            placeholder="Laisser vide si aucune pièce",
+            required=False,
+            max_length=20,
+        )
+        self.add_item(self.sac_pieces)
+
         if self.has_scoot:
             self.scoot_pay = discord.ui.TextInput(
                 label="Paiement Scoot (silver/joueur)",
@@ -518,6 +526,14 @@ class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
                 await interaction.response.send_message(f"❌ {label_err} invalide.", ephemeral=True)
                 return
 
+        sac_pieces = 0
+        if self.sac_pieces.value.strip():
+            try:
+                sac_pieces = int(self.sac_pieces.value.replace(" ", "").replace(",", "").replace(".", ""))
+            except ValueError:
+                await interaction.response.send_message("❌ Montant pièces coffre invalide.", ephemeral=True)
+                return
+
         scoot_amount = 0
         if self.has_scoot:
             try:
@@ -533,8 +549,8 @@ class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
         settings = await load_settings()
         rate     = settings.get("bal_rate", 90)
 
-        part_guilde   = total * rate // 100
-        distributable = part_guilde - carte_cost
+        part_guilde   = (total - carte_cost) * rate // 100
+        distributable = part_guilde + sac_pieces
 
         scoot_members = data["slots"].get("SCOOT", [])
         nb_scoot      = len(scoot_members)
@@ -571,14 +587,16 @@ class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
         except Exception:
             pass
 
+        label_cout = "Carte + réparations" if self.is_pve else "Réparations"
         summary = (
             f"✅ **Activité clôturée !**\n\n"
-            f"💰 Recettes : **{fmt(total)} silver**\n"
-            f"🏦 Part guilde ({rate} %) : **{fmt(part_guilde)} silver**\n"
+            f"💰 Recettes VM : **{fmt(total)} silver**\n"
         )
         if carte_cost:
-            label_cout = "Coût de la carte + réparations" if self.is_pve else "Prix des réparations"
-            summary += f"🗺️ {label_cout} : **-{fmt(carte_cost)} silver** → distributable : **{fmt(distributable)} silver**\n"
+            summary += f"🗺️ {label_cout} : **-{fmt(carte_cost)} silver**\n"
+        summary += f"🏦 Part guilde ({rate} %) : **{fmt(part_guilde)} silver**\n"
+        if sac_pieces:
+            summary += f"🎒 Pièces : **+{fmt(sac_pieces)} silver** → distributable : **{fmt(distributable)} silver**\n"
         if self.has_scoot:
             summary += (
                 f"🏃 Scoot ({nb_scoot} joueur(s)) : **{fmt(scoot_amount)} silver/joueur**\n"

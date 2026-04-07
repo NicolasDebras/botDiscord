@@ -75,6 +75,8 @@ Une fois l'activité créée :
 - Bouton ❌ pour se retirer (slots ou liste d'attente)
 - Bouton ⏳ Liste d'attente (sur les templates avec `has_waitlist`)
 - Bouton 🏁 Fin d'activité (organisateur ou Officier) → calcul et crédit BAL automatique
+  - Formule : `((recettes VM - réparations) × taux guilde%) + pièces coffre`
+  - Les **pièces VM du coffre** s'ajoutent après la taxe guilde (non taxées)
 - Bouton 🔴 Annuler le raid (organisateur ou admin)
 
 ---
@@ -167,6 +169,7 @@ Les templates par défaut sont définis dans `config.py` et ne peuvent pas être
 | SCOOT | 🏃 |
 | FROST | ❄️ |
 | COBRA/GA | 🏹 |
+| BM | 🐴 |
 
 ---
 
