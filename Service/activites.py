@@ -457,6 +457,7 @@ class RoleSelect(discord.ui.Select):
                 )
                 return
 
+        await interaction.response.defer(ephemeral=True)
         await _register_player(interaction, self.activity_id, chosen_role, "")
 
 
@@ -504,9 +505,10 @@ class LeaveButton(discord.ui.Button):
             await interaction.response.send_message("ℹ️ Tu n'es pas inscrit à cette activité.", ephemeral=True)
             return
 
+        await interaction.response.defer(ephemeral=True)
         await save_activities()
         await interaction.message.edit(embed=build_embed(data), view=build_view(self.activity_id))
-        await interaction.response.send_message("👋 Tu t'es retiré de l'activité.", ephemeral=True)
+        await interaction.followup.send("👋 Tu t'es retiré de l'activité.", ephemeral=True)
 
 
 # ── MODAL FIN D'ACTIVITÉ ─────────────────────────────────────────────────────
