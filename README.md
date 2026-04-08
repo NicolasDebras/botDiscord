@@ -2,6 +2,7 @@
 
 Bot Discord pour la gestion des activités et du système BAL de la guilde.
 
+
 ---
 
 ## Fonctionnalités
@@ -180,3 +181,4 @@ Les templates par défaut sont définis dans `config.py` et ne peuvent pas être
 3. Ajouter le plugin **PostgreSQL** → les variables `DATABASE_URL` et `PGXXX` sont injectées automatiquement
 4. Ajouter les variables d'environnement `DISCORD_TOKEN` et `DISCORD_GUILD_ID`
 5. Railway build et démarre le bot — les tables sont créées au premier démarrage
+
