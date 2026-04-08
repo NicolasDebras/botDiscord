@@ -218,6 +218,14 @@ def build_view(activity_id: int) -> discord.ui.View:
 
 
 # ── HELPER : logique d'inscription mutualisée ────────────────────────────────
+async def _reply(interaction: discord.Interaction, *args, **kwargs) -> None:
+    """Répond via followup si déjà déféré, sinon via send_message."""
+    if interaction.response.is_done():
+        await interaction.followup.send(*args, **kwargs)
+    else:
+        await interaction.response.send_message(*args, **kwargs)
+
+
 async def _register_player(
     interaction: discord.Interaction,
     activity_id: int,
@@ -226,7 +234,7 @@ async def _register_player(
 ) -> None:
     data = activities.get(activity_id)
     if not data:
-        await interaction.response.send_message("❌ Activité introuvable.", ephemeral=True)
+        await _reply(interaction, "❌ Activité introuvable.", ephemeral=True)
         return
 
     user_id   = interaction.user.id
@@ -244,7 +252,7 @@ async def _register_player(
             waitlist = data.setdefault("waitlist", [])
             in_wl    = any(uid == user_id for uid, _ in waitlist)
             if in_wl:
-                await interaction.response.send_message("ℹ️ Tu es déjà en liste d'attente.", ephemeral=True)
+                await _reply(interaction, "ℹ️ Tu es déjà en liste d'attente.", ephemeral=True)
             else:
                 waitlist.append((user_id, user_name))
                 await save_activities()
@@ -255,11 +263,11 @@ async def _register_player(
                 except Exception:
                     pass
                 pos = len(waitlist)
-                await interaction.response.send_message(
+                await _reply(interaction,
                     f"⏳ L'activité est complète — tu es en **position {pos}** sur la liste d'attente.", ephemeral=True
                 )
         else:
-            await interaction.response.send_message(f"⛔ L'activité est complète ({max_p} joueurs max).", ephemeral=True)
+            await _reply(interaction, f"⛔ L'activité est complète ({max_p} joueurs max).", ephemeral=True)
         return
 
     all_templates = load_all_templates()
@@ -270,7 +278,7 @@ async def _register_player(
         current_in_role = [entry[0] for entry in slots.get(chosen_role, [])]
         if len(current_in_role) >= max_role and user_id not in current_in_role:
             label = f"{role_name} PF2" if chosen_role.startswith("PF2:") else chosen_role
-            await interaction.response.send_message(f"⛔ Plus de place en **{label}** ({max_role} max).", ephemeral=True)
+            await _reply(interaction, f"⛔ Plus de place en **{label}** ({max_role} max).", ephemeral=True)
             return
 
         # ── Vérifier la sous-limite d'arme ───────────────────────────────────
@@ -289,7 +297,7 @@ async def _register_player(
                             if _player_weapon(e[2]) == weapon_name and e[0] != user_id
                         )
                         if taken >= n_slots:
-                            await interaction.response.send_message(
+                            await _reply(interaction,
                                 f"⛔ Plus de place pour **{weapon_name}** ({n_slots} max).", ephemeral=True
                             )
                             return
@@ -313,7 +321,7 @@ async def _register_player(
 
     label   = f"{chosen_role[4:]} PF2" if chosen_role.startswith("PF2:") else chosen_role
     confirm = f"✅ Inscrit en **{label}**{f'  —  {spec}' if spec else ''} !"
-    await interaction.response.send_message(confirm, ephemeral=True)
+    await _reply(interaction, confirm, ephemeral=True)
 
 
 # ── MODAL NIVEAU DE SPÉ (PVP — après sélection de l'arme) ────────────────────
@@ -342,6 +350,7 @@ class SpecLevelModal(discord.ui.Modal):
                 "❌ Le niveau doit être un entier entre **1** et **1000**.", ephemeral=True
             )
             return
+        await interaction.response.defer(ephemeral=True)
         spec = f"{self.chosen_weapon} ({level})"
         await _register_player(interaction, self.activity_id, self.chosen_role, spec)
 
