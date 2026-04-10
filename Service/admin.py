@@ -543,7 +543,11 @@ class Admin(commands.Cog):
     # ── /totalbal ────────────────────────────────────────────────────────────
     @app_commands.command(name="totalbal", description="Afficher le total des BAL dues par la guilde")
     async def totalbal(self, interaction: discord.Interaction):
-        if not is_caller_or_admin(interaction.user):
+        is_gm_or_admin = (
+            interaction.user.guild_permissions.administrator
+            or any(r.name in (ADMIN_ROLE_NAME, GM_ROLE_NAME) for r in interaction.user.roles)
+        )
+        if not is_gm_or_admin:
             await interaction.response.send_message(
                 "⛔ Tu n'as pas la permission d'utiliser cette commande.", ephemeral=True
             )
