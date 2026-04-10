@@ -233,14 +233,40 @@ class Bal(commands.Cog):
     # /ballog  — historique des 100 dernières actions BAL
     # =========================================================================
     @app_commands.command(name="ballog", description="[ADMIN] Voir l'historique des actions BAL")
-    @app_commands.describe(page="Numéro de page (10 entrées par page, défaut : 1)")
-    async def ballog(self, interaction: discord.Interaction, page: app_commands.Range[int, 1] = 1):
+    @app_commands.describe(
+        page="Numéro de page (10 entrées par page, défaut : 1)",
+        joueur="Filtrer l'historique pour un joueur spécifique (optionnel)",
+    )
+    async def ballog(
+        self,
+        interaction: discord.Interaction,
+        page:   app_commands.Range[int, 1] = 1,
+        joueur: discord.Member | None = None,
+    ):
         if not await self.check_admin(interaction):
             return
 
+        await interaction.response.defer(ephemeral=True)
+
         log = await load_bal_log()
         if not log:
-            await interaction.response.send_message("ℹ️ Aucune action BAL enregistrée.", ephemeral=True)
+            await interaction.followup.send("ℹ️ Aucune action BAL enregistrée.", ephemeral=True)
+            return
+
+        # Filtrage par joueur : on ne garde que les entrées qui le concernent
+        if joueur:
+            uid_str = str(joueur.id)
+            filtered = []
+            for entry in log:
+                matching = [e for e in entry["entries"] if str(e["uid"]) == uid_str]
+                if matching:
+                    filtered.append({**entry, "entries": matching})
+            log = filtered
+
+        if not log:
+            await interaction.followup.send(
+                f"ℹ️ Aucune action BAL trouvée pour {joueur.mention}.", ephemeral=True
+            )
             return
 
         # log est déjà trié du plus récent au plus ancien (ORDER BY id DESC dans db.py)
@@ -249,10 +275,11 @@ class Bal(commands.Cog):
         page       = min(page, total_page)
         slice_     = log[(page - 1) * per_page : page * per_page]
 
-        embed = discord.Embed(
-            title=f"📋 Historique BAL  —  Page {page}/{total_page}",
-            color=0x3498DB,
-        )
+        title = f"📋 Historique BAL  —  Page {page}/{total_page}"
+        if joueur:
+            title += f"  —  {joueur.display_name}"
+
+        embed = discord.Embed(title=title, color=0x3498DB)
 
         for entry in slice_:
             try:
@@ -273,8 +300,11 @@ class Bal(commands.Cog):
 
             embed.add_field(name=title_f, value="\n".join(lines) or "—", inline=False)
 
-        embed.set_footer(text=f"{len(log)} action(s) au total  •  max 100 conservées")
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        footer = f"{len(log)} action(s)"
+        if not joueur:
+            footer += "  •  max 100 conservées"
+        embed.set_footer(text=footer)
+        await interaction.followup.send(embed=embed, ephemeral=True)
 
 
 # ── SETUP ─────────────────────────────────────────────────────────────────────
