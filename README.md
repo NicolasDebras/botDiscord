@@ -65,7 +65,7 @@ Les tables SQL sont créées automatiquement au premier démarrage.
 **Paramètres de `/acti` :**
 - `nametemplate` — Template de composition (optionnel)
 - `nbplayer` — Nombre de joueurs max (calculé depuis le template si renseigné, 100 par défaut sans template)
-- `bal` — Paiement BAL ? (`true` = BAL, `false` = Libre) — **défaut : true**
+- `bal` — Paiement BAL ? (`true` = BAL, `false` = Libre) — **défaut : true** (forcé à `false` pour les simples Membres)
 
 > Sans template, une activité PVP libre est créée avec les rôles DPS / HEAL / SUPPORT et 100 places max.
 
@@ -108,6 +108,7 @@ Une fois l'activité créée :
 | `/deltemplate nom` | Officier | Supprimer un template custom |
 | `/setimage nom url` | Officier | Modifier l'image d'un template (laisser url vide pour retirer) |
 | `/setrate taux` | Maitre de guilde | Modifier le taux de rachat guilde (%) |
+| `/totalbal` | Caller, Officier | Afficher le total des BAL dues par la guilde (classé par montant) |
 
 **Exemple `/addtemplate` — ZvZ PF1+PF2 avec specs :**
 ```

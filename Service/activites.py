@@ -6,7 +6,7 @@ from datetime import datetime
 
 import db
 from config import ROLES, DEFAULT_TEMPLATES, ACTIVITY_COLORS, DEFAULT_COLOR, ADMIN_ROLE_NAME, MEMBRE_ROLE_NAME
-from Service.utils import load_settings, append_bal_log, is_membre
+from Service.utils import load_settings, append_bal_log, is_membre, is_caller_or_admin
 
 # ── STOCKAGE EN MÉMOIRE  {message_id: data} ──────────────────────────────────
 activities: dict[int, dict] = {}
@@ -893,6 +893,10 @@ class Activites(commands.Cog):
                 f"⛔ Tu dois avoir le rôle **{MEMBRE_ROLE_NAME}** pour créer une activité.", ephemeral=True
             )
             return
+
+        # ── Si simple Membre (pas Caller/GM/Officier), bal forcé à False ────
+        if not is_caller_or_admin(interaction.user):
+            bal = False
 
         # ── Sans template : activité PVP libre DPS / HEAL / SUPPORT ────────
         if not nametemplate:

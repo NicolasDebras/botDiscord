@@ -540,6 +540,34 @@ class Admin(commands.Cog):
             ephemeral=True,
         )
 
+    # ── /totalbal ────────────────────────────────────────────────────────────
+    @app_commands.command(name="totalbal", description="Afficher le total des BAL dues par la guilde")
+    async def totalbal(self, interaction: discord.Interaction):
+        if not is_caller_or_admin(interaction.user):
+            await interaction.response.send_message(
+                "⛔ Tu n'as pas la permission d'utiliser cette commande.", ephemeral=True
+            )
+            return
+
+        all_bal = await db.get_all_bal()
+        if not all_bal:
+            await interaction.response.send_message("ℹ️ Aucune BAL enregistrée.", ephemeral=True)
+            return
+
+        total = sum(all_bal.values())
+        fmt   = lambda n: f"{n:,}".replace(",", " ")
+
+        lines = sorted(all_bal.items(), key=lambda x: x[1], reverse=True)
+        desc  = "\n".join(f"<@{uid}> — **{fmt(amount)}** silver" for uid, amount in lines if amount > 0)
+
+        embed = discord.Embed(
+            title="💰 Total BAL — Ce que la guilde doit",
+            description=desc or "Aucun solde positif.",
+            color=0xF1C40F,
+        )
+        embed.set_footer(text=f"Total : {fmt(total)} silver")
+        await interaction.response.send_message(embed=embed)
+
 
 # ── SETUP ─────────────────────────────────────────────────────────────────────
 async def setup(bot: commands.Bot):
