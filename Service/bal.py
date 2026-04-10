@@ -104,23 +104,82 @@ class Bal(commands.Cog):
             return
 
         # ── Messages selon le solde ───────────────────────────────────────
+        import random
         M = 1_000_000
+        s = f"**{solde_fmt} silver**"
+
         if solde == 0:
-            msg = f"💸 **{solde_fmt} BAL**… Sale pauvre. Va farm au lieu de traîner ici."
+            msg = random.choice([
+                f"💸 {s}… T'as même pas un radis. Va farmer au lieu de traîner ici.",
+                f"🪹 {s}. Vide. Comme ton inventaire et ta vie sociale.",
+                f"😂 {s}. Bro t'as même pas participé une seule fois ? Sérieusement ?",
+                f"🦗 {s}. On entend les grillons dans ton portefeuille.",
+                f"💀 {s}. Financièrement décédé. Repose en paix.",
+            ])
+        elif solde < 2 * M:
+            msg = random.choice([
+                f"🪙 {s}. C'est… quelque chose. Continue d'essayer.",
+                f"😬 {s}. T'as participé une fois et tu viens vérifier toutes les 5 minutes hein.",
+                f"🐣 {s}. Bébé farmer. Mignon. Inutile, mais mignon.",
+                f"📉 {s}. Les marchés ont vu mieux. Toi aussi on espère.",
+                f"🙃 {s}. C'est un début… très très humble.",
+            ])
+        elif solde < 5 * M:
+            msg = random.choice([
+                f"🪙 {s}. C'est tout ? Même les recrues font mieux.",
+                f"😐 {s}. Tu existes, à peine. Keep going.",
+                f"🐌 {s}. Tu farm au ralenti ou c'est juste toi ?",
+                f"📦 {s}. Du potentiel. Enfoui très très profond.",
+                f"🤏 {s}. Un peu. Vraiment un peu.",
+            ])
+        elif solde < 7 * M:
+            msg = random.choice([
+                f"📦 {s}. Moyen. Tu commences à exister, à peine.",
+                f"🙂 {s}. La moyenne syndicale. Félicitations je suppose.",
+                f"🤷 {s}. Pas ouf, pas nul. Tu es quelqu'un de très quelconque.",
+                f"📊 {s}. Statistiquement dans la moyenne. C'est déjà ça.",
+                f"😑 {s}. Tu fais le minimum et ça se voit.",
+            ])
+        elif solde < 10 * M:
+            msg = random.choice([
+                f"⚔️ {s}. Pas mal, tu participes au moins.",
+                f"💪 {s}. On commence à te remarquer. Continue.",
+                f"🗡️ {s}. Solide effort. T'es pas une charge pour la guilde, c'est déjà bien.",
+                f"👀 {s}. Tiens tiens. Quelqu'un qui bosse. Rare.",
+                f"😏 {s}. Pas mal du tout. T'es clairement là quand ça compte.",
+            ])
+        elif solde < 15 * M:
+            msg = random.choice([
+                f"💰 {s}. Solide. La guilde peut compter sur toi.",
+                f"🔥 {s}. En forme. On aime voir ça.",
+                f"🏅 {s}. Au-dessus de la moyenne. Tu te la pètes un peu mais c'est mérité.",
+                f"😎 {s}. Classe. Vraiment classe.",
+                f"💼 {s}. Professionnel. On apprécie.",
+            ])
+        elif solde < 20 * M:
+            msg = random.choice([
+                f"🏆 {s}. Gros farmer détecté. Respect.",
+                f"🚀 {s}. T'es en mode no-life et ça se voit. Chapeau.",
+                f"👑 {s}. La guilde t'aime. Vraiment.",
+                f"🤑 {s}. Riche. Genre vraiment riche pour un pixel.",
+                f"🦁 {s}. Tu rugis, la bourse tremble.",
+            ])
         elif solde < 50 * M:
-            msg = f"🪙 **{solde_fmt} BAL**. C'est tout ? Même les recrues font mieux."
-        elif solde < 200 * M:
-            msg = f"📦 **{solde_fmt} BAL**. Moyen. Tu commences à exister, à peine."
-        elif solde < 500 * M:
-            msg = f"⚔️ **{solde_fmt} BAL**. Pas mal, tu participes au moins."
-        elif solde < 1_000 * M:
-            msg = f"💰 **{solde_fmt} BAL**. Solide. La guilde peut compter sur toi."
-        elif solde < 2_000 * M:
-            msg = f"🏆 **{solde_fmt} BAL**. Gros farmer détecté. Respect."
-        elif solde < 5_000 * M:
-            msg = f"💎 **{solde_fmt} BAL**. Tu es une machine. T'as pas de vie ou quoi ?"
+            msg = random.choice([
+                f"💎 {s}. Tu es une machine. T'as pas de vie ou quoi ?",
+                f"🧠 {s}. Calculateur. Implacable. Légèrement flippant.",
+                f"🤖 {s}. T'es un bot ? Personne farm autant normalement.",
+                f"😱 {s}. On est impressionné et inquiet à la fois.",
+                f"🏦 {s}. À ce stade t'es toi-même une institution financière.",
+            ])
         else:
-            msg = f"👑 **{solde_fmt} BAL**. Légende vivante. On parle de toi dans les tavernes."
+            msg = random.choice([
+                f"👑 {s}. Légende vivante. On parle de toi dans les tavernes.",
+                f"🌌 {s}. T'as transcendé le jeu. Tu ES le jeu.",
+                f"🥇 {s}. Historique. Quelqu'un devrait écrire un livre.",
+                f"😵 {s}. On sait même pas quoi dire. Chapeau l'artiste.",
+                f"⚡ {s}. À ce niveau c'est plus du farming, c'est de l'art.",
+            ])
 
         await interaction.response.send_message(msg, ephemeral=True)
 
