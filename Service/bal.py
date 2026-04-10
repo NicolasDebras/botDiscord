@@ -95,7 +95,7 @@ class Bal(commands.Cog):
         # ── Easter eggs joueurs ───────────────────────────────────────────
         easter_eggs = {
             "lilium122": f"👑 Ah, le chef en personne… Ton solde BAL : **{solde_fmt}**. On espère que c'est à la hauteur de ton ego.",
-            "naej":      f"🏹 Tiens, le sniper de service. Ton solde BAL : **{solde_fmt}**. Essaie de ne pas tout dépenser en flèches.",
+            "naej":      f"🏹 Tiens, le vieux reprend du service. Ton solde BAL : **{solde_fmt}**. Essaie de ne pas tout dépenser, pense a ta retraite",
             "arcwolf":   f"🐺 Le loup rôde… Ton solde BAL : **{solde_fmt}**. Toujours à l'affût du bon coup.",
         }
         egg = next((v for k, v in easter_eggs.items() if k in name), None)
@@ -123,6 +123,7 @@ class Bal(commands.Cog):
                 f"🐣 {s}. Bébé farmer. Mignon. Inutile, mais mignon.",
                 f"📉 {s}. Les marchés ont vu mieux. Toi aussi on espère.",
                 f"🙃 {s}. C'est un début… très très humble.",
+                f"🙃 {s}. Plus pauvre que Beban, je ne pensais pas que c'était possible",
             ])
         elif solde < 5 * M:
             msg = random.choice([
@@ -155,6 +156,7 @@ class Bal(commands.Cog):
                 f"🏅 {s}. Au-dessus de la moyenne. Tu te la pètes un peu mais c'est mérité.",
                 f"😎 {s}. Classe. Vraiment classe.",
                 f"💼 {s}. Professionnel. On apprécie.",
+                f"💰 {s}. Solide. Pense à faire un don a beban....",
             ])
         elif solde < 20 * M:
             msg = random.choice([
