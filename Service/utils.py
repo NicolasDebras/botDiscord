@@ -43,6 +43,30 @@ async def append_bal_log(action: str, by: str, entries: list) -> None:
     await db.append_bal_log(action, by, entries)
 
 
+BAL_LIMIT = 10_000_000
+
+MESSAGES_BAL_LIMIT = [
+    "Ayo {mention} t'as **{total}** silver de BAL qui traîne… la guilde est pas une banque, viens récupérer ta thune gros merdeux 💸",
+    "Réveille-toi {mention} 😤 T'as **{total}** silver de BAL qui prend la poussière. La guilde te garde pas la monnaie indéfiniment, bouge toi le fion.",
+    "Sérieusement {mention} ? **{total}** silver de BAL et tu viens pas les chercher ? On est une guilde, pas un coffre-fort. Viens récupérer ça ou je t'envoie le recouvrement 🏦",
+    "{mention} t'as **{total}** silver de BAL. La guilde te l'a pas mise de côté pour faire joli. Viens chercher ton fric, cornichon 🥒",
+]
+
+import random
+
+async def notify_bal_limit(bot: discord.Client, user_id: int, new_total: int) -> None:
+    """Envoie un DM si la BAL dépasse BAL_LIMIT."""
+    if new_total < BAL_LIMIT:
+        return
+    try:
+        user = await bot.fetch_user(user_id)
+        fmt  = f"{new_total:,}".replace(",", " ")
+        msg  = random.choice(MESSAGES_BAL_LIMIT).format(mention=user.mention, total=fmt)
+        await user.send(msg)
+    except Exception:
+        pass  # DM bloqué ou user introuvable, on ignore
+
+
 async def load_bal_log() -> list:
     return await db.get_bal_log()
 

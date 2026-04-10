@@ -6,7 +6,7 @@ from discord import app_commands
 import db
 from config import ADMIN_ROLE_NAME, MEMBRE_ROLE_NAME
 from Service.activites import activities
-from Service.utils import is_admin, is_membre, ActivitySelect, append_bal_log, load_bal_log
+from Service.utils import is_admin, is_membre, ActivitySelect, append_bal_log, load_bal_log, notify_bal_limit
 
 # Labels affichés dans /ballog
 ACTION_LABELS = {
@@ -48,6 +48,7 @@ class Bal(commands.Cog):
         await append_bal_log("addbal", interaction.user.display_name, [
             {"uid": key, "name": joueur.display_name, "delta": montant, "total": new_total}
         ])
+        await notify_bal_limit(interaction.client, joueur.id, new_total)
 
         await interaction.response.send_message(
             f"✅ **{joueur.display_name}** : +{montant} BAL  (total : **{new_total}**)",
@@ -207,6 +208,7 @@ class Bal(commands.Cog):
                     new_total = await db.increment_bal(key, montant)
                     payes.append((uid, name, new_total))
                     log_entries.append({"uid": key, "name": name, "delta": montant, "total": new_total})
+                    await notify_bal_limit(interaction.client, uid, new_total)
 
             if not payes:
                 await inter.response.send_message("ℹ️ Aucun participant inscrit à cette activité.", ephemeral=True)

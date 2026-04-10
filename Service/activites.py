@@ -6,7 +6,7 @@ from datetime import datetime
 
 import db
 from config import ROLES, DEFAULT_TEMPLATES, ACTIVITY_COLORS, DEFAULT_COLOR, ADMIN_ROLE_NAME, MEMBRE_ROLE_NAME
-from Service.utils import load_settings, append_bal_log, is_membre, is_caller_or_admin
+from Service.utils import load_settings, append_bal_log, is_membre, is_caller_or_admin, notify_bal_limit
 
 # ── STOCKAGE EN MÉMOIRE  {message_id: data} ──────────────────────────────────
 activities: dict[int, dict] = {}
@@ -625,11 +625,13 @@ class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
             key       = str(uid)
             new_total = await db.increment_bal(key, part_indiv)
             log_entries.append({"uid": key, "name": name, "delta": part_indiv, "total": new_total})
+            await notify_bal_limit(interaction.client, uid, new_total)
         for entry in scoot_members:
             uid, name = entry[0], entry[1]
             key       = str(uid)
             new_total = await db.increment_bal(key, scoot_amount)
             log_entries.append({"uid": key, "name": name, "delta": scoot_amount, "total": new_total})
+            await notify_bal_limit(interaction.client, uid, new_total)
         await append_bal_log("finacti", interaction.user.display_name, log_entries)
 
         # Supprimer l'activité (mémoire + DB)
