@@ -72,13 +72,14 @@ DEFAULT_TEMPLATES: dict[str, dict] = {
         "image":       "",
         "pf_1": {"TANK": 2, "HEAL": 2, "SUPPORT": 1, "DPS": 5},
     },
-    "G3": {
+    "MiddleScale de G3 LE GOAT": {
         "description": "Compo ZvZ G3 — 40 joueurs (PF1 + PF2) · T8 mini",
         "type_acti":   "PVP",
         "image":       "https://cdn.discordapp.com/attachments/94518390546255872/1284345624732635230/fatwizardBlick.gif?ex=69c9e512&is=69c89392&hm=4053fd8f86c884ba21d4193d893b325268ce1c54bba2c643419971a59d494875&",
-        "pf_1": {"TANK": 4, "SUPPORT": 4, "HEAL": 4, "DPS": 7, "BM": 1},
+        "pf_1": {"CALLER": 1, "TANK": 4, "SUPPORT": 4, "HEAL": 4, "DPS": 7, "BM": 1},
         "pf_2": {"TANK": 4, "SUPPORT": 4, "HEAL": 4, "DPS": 7},
         "weapon": {
+            "CALLER":  "Selon strat (×infini)",
             "TANK":    "1H Masse controle (×2)  ·  Bec de corbin (×1)  ·  Serpent (off) (×1)",
             "SUPPORT": "Locus (×1)  ·  Incube (×1)  ·  Mande ténèbres (×1)  ·  Malédiction de vie (×1)",
             "HEAL":    "Sancti cuir (×2)  ·  Sancti Plaque (×1)  ·  1H nature (×1)",
