@@ -76,7 +76,7 @@ DEFAULT_TEMPLATES: dict[str, dict] = {
         "description": "Compo ZvZ G3 — 40 joueurs (PF1 + PF2) · T8 mini",
         "type_acti":   "PVP",
         "image":       "https://cdn.discordapp.com/attachments/94518390546255872/1284345624732635230/fatwizardBlick.gif?ex=69c9e512&is=69c89392&hm=4053fd8f86c884ba21d4193d893b325268ce1c54bba2c643419971a59d494875&",
-        "pf_1": {"TANK": 4, "SUPPORT": 4, "HEAL": 4, "DPS": 7, "BM": 1},
+        "pf_1": {"CALLER": 1, "TANK": 4, "SUPPORT": 4, "HEAL": 4, "DPS": 7, "BM": 1},
         "pf_2": {"TANK": 4, "SUPPORT": 4, "HEAL": 4, "DPS": 7},
         "weapon": {
             "TANK":    "1H Masse controle (×2)  ·  Bec de corbin (×1)  ·  Serpent (off) (×1)",
@@ -92,8 +92,20 @@ DEFAULT_TEMPLATES: dict[str, dict] = {
             "DPS":     "Ursines (×1)  ·  Spirit (×1)  ·  Perma (×1)  ·  BR (×1)  ·  Mains infernales (×infini)  ·  Arc long / aria (×1)",
         },
     },
+    "MONKEY BANANA": {
+        "description": "Compo monkey banana Spé 80 dps minimum, sinon go heal/tank/support. Pas de tiers minimum. 1 tank et heal pour 5 minimum.",
+        "type_acti":   "PVP",
+        "image":       "https://media.discordapp.net/attachments/749187175823704165/1492503179718299798/my-image.png?ex=69dc3a27&is=69dae8a7&hm=68e6f0ac0003dca8fb9f5a3e9e567c5a2c0f09e9417f62ba61e54f7bbc4738d8&=&format=webp&quality=lossless",
+        "pf_1": {"TANK": 4, "SUPPORT": 3, "HEAL": 4, "DPS": 9},
+        "weapon": {
+            "TANK":    "Monarque (×1)  ·  Heavy mace (×1)  ·  Gardes serments (×1)  ·  Tank fill (×2)",
+            "SUPPORT": "Mande Charogne (×1)  ·  Support fill (×2)",
+            "HEAL":    "Sancti plaque/cuir (×3)  ·  Druide 1h/Effréné plaque (×1)",
+            "DPS":     "Marteau forgés (×infini)  ·  Vesperien (×infini)  ·  Eagle (×infini)  ·  Dps fill de l'image (×infini)  ·  Saigneur (×1)  ·  Astral (×1)  ·  Ursines (×1)",
+        },
+    },
 }
- 
+
 # ── COULEURS par type d'activité ─────────────────────────────────────────────
 ACTIVITY_COLORS: dict[str, int] = {
     "ZvZ":               0xE74C3C,
