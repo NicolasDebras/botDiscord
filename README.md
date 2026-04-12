@@ -148,7 +148,7 @@ LiliumBot/
 | Template | Type | Composition |
 |---|---|---|
 | RAID AVA | PVE | TANK, OFF TANK, FROST, DAMME, SCOOT, MAIN HEAL, IRON ROOT, DPS ×3, COBRA/GA — liste d'attente activée |
-| G3 | PVP | PF1 : TANK ×3, SUPPORT ×5, HEAL ×4, DPS ×8 · PF2 : TANK ×1, SUPPORT ×7, HEAL ×4, DPS ×8 |
+| MiddleScale de G3 LE GOAT | PVP | PF1 : CALLER ×1, TANK ×4, SUPPORT ×4, HEAL ×4, DPS ×7, BM ×1 · PF2 : TANK ×4, SUPPORT ×4, HEAL ×4, DPS ×7 |
 | STATIK | PVE | TANK ×2, HEAL ×2, SUPPORT ×1, DPS ×5 |
 
 Les templates par défaut sont définis dans `config.py` et ne peuvent pas être modifiés via les commandes. Les templates custom sont stockés en base de données.
