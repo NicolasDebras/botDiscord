@@ -79,7 +79,7 @@ DEFAULT_TEMPLATES: dict[str, dict] = {
         "pf_1": {"CALLER": 1, "TANK": 4, "SUPPORT": 4, "HEAL": 4, "DPS": 7, "BM": 1},
         "pf_2": {"TANK": 4, "SUPPORT": 4, "HEAL": 4, "DPS": 7},
         "weapon": {
-            "CALLER":  "Selon strat (×infini)",
+            "CALLER":  "Selon strat",
             "TANK":    "1H Masse controle (×2)  ·  Bec de corbin (×1)  ·  Serpent (off) (×1)",
             "SUPPORT": "Locus (×1)  ·  Incube (×1)  ·  Mande ténèbres (×1)  ·  Malédiction de vie (×1)",
             "HEAL":    "Sancti cuir (×2)  ·  Sancti Plaque (×1)  ·  1H nature (×1)",
