@@ -97,7 +97,7 @@ DEFAULT_TEMPLATES: dict[str, dict] = {
         "description": "Compo monkey banana Spé 80 dps minimum, sinon go heal/tank/support. Pas de tiers minimum. 1 tank et heal pour 5 minimum.",
         "type_acti":   "PVP",
         "image":       "https://media.discordapp.net/attachments/749187175823704165/1492503179718299798/my-image.png?ex=69dc3a27&is=69dae8a7&hm=68e6f0ac0003dca8fb9f5a3e9e567c5a2c0f09e9417f62ba61e54f7bbc4738d8&=&format=webp&quality=lossless",
-        "pf_1": {"TANK": 4, "SUPPORT": 3, "HEAL": 4, "DPS": 9},
+        "pf_1": {"TANK": 4, "SUPPORT": 3, "HEAL": 4, "DPS": 30},
         "weapon": {
             "TANK":    "Monarque (×1)  ·  Heavy mace (×1)  ·  Gardes serments (×1)  ·  Tank fill (×2)",
             "SUPPORT": "Mande Charogne (×1)  ·  Support fill (×2)",
