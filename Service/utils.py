@@ -43,7 +43,7 @@ async def append_bal_log(action: str, by: str, entries: list) -> None:
     await db.append_bal_log(action, by, entries)
 
 
-BAL_LIMIT = 15_000_000
+BAL_LIMIT = 20_000_000
 
 MESSAGES_BAL_LIMIT = [
     "Ayo {mention} t'as **{total}** silver de BAL qui traîne… la guilde est pas une banque, viens récupérer ta thune gros merdeux 💸",
