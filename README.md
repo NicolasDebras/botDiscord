@@ -109,6 +109,7 @@ Une fois l'activité créée :
 | `/deltemplate nom` | Officier | Supprimer un template custom |
 | `/setimage nom url` | Officier | Modifier l'image d'un template (laisser url vide pour retirer) |
 | `/setrate taux` | Maitre de guilde | Modifier le taux de rachat guilde (%) |
+| `/balpartis` | Officier | Lister les joueurs qui ont quitté le Discord mais ont encore de la BAL |
 | `/totalbal` | Officier, GM | Afficher le total des BAL dues par la guilde (classé par montant) |
 
 **Exemple `/addtemplate` — ZvZ PF1+PF2 avec specs :**

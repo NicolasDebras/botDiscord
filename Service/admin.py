@@ -540,6 +540,53 @@ class Admin(commands.Cog):
             ephemeral=True,
         )
 
+    # ── /balpartis ───────────────────────────────────────────────────────────
+    @app_commands.command(name="balpartis", description="[OFFICIER] Lister les joueurs partis du Discord qui ont encore de la BAL")
+    async def balpartis(self, interaction: discord.Interaction):
+        if not is_admin(interaction.user):
+            await interaction.response.send_message(
+                "⛔ Tu n'as pas la permission d'utiliser cette commande.", ephemeral=True
+            )
+            return
+
+        await interaction.response.defer(ephemeral=True)
+
+        all_bal = await db.get_all_bal()
+        if not all_bal:
+            await interaction.followup.send("ℹ️ Aucune BAL enregistrée.", ephemeral=True)
+            return
+
+        fmt    = lambda n: f"{n:,}".replace(",", " ")
+        partis = []
+        for user_id_str, amount in all_bal.items():
+            if amount <= 0:
+                continue
+            member = interaction.guild.get_member(int(user_id_str))
+            if member is None:
+                # Plus dans le serveur — on tente de récupérer le nom via l'API
+                try:
+                    user = await interaction.client.fetch_user(int(user_id_str))
+                    name = f"{user.name} (ID: {user_id_str})"
+                except Exception:
+                    name = f"Inconnu (ID: {user_id_str})"
+                partis.append((name, amount))
+
+        if not partis:
+            await interaction.followup.send("✅ Aucun joueur parti n'a de BAL en attente.", ephemeral=True)
+            return
+
+        partis.sort(key=lambda x: x[1], reverse=True)
+        total  = sum(a for _, a in partis)
+        lines  = "\n".join(f"**{name}** — {fmt(amount)} silver" for name, amount in partis)
+
+        embed = discord.Embed(
+            title="🚪 Joueurs partis avec de la BAL",
+            description=lines,
+            color=0xE74C3C,
+        )
+        embed.set_footer(text=f"{len(partis)} joueur(s) · Total : {fmt(total)} silver")
+        await interaction.followup.send(embed=embed, ephemeral=True)
+
     # ── /totalbal ────────────────────────────────────────────────────────────
     @app_commands.command(name="totalbal", description="Afficher le total des BAL dues par la guilde")
     async def totalbal(self, interaction: discord.Interaction):
