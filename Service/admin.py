@@ -542,7 +542,8 @@ class Admin(commands.Cog):
 
     # ── /balpartis ───────────────────────────────────────────────────────────
     @app_commands.command(name="balpartis", description="[OFFICIER] Lister les joueurs partis du Discord qui ont encore de la BAL")
-    async def balpartis(self, interaction: discord.Interaction):
+    @app_commands.describe(vider="Vider la BAL des joueurs partis (défaut : false)")
+    async def balpartis(self, interaction: discord.Interaction, vider: bool = False):
         if not is_admin(interaction.user):
             await interaction.response.send_message(
                 "⛔ Tu n'as pas la permission d'utiliser cette commande.", ephemeral=True
@@ -563,28 +564,44 @@ class Admin(commands.Cog):
                 continue
             member = interaction.guild.get_member(int(user_id_str))
             if member is None:
-                # Plus dans le serveur — on tente de récupérer le nom via l'API
                 try:
                     user = await interaction.client.fetch_user(int(user_id_str))
                     name = f"{user.name} (ID: {user_id_str})"
                 except Exception:
                     name = f"Inconnu (ID: {user_id_str})"
-                partis.append((name, amount))
+                partis.append((user_id_str, name, amount))
 
         if not partis:
             await interaction.followup.send("✅ Aucun joueur parti n'a de BAL en attente.", ephemeral=True)
             return
 
-        partis.sort(key=lambda x: x[1], reverse=True)
-        total  = sum(a for _, a in partis)
-        lines  = "\n".join(f"**{name}** — {fmt(amount)} silver" for name, amount in partis)
+        partis.sort(key=lambda x: x[2], reverse=True)
+        total = sum(a for _, _, a in partis)
 
-        embed = discord.Embed(
-            title="🚪 Joueurs partis avec de la BAL",
-            description=lines,
-            color=0xE74C3C,
-        )
-        embed.set_footer(text=f"{len(partis)} joueur(s) · Total : {fmt(total)} silver")
+        if vider:
+            from Service.utils import append_bal_log
+            log_entries = []
+            for user_id_str, name, amount in partis:
+                await db.set_bal(user_id_str, 0)
+                log_entries.append({"uid": user_id_str, "name": name, "delta": -amount, "total": 0})
+            await append_bal_log("retirebal", interaction.user.display_name, log_entries)
+
+            lines = "\n".join(f"**{name}** — ~~{fmt(amount)} silver~~ → 0" for _, name, amount in partis)
+            embed = discord.Embed(
+                title="🗑️ BAL des joueurs partis vidées",
+                description=lines,
+                color=0xE74C3C,
+            )
+            embed.set_footer(text=f"{len(partis)} joueur(s) · {fmt(total)} silver supprimés")
+        else:
+            lines = "\n".join(f"**{name}** — {fmt(amount)} silver" for _, name, amount in partis)
+            embed = discord.Embed(
+                title="🚪 Joueurs partis avec de la BAL",
+                description=lines,
+                color=0xE74C3C,
+            )
+            embed.set_footer(text=f"{len(partis)} joueur(s) · Total : {fmt(total)} silver")
+
         await interaction.followup.send(embed=embed, ephemeral=True)
 
     # ── /totalbal ────────────────────────────────────────────────────────────
