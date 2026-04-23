@@ -1,4 +1,5 @@
 import re
+import asyncio
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -6,7 +7,7 @@ from datetime import datetime
 
 import db
 from config import ROLES, DEFAULT_TEMPLATES, ACTIVITY_COLORS, DEFAULT_COLOR, ADMIN_ROLE_NAME, MEMBRE_ROLE_NAME
-from Service.utils import load_settings, append_bal_log, is_membre, is_caller_or_admin, notify_bal_limit
+from Service.utils import load_settings, append_bal_log, is_membre, is_caller_or_admin, notify_bal_limit, fmt_silver
 
 # ── STOCKAGE EN MÉMOIRE  {message_id: data} ──────────────────────────────────
 activities: dict[int, dict] = {}
@@ -30,10 +31,14 @@ async def refresh_image_overrides() -> None:
 
 # ── PERSISTANCE ───────────────────────────────────────────────────────────────
 
-async def save_activities() -> None:
-    """Upserte toutes les activités en mémoire vers la DB."""
-    for msg_id, data in activities.items():
-        await db.save_activity(msg_id, data)
+async def save_activities(only: int | None = None) -> None:
+    """Upserte les activités en mémoire vers la DB. Si only est fourni, ne sauvegarde que cette activité."""
+    if only is not None:
+        if only in activities:
+            await db.save_activity(only, activities[only])
+    else:
+        for msg_id, data in activities.items():
+            await db.save_activity(msg_id, data)
 
 
 async def remove_activity(msg_id: int) -> None:
@@ -304,13 +309,13 @@ async def _register_player(
                         break
 
     for role, members in slots.items():
-        for entry in list(members):
+        for entry in members[:]:
             if entry[0] == user_id:
                 members.remove(entry)
                 break
 
     slots.setdefault(chosen_role, []).append((user_id, user_name, spec))
-    await save_activities()
+    await save_activities(only=activity_id)
 
     try:
         channel = interaction.client.get_channel(data["channel_id"])
@@ -485,7 +490,7 @@ class LeaveButton(discord.ui.Button):
         user_id = interaction.user.id
         removed = False
         for members in data["slots"].values():
-            for entry in list(members):
+            for entry in members[:]:
                 if entry[0] == user_id:
                     members.remove(entry)
                     removed = True
@@ -506,7 +511,7 @@ class LeaveButton(discord.ui.Button):
             return
 
         await interaction.response.defer(ephemeral=True)
-        await save_activities()
+        await save_activities(only=self.activity_id)
         await interaction.message.edit(embed=build_embed(data), view=build_view(self.activity_id))
         await interaction.followup.send("👋 Tu t'es retiré de l'activité.", ephemeral=True)
 
@@ -565,7 +570,6 @@ class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
             self.add_item(self.scoot_pay)
 
     async def on_submit(self, interaction: discord.Interaction):
-        fmt = lambda n: f"{n:,}".replace(",", " ")
 
         # Valider les montants AVANT le defer (encore dans les 3s)
         try:
@@ -619,20 +623,30 @@ class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
         remaining     = distributable - scoot_total
         part_indiv    = remaining // nb_others if nb_others > 0 else 0
 
-        # Créditer les BAL via DB
+        # Créditer les BAL via DB (batch)
+        deltas: dict[str, int] = {}
+        for uid, name in other_members:
+            deltas[str(uid)] = deltas.get(str(uid), 0) + part_indiv
+        for entry in scoot_members:
+            key = str(entry[0])
+            deltas[key] = deltas.get(key, 0) + scoot_amount
+
+        new_totals = await db.increment_bal_batch(deltas)
+
         log_entries = []
         for uid, name in other_members:
-            key       = str(uid)
-            new_total = await db.increment_bal(key, part_indiv)
-            log_entries.append({"uid": key, "name": name, "delta": part_indiv, "total": new_total})
-            await notify_bal_limit(interaction.client, uid, new_total)
+            key = str(uid)
+            log_entries.append({"uid": key, "name": name, "delta": part_indiv, "total": new_totals[key]})
         for entry in scoot_members:
             uid, name = entry[0], entry[1]
-            key       = str(uid)
-            new_total = await db.increment_bal(key, scoot_amount)
-            log_entries.append({"uid": key, "name": name, "delta": scoot_amount, "total": new_total})
-            await notify_bal_limit(interaction.client, uid, new_total)
+            key = str(uid)
+            log_entries.append({"uid": key, "name": name, "delta": scoot_amount, "total": new_totals[key]})
+
         await append_bal_log("finacti", interaction.user.display_name, log_entries)
+        await asyncio.gather(*[
+            notify_bal_limit(interaction.client, int(uid), total)
+            for uid, total in new_totals.items()
+        ])
 
         # Supprimer l'activité (mémoire + DB)
         await remove_activity(self.activity_id)
@@ -649,24 +663,24 @@ class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
         label_cout = "Carte + réparations" if self.is_pve else "Réparations"
         summary = (
             f"✅ **Activité clôturée !**\n\n"
-            f"💰 Recettes VM : **{fmt(total)} silver**\n"
+            f"💰 Recettes VM : **{fmt_silver(total)} silver**\n"
         )
         if carte_cost:
-            summary += f"🗺️ {label_cout} : **-{fmt(carte_cost)} silver**\n"
-        summary += f"🏦 Part guilde ({rate} %) : **{fmt(part_guilde)} silver**\n"
+            summary += f"🗺️ {label_cout} : **-{fmt_silver(carte_cost)} silver**\n"
+        summary += f"🏦 Part guilde ({rate} %) : **{fmt_silver(part_guilde)} silver**\n"
         if sac_pieces:
-            summary += f"🎒 Pièces : **+{fmt(sac_pieces)} silver** → distributable : **{fmt(distributable)} silver**\n"
+            summary += f"🎒 Pièces : **+{fmt_silver(sac_pieces)} silver** → distributable : **{fmt_silver(distributable)} silver**\n"
         if self.has_scoot:
             summary += (
-                f"🏃 Scoot ({nb_scoot} joueur(s)) : **{fmt(scoot_amount)} silver/joueur**\n"
-                f"👥 Reste ({nb_others} joueur(s)) : **{fmt(part_indiv)} silver/joueur**\n"
-                f"📊 BAL crédités — Scoot : **+{fmt(scoot_amount)}** · Reste : **+{fmt(part_indiv)}**"
+                f"🏃 Scoot ({nb_scoot} joueur(s)) : **{fmt_silver(scoot_amount)} silver/joueur**\n"
+                f"👥 Reste ({nb_others} joueur(s)) : **{fmt_silver(part_indiv)} silver/joueur**\n"
+                f"📊 BAL crédités — Scoot : **+{fmt_silver(scoot_amount)}** · Reste : **+{fmt_silver(part_indiv)}**"
             )
         else:
             summary += (
                 f"👥 Participants : **{nb_others}**\n"
-                f"💵 Part individuelle : **{fmt(part_indiv)} silver**\n"
-                f"📊 BAL crédités : **+{fmt(part_indiv)} BAL / joueur**"
+                f"💵 Part individuelle : **{fmt_silver(part_indiv)} silver**\n"
+                f"📊 BAL crédités : **+{fmt_silver(part_indiv)} BAL / joueur**"
             )
         await interaction.followup.send(summary)
 

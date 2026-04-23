@@ -1,6 +1,5 @@
 import discord
 import json
-import re
 from discord.ext import commands
 from discord import app_commands
 
@@ -9,8 +8,9 @@ from config import ADMIN_ROLE_NAME, GM_ROLE_NAME, ROLES, DEFAULT_BAL_RATE, DEFAU
 from Service.activites import (
     activities, build_embed, build_view, get_pf1, get_pf2,
     load_all_templates, save_activities, refresh_templates_cache, refresh_image_overrides,
+    _parse_weapon_slots, _player_weapon,
 )
-from Service.utils import is_admin, is_membre, is_caller_or_admin, ActivitySelect, load_settings, save_settings
+from Service.utils import is_admin, is_membre, is_caller_or_admin, ActivitySelect, load_settings, save_settings, append_bal_log, fmt_silver
 
 
 # ── AUTOCOMPLÉTION : rôles disponibles ───────────────────────────────────────
@@ -61,7 +61,7 @@ class AdminSpecLevelModal(discord.ui.Modal):
 
         action = "ajouté"
         for r, members in slots.items():
-            for entry in list(members):
+            for entry in members[:]:
                 if entry[0] == self.target_id:
                     members.remove(entry)
                     action = "déplacé"
@@ -91,7 +91,6 @@ class AdminWeaponSelect(discord.ui.Select):
         self.target_name = target_name
         self.chosen_role = chosen_role
         self.data        = data
-        from Service.activites import _parse_weapon_slots, _player_weapon
         current_members = data["slots"].get(chosen_role, [])
         options = []
         for w in weapons_list:
@@ -189,7 +188,7 @@ class Admin(commands.Cog):
 
             removed = False
             for members in data["slots"].values():
-                for entry in list(members):
+                for entry in members[:]:
                     if entry[0] == target_id:
                         members.remove(entry)
                         removed = True
@@ -308,7 +307,7 @@ class Admin(commands.Cog):
             # PVE ou pas d'armes → inscription directe
             action = "ajouté"
             for r, members in slots.items():
-                for entry in list(members):
+                for entry in members[:]:
                     if entry[0] == target_id:
                         members.remove(entry)
                         action = "déplacé"
@@ -557,7 +556,6 @@ class Admin(commands.Cog):
             await interaction.followup.send("ℹ️ Aucune BAL enregistrée.", ephemeral=True)
             return
 
-        fmt    = lambda n: f"{n:,}".replace(",", " ")
         partis = []
         for user_id_str, amount in all_bal.items():
             if amount <= 0:
@@ -579,28 +577,27 @@ class Admin(commands.Cog):
         total = sum(a for _, _, a in partis)
 
         if vider:
-            from Service.utils import append_bal_log
             log_entries = []
             for user_id_str, name, amount in partis:
                 await db.set_bal(user_id_str, 0)
                 log_entries.append({"uid": user_id_str, "name": name, "delta": -amount, "total": 0})
             await append_bal_log("retirebal", interaction.user.display_name, log_entries)
 
-            lines = "\n".join(f"**{name}** — ~~{fmt(amount)} silver~~ → 0" for _, name, amount in partis)
+            lines = "\n".join(f"**{name}** — ~~{fmt_silver(amount)} silver~~ → 0" for _, name, amount in partis)
             embed = discord.Embed(
                 title="🗑️ BAL des joueurs partis vidées",
                 description=lines,
                 color=0xE74C3C,
             )
-            embed.set_footer(text=f"{len(partis)} joueur(s) · {fmt(total)} silver supprimés")
+            embed.set_footer(text=f"{len(partis)} joueur(s) · {fmt_silver(total)} silver supprimés")
         else:
-            lines = "\n".join(f"**{name}** — {fmt(amount)} silver" for _, name, amount in partis)
+            lines = "\n".join(f"**{name}** — {fmt_silver(amount)} silver" for _, name, amount in partis)
             embed = discord.Embed(
                 title="🚪 Joueurs partis avec de la BAL",
                 description=lines,
                 color=0xE74C3C,
             )
-            embed.set_footer(text=f"{len(partis)} joueur(s) · Total : {fmt(total)} silver")
+            embed.set_footer(text=f"{len(partis)} joueur(s) · Total : {fmt_silver(total)} silver")
 
         await interaction.followup.send(embed=embed, ephemeral=True)
 
@@ -623,17 +620,15 @@ class Admin(commands.Cog):
             return
 
         total = sum(all_bal.values())
-        fmt   = lambda n: f"{n:,}".replace(",", " ")
-
         lines = sorted(all_bal.items(), key=lambda x: x[1], reverse=True)
-        desc  = "\n".join(f"<@{uid}> — **{fmt(amount)}** silver" for uid, amount in lines if amount > 0)
+        desc  = "\n".join(f"<@{uid}> — **{fmt_silver(amount)}** silver" for uid, amount in lines if amount > 0)
 
         embed = discord.Embed(
             title="💰 Total BAL — Ce que la guilde doit",
             description=desc or "Aucun solde positif.",
             color=0xF1C40F,
         )
-        embed.set_footer(text=f"Total : {fmt(total)} silver")
+        embed.set_footer(text=f"Total : {fmt_silver(total)} silver")
         await interaction.response.send_message(embed=embed)
 
 

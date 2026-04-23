@@ -1,7 +1,13 @@
+import random
 import discord
 import db
 
 from config import ADMIN_ROLE_NAME, GM_ROLE_NAME, MEMBRE_ROLE_NAME, CALLER_ROLE_NAME, DEFAULT_BAL_RATE
+
+
+def fmt_silver(n: int) -> str:
+    """Formate un montant en silver avec espaces comme séparateur de milliers."""
+    return f"{n:,}".replace(",", " ")
 
 
 # ── HELPER : vérification du rôle admin ──────────────────────────────────────
@@ -52,7 +58,6 @@ MESSAGES_BAL_LIMIT = [
     "{mention} t'as **{total}** silver de BAL. La guilde te l'a pas mise de côté pour faire joli. Viens chercher ton fric, cornichon 🥒",
 ]
 
-import random
 
 async def notify_bal_limit(bot: discord.Client, user_id: int, new_total: int) -> None:
     """Envoie un DM si la BAL dépasse BAL_LIMIT."""
@@ -60,8 +65,7 @@ async def notify_bal_limit(bot: discord.Client, user_id: int, new_total: int) ->
         return
     try:
         user = await bot.fetch_user(user_id)
-        fmt  = f"{new_total:,}".replace(",", " ")
-        msg  = random.choice(MESSAGES_BAL_LIMIT).format(mention=user.mention, total=fmt)
+        msg  = random.choice(MESSAGES_BAL_LIMIT).format(mention=user.mention, total=fmt_silver(new_total))
         await user.send(msg)
     except Exception:
         pass  # DM bloqué ou user introuvable, on ignore

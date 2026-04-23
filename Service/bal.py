@@ -1,3 +1,5 @@
+import asyncio
+import random
 import discord
 from datetime import datetime
 from discord.ext import commands
@@ -6,7 +8,7 @@ from discord import app_commands
 import db
 from config import ADMIN_ROLE_NAME, MEMBRE_ROLE_NAME
 from Service.activites import activities
-from Service.utils import is_admin, is_membre, ActivitySelect, append_bal_log, load_bal_log, notify_bal_limit
+from Service.utils import is_admin, is_membre, ActivitySelect, append_bal_log, load_bal_log, notify_bal_limit, fmt_silver
 
 # Labels affichés dans /ballog
 ACTION_LABELS = {
@@ -260,24 +262,30 @@ class Bal(commands.Cog):
                 )
                 return
 
-            payes: list[tuple[int, str, int]] = []
-            log_entries = []
+            participants = [
+                (entry[0], entry[1])
+                for members in data["slots"].values()
+                for entry in members
+            ]
 
-            for members in data["slots"].values():
-                for entry in members:
-                    uid, name = entry[0], entry[1]
-                    key       = str(uid)
-                    new_total = await db.increment_bal(key, montant)
-                    payes.append((uid, name, new_total))
-                    log_entries.append({"uid": key, "name": name, "delta": montant, "total": new_total})
-                    await notify_bal_limit(interaction.client, uid, new_total)
-
-            if not payes:
+            if not participants:
                 await inter.response.send_message("ℹ️ Aucun participant inscrit à cette activité.", ephemeral=True)
                 return
 
-            await append_bal_log("paybal", by, log_entries)
+            deltas      = {str(uid): montant for uid, _ in participants}
+            new_totals  = await db.increment_bal_batch(deltas)
+            log_entries = [
+                {"uid": str(uid), "name": name, "delta": montant, "total": new_totals[str(uid)]}
+                for uid, name in participants
+            ]
 
+            await append_bal_log("paybal", by, log_entries)
+            await asyncio.gather(*[
+                notify_bal_limit(interaction.client, uid, new_totals[str(uid)])
+                for uid, _ in participants
+            ])
+
+            payes = [(uid, name, new_totals[str(uid)]) for uid, name in participants]
             lines = "\n".join(f"<@{uid}> +{montant} (total : **{total}**)" for uid, _, total in payes)
             embed = discord.Embed(
                 title="💰 BAL distribués",
@@ -337,10 +345,9 @@ class Bal(commands.Cog):
 
         await notify_bal_limit(interaction.client, joueur.id, new_receiver)
 
-        fmt = lambda n: f"{n:,}".replace(",", " ")
         await interaction.followup.send(
-            f"✅ **{fmt(montant)} silver** transférés à {joueur.mention} !\n"
-            f"Ton nouveau solde : **{fmt(new_sender)} silver**",
+            f"✅ **{fmt_silver(montant)} silver** transférés à {joueur.mention} !\n"
+            f"Ton nouveau solde : **{fmt_silver(new_sender)} silver**",
             ephemeral=True,
         )
 

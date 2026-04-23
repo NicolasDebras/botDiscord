@@ -153,6 +153,21 @@ async def increment_bal(user_id: str, delta: int) -> int:
     return row["amount"]
 
 
+async def increment_bal_batch(deltas: dict[str, int]) -> dict[str, int]:
+    """Incrémente plusieurs soldes en une seule transaction. Retourne {user_id: new_total}."""
+    async with _pool.acquire() as conn:
+        async with conn.transaction():
+            results = {}
+            for user_id, delta in deltas.items():
+                row = await conn.fetchrow("""
+                    INSERT INTO bal (user_id, amount) VALUES ($1, $2)
+                    ON CONFLICT (user_id) DO UPDATE SET amount = bal.amount + EXCLUDED.amount
+                    RETURNING amount
+                """, user_id, delta)
+                results[user_id] = row["amount"]
+    return results
+
+
 async def set_bal(user_id: str, amount: int) -> None:
     async with _pool.acquire() as conn:
         await conn.execute("""
