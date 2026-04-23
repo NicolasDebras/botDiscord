@@ -10,10 +10,11 @@ from Service.utils import is_admin, is_membre, ActivitySelect, append_bal_log, l
 
 # Labels affichés dans /ballog
 ACTION_LABELS = {
-    "addbal":    "➕ Ajout manuel",
-    "retirebal": "➖ Retrait manuel",
-    "paybal":    "💰 PayBAL (activité)",
-    "finacti":   "🏁 Fin d'activité",
+    "addbal":      "➕ Ajout manuel",
+    "retirebal":   "➖ Retrait manuel",
+    "paybal":      "💰 PayBAL (activité)",
+    "finacti":     "🏁 Fin d'activité",
+    "transferbal": "🔄 Transfert entre joueurs",
 }
 
 
@@ -290,6 +291,57 @@ class Bal(commands.Cog):
         await interaction.response.send_message(
             f"Choisis l'activité pour distribuer **{montant} BAL** par joueur :",
             view=view, ephemeral=True,
+        )
+
+    # =========================================================================
+    # /transferbal  — s'échanger de la BAL entre membres
+    # =========================================================================
+    @app_commands.command(name="transferbal", description="Transférer de la BAL à un autre joueur")
+    @app_commands.describe(joueur="Le joueur qui reçoit", montant="Montant à transférer")
+    async def transferbal(
+        self,
+        interaction: discord.Interaction,
+        joueur: discord.Member,
+        montant: app_commands.Range[int, 1],
+    ):
+        if not is_membre(interaction.user):
+            await interaction.response.send_message(
+                f"⛔ Tu dois avoir le rôle **{MEMBRE_ROLE_NAME}** pour utiliser cette commande.", ephemeral=True
+            )
+            return
+
+        if joueur.id == interaction.user.id:
+            await interaction.response.send_message("❌ Tu peux pas te transférer de la BAL à toi-même.", ephemeral=True)
+            return
+
+        await interaction.response.defer(ephemeral=True)
+
+        sender_key   = str(interaction.user.id)
+        receiver_key = str(joueur.id)
+
+        solde_sender = await db.get_bal(sender_key)
+        if solde_sender < montant:
+            await interaction.followup.send(
+                f"❌ Solde insuffisant. Tu as **{solde_sender:,} silver** de BAL, tu veux en transférer **{montant:,}**."
+                .replace(",", " "), ephemeral=True
+            )
+            return
+
+        new_sender   = await db.increment_bal(sender_key, -montant)
+        new_receiver = await db.increment_bal(receiver_key, montant)
+
+        await append_bal_log("transferbal", interaction.user.display_name, [
+            {"uid": sender_key,   "name": interaction.user.display_name, "delta": -montant,  "total": new_sender},
+            {"uid": receiver_key, "name": joueur.display_name,           "delta":  montant,  "total": new_receiver},
+        ])
+
+        await notify_bal_limit(interaction.client, joueur.id, new_receiver)
+
+        fmt = lambda n: f"{n:,}".replace(",", " ")
+        await interaction.followup.send(
+            f"✅ **{fmt(montant)} silver** transférés à {joueur.mention} !\n"
+            f"Ton nouveau solde : **{fmt(new_sender)} silver**",
+            ephemeral=True,
         )
 
     # =========================================================================
