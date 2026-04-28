@@ -108,6 +108,8 @@ def build_embed(data: dict) -> discord.Embed:
     bal      = data["bal"]
     creator  = data["creator"]
     created  = data["created_at"]
+    depart   = data.get("depart", "")
+    tier     = data.get("tier", "")
 
     color = DEFAULT_COLOR
     if template:
@@ -203,9 +205,15 @@ def build_embed(data: dict) -> discord.Embed:
 
     payout_line    = "💰 BAL" if bal else "🆓 Libre"
     total_inscrits = sum(len(v) for v in slots.values())
+    info_lines = []
+    extra = f"**Départ :** {depart}"
+    if tier:
+        extra += f"    **Tier :** {tier}"
+    info_lines.append(extra)
+    info_lines.append(f"**Pay Out :** {payout_line}    **Inscrits :** {total_inscrits}/{max_p}")
     embed.add_field(
         name="─────────────────────────",
-        value=f"**Pay Out :** {payout_line}    **Inscrits :** {total_inscrits}/{max_p}",
+        value="\n".join(info_lines),
         inline=False,
     )
 
@@ -892,17 +900,26 @@ class Activites(commands.Cog):
     # ── /acti ────────────────────────────────────────────────────────────────
     @app_commands.command(name="acti", description="Créer une activité de guilde Albion Online")
     @app_commands.describe(
-        nametemplate = "Template de composition (optionnel — sans template : activité PVP libre DPS/HEAL/SUPPORT)",
+        nametemplate = "Template de composition (optionnel — sans template : activité libre DPS/HEAL/SUPPORT)",
         nbplayer     = "Nombre de joueurs max (calculé automatiquement depuis le template si renseigné)",
         bal          = "Paiement BAL ? (true = BAL, false = Libre)",
+        depart       = "Point de départ (Ville / HO / Libre)",
+        tier         = "Tier requis (ex : T7, T8.3…)",
     )
     @app_commands.autocomplete(nametemplate=template_autocomplete)
+    @app_commands.choices(depart=[
+        app_commands.Choice(name="Ville", value="Ville"),
+        app_commands.Choice(name="HO",    value="HO"),
+        app_commands.Choice(name="Libre", value="Libre"),
+    ])
     async def acti(
         self,
         interaction:  discord.Interaction,
         nametemplate: str = "",
         nbplayer:     app_commands.Range[int, 1, 100] | None = None,
         bal:          bool = True,
+        depart:       str = "Libre",
+        tier:         str = "",
     ):
         if not is_membre(interaction.user):
             await interaction.response.send_message(
@@ -946,6 +963,8 @@ class Activites(commands.Cog):
             "template":    template_name,
             "max_players": nbplayer,
             "bal":         bal,
+            "depart":      depart,
+            "tier":        tier,
             "slots":       slots,
             "channel_id":  interaction.channel_id,
             "waitlist":    [],
