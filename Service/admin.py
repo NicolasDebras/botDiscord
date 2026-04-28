@@ -726,7 +726,7 @@ class Admin(commands.Cog):
             inline=False,
         )
 
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.response.send_message(embed=embed)
 
 
 # ── SETUP ─────────────────────────────────────────────────────────────────────
