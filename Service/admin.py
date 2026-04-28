@@ -666,6 +666,69 @@ class Admin(commands.Cog):
         await interaction.response.send_message(embed=embed)
 
 
+    # =========================================================================
+    # /helpLiliumbot  — liste des commandes
+    # =========================================================================
+    @app_commands.command(name="helpLiliumbot", description="Afficher toutes les commandes du bot")
+    async def helpLiliumbot(self, interaction: discord.Interaction):
+        embed = discord.Embed(
+            title="📖  LiliumBot — Commandes",
+            color=0x3498DB,
+        )
+
+        embed.add_field(
+            name="⚔️  Activités",
+            value=(
+                "`/acti` — Créer une activité *(Membre)*\n"
+                "  • `nametemplate` — template (optionnel)\n"
+                "  • `nbplayer` — joueurs max\n"
+                "  • `bal` — paiement BAL (défaut : true)\n"
+                "  • `depart` — Ville / HO / **Libre** (défaut)\n"
+                "  • `tier` — tier requis (libre, optionnel)\n"
+                "`/templates` — Templates disponibles *(Membre)*\n\n"
+                "**Boutons dans le post d'activité :**\n"
+                "Menu déroulant → s'inscrire dans un rôle\n"
+                "❌ Se retirer — ✏️ Modifier (créateur/Officier)\n"
+                "🏁 Fin d'activité (calcul BAL auto) — 🔴 Annuler"
+            ),
+            inline=False,
+        )
+
+        embed.add_field(
+            name="💰  BAL",
+            value=(
+                "`/monbal` — Voir son solde *(Membre)*\n"
+                "`/transferbal @joueur montant` — Transférer *(Membre)*\n"
+                "`/classement` — Top 20 BAL *(Membre)*\n"
+                "`/baljoueur @joueur` — Solde d'un joueur *(Officier)*\n"
+                "`/addbal @joueur montant` — Ajouter *(Officier)*\n"
+                "`/retirebal @joueur montant` — Retirer *(Officier)*\n"
+                "`/paybal montant` — Distribuer aux participants *(Officier)*\n"
+                "`/ballog [page] [joueur]` — Historique transactions *(Officier)*\n"
+                "`/balpartis [vider]` — Joueurs partis avec BAL *(Officier)*\n"
+                "`/totalbal` — Total BAL dues *(Officier/GM)*"
+            ),
+            inline=False,
+        )
+
+        embed.add_field(
+            name="🛡️  Administration",
+            value=(
+                "`/kickacti @joueur` — Retirer un joueur *(Organisateur/Officier/Caller)*\n"
+                "`/addacti @joueur role` — Ajouter un joueur *(Officier/Caller)*\n"
+                "`/addtemplate` — Ajouter un template custom *(Officier)*\n"
+                "`/deltemplate nom` — Supprimer un template custom *(Officier)*\n"
+                "`/setimage nom [url]` — Modifier l'image d'un template *(Officier)*\n"
+                "`/setdescription nom [description]` — Modifier la description d'un template *(Officier)*\n"
+                "`/setrate taux` — Taux de rachat guilde *(GM)*\n"
+                "`/helpLiliumbot` — Cette aide *(Tous)*"
+            ),
+            inline=False,
+        )
+
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
 # ── SETUP ─────────────────────────────────────────────────────────────────────
 async def setup(bot: commands.Bot):
     await bot.add_cog(Admin(bot))

@@ -66,8 +66,10 @@ Les tables SQL sont créées automatiquement au premier démarrage.
 - `nametemplate` — Template de composition (optionnel)
 - `nbplayer` — Nombre de joueurs max (calculé depuis le template si renseigné, 100 par défaut sans template)
 - `bal` — Paiement BAL ? (`true` = BAL, `false` = Libre) — **défaut : true** (forcé à `false` pour les simples Membres)
+- `depart` — Point de départ : `Ville` / `HO` / `Libre` — **défaut : Libre**
+- `tier` — Tier requis (champ libre, ex : `T8.3`) — optionnel
 
-> Sans template, une activité PVP libre est créée avec les rôles DPS / HEAL / SUPPORT et 100 places max.
+> Sans template, une activité libre est créée avec les rôles DPS / HEAL / SUPPORT et 100 places max.
 
 Une fois l'activité créée :
 - Les joueurs choisissent leur rôle via le menu déroulant
@@ -75,6 +77,7 @@ Une fois l'activité créée :
 - **PVE** : inscription directe
 - Bouton ❌ pour se retirer (slots ou liste d'attente)
 - Bouton ⏳ Liste d'attente (sur les templates avec `has_waitlist`)
+- Bouton ✏️ Modifier (créateur ou Officier) → change la description, le tier et le départ
 - Bouton 🏁 Fin d'activité (organisateur ou Officier) → calcul et crédit BAL automatique
   - Formule : `((recettes VM - réparations) × taux guilde%) + pièces coffre`
   - Les **pièces VM du coffre** s'ajoutent après la taxe guilde (non taxées)
@@ -107,10 +110,12 @@ Une fois l'activité créée :
 | `/addacti @joueur role` | Officier ou Caller | Ajouter ou déplacer un joueur dans une activité |
 | `/addtemplate` | Officier | Ajouter un template custom (format JSON) |
 | `/deltemplate nom` | Officier | Supprimer un template custom |
-| `/setimage nom url` | Officier | Modifier l'image d'un template (laisser url vide pour retirer) |
+| `/setimage nom [url]` | Officier | Modifier l'image d'un template (laisser url vide pour retirer) |
+| `/setdescription nom [description]` | Officier | Modifier la description d'un template (laisser vide pour retirer) |
 | `/setrate taux` | Maitre de guilde | Modifier le taux de rachat guilde (%) |
-| `/balpartis` | Officier | Lister les joueurs qui ont quitté le Discord mais ont encore de la BAL |
+| `/balpartis [vider]` | Officier | Lister les joueurs qui ont quitté le Discord mais ont encore de la BAL |
 | `/totalbal` | Officier, GM | Afficher le total des BAL dues par la guilde (classé par montant) |
+| `/helpLiliumbot` | Tous | Afficher la liste de toutes les commandes du bot |
 
 **Exemple `/addtemplate` — ZvZ PF1+PF2 avec specs :**
 ```
