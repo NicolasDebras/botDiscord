@@ -128,9 +128,15 @@ def build_embed(data: dict) -> discord.Embed:
 
     all_templates = load_all_templates()
     tdata         = all_templates.get(template, {})
-    tpl_desc      = _description_overrides.get(template, tdata.get("description", "")) if template else tdata.get("description", "")
-    custom_desc   = data.get("custom_description", "")
-    full_desc     = "\n".join(filter(None, [tpl_desc, custom_desc])) or None
+    tpl_desc    = _description_overrides.get(template, tdata.get("description", "")) if template else tdata.get("description", "")
+    custom_desc = data.get("custom_description", "")
+    top_info_parts = []
+    if depart:
+        top_info_parts.append(f"📍 **Départ :** {depart}")
+    if tier:
+        top_info_parts.append(f"⚔️ **Tier :** {tier}")
+    top_info  = "   ".join(top_info_parts)
+    full_desc = "\n".join(filter(None, [tpl_desc, custom_desc, top_info])) or None
     image_url     = _image_overrides.get(template, tdata.get("image", ""))
 
     embed = discord.Embed(
@@ -215,15 +221,9 @@ def build_embed(data: dict) -> discord.Embed:
 
     payout_line    = "💰 BAL" if bal else "🆓 Libre"
     total_inscrits = sum(len(v) for v in slots.values())
-    info_lines = []
-    extra = f"**Départ :** {depart}"
-    if tier:
-        extra += f"    **Tier :** {tier}"
-    info_lines.append(extra)
-    info_lines.append(f"**Pay Out :** {payout_line}    **Inscrits :** {total_inscrits}/{max_p}")
     embed.add_field(
         name="─────────────────────────",
-        value="\n".join(info_lines),
+        value=f"**Pay Out :** {payout_line}    **Inscrits :** {total_inscrits}/{max_p}",
         inline=False,
     )
 
@@ -758,7 +758,7 @@ class EditActiModal(discord.ui.Modal, title="Modifier l'activité"):
 
     async def on_submit(self, interaction: discord.Interaction):
         _depart_map = {"ville": "Ville", "ho": "HO", "libre": "Libre"}
-        raw = self.depart_input.value.strip()
+        raw        = self.depart_input.value.strip()
         depart_val = _depart_map.get(raw.lower(), "") if raw else "Libre"
         if raw and not depart_val:
             await interaction.response.send_message(
