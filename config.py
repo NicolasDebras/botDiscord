@@ -76,14 +76,14 @@ DEFAULT_TEMPLATES: dict[str, dict] = {
         "description": "Compo ZvZ G3 — 40 joueurs (PF1 + PF2) · T8 mini",
         "type_acti":   "PVP",
         "image":       "https://cdn.discordapp.com/attachments/94518390546255872/1284345624732635230/fatwizardBlick.gif?ex=69c9e512&is=69c89392&hm=4053fd8f86c884ba21d4193d893b325268ce1c54bba2c643419971a59d494875&",
-        "pf_1": {"CALLER": 1, "TANK": 4, "SUPPORT": 4, "HEAL": 4, "DPS": 7, "BM": 1},
+        "pf_1": {"CALLER": 1, "TANK": 4, "SUPPORT": 4, "HEAL": 4, "DPS": 7, "BM": 2},
         "pf_2": {"TANK": 4, "SUPPORT": 4, "HEAL": 4, "DPS": 7},
         "weapon": {
             "CALLER":  "Selon strat",
             "TANK":    "1H Masse controle (×2)  ·  Bec de corbin (×1)  ·  Serpent (off) (×1)",
             "SUPPORT": "Locus (×1)  ·  Incube (×1)  ·  Mande ténèbres (×1)  ·  Malédiction de vie (×1)",
             "HEAL":    "Sancti cuir (×2)  ·  Sancti Plaque (×1)  ·  1H nature (×1)",
-            "DPS":     "Pointes (×1)  ·  Tranchante (×1)  ·  BR (×2)  ·  Brassards (×infini)  ·  Mains Infernales (×infini)",
+            "DPS":     "Pointes (×1)  ·  Tranchante (×1)  ·  BR (×infini)  ·  Brassards (×infini)  ·  Mains Infernales (×infini)",
             "BM":      "Tour mobile (×1)  ·  Venom (×1)",
         },
         "weapon_pf2": {
@@ -97,8 +97,9 @@ DEFAULT_TEMPLATES: dict[str, dict] = {
         "description": "Compo monkey banana Spé 80 dps minimum, sinon go heal/tank/support. Pas de tiers minimum. 1 tank et heal pour 5 minimum.",
         "type_acti":   "PVP",
         "image":       "https://media.discordapp.net/attachments/749187175823704165/1492503179718299798/my-image.png?ex=69dc3a27&is=69dae8a7&hm=68e6f0ac0003dca8fb9f5a3e9e567c5a2c0f09e9417f62ba61e54f7bbc4738d8&=&format=webp&quality=lossless",
-        "pf_1": {"TANK": 4, "SUPPORT": 3, "HEAL": 4, "DPS": 30},
+        "pf_1": {"CALLER": 1, "TANK": 4, "SUPPORT": 3, "HEAL": 4, "DPS": 30},
         "weapon": {
+            "CALLER": "Selon strat",
             "TANK":    "Monarque (×1)  ·  Heavy mace (×1)  ·  Gardes serments (×1)  ·  Tank fill (×2)",
             "SUPPORT": "Mande Charogne (×1)  ·  Support fill (×2)",
             "HEAL":    "Sancti plaque/cuir (×3)  ·  Druide 1h/Effréné plaque (×1)",
