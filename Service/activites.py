@@ -426,18 +426,35 @@ class WeaponSelectView(discord.ui.View):
 class RoleSelect(discord.ui.Select):
     def __init__(self, activity_id: int, roles: list[str]):
         self.activity_id = activity_id
+
+        data          = activities.get(activity_id, {})
+        slots         = data.get("slots", {})
+        template      = data.get("template")
+        all_templates = load_all_templates()
+        tdata         = all_templates.get(template, {}) if template else {}
+        pf1           = get_pf1(tdata) if tdata else {}
+        pf2           = get_pf2(tdata) if tdata else {}
+
         options = []
         for role_key in roles:
             is_pf2    = role_key.startswith("PF2:")
             role_name = role_key[4:] if is_pf2 else role_key
-            label     = f"{role_name} (PF2)" if is_pf2 else role_name
-            desc      = f"PF2 — S'inscrire en {role_name}" if is_pf2 else f"S'inscrire en tant que {role_name}"
+            # Masquer le rôle s'il est plein
+            max_r = pf2.get(role_name) if is_pf2 else (pf1.get(role_key) if pf1 else None)
+            if max_r is not None and len(slots.get(role_key, [])) >= max_r:
+                continue
+            label = f"{role_name} (PF2)" if is_pf2 else role_name
+            desc  = f"PF2 — S'inscrire en {role_name}" if is_pf2 else f"S'inscrire en tant que {role_name}"
             options.append(discord.SelectOption(
                 label=label[:100],
                 emoji=ROLES.get(role_name, "🔹"),
                 description=desc[:100],
                 value=role_key,
             ))
+
+        if not options:
+            options = [discord.SelectOption(label="⛔ Toutes les places sont prises", value="__full__")]
+
         super().__init__(
             placeholder="📋  Choisis ton rôle...",
             min_values=1,
@@ -447,6 +464,9 @@ class RoleSelect(discord.ui.Select):
         )
 
     async def callback(self, interaction: discord.Interaction):
+        if self.values[0] == "__full__":
+            await interaction.response.send_message("⛔ Toutes les places sont prises.", ephemeral=True)
+            return
         if not is_membre(interaction.user):
             await interaction.response.send_message(
                 f"⛔ Tu dois avoir le rôle **{MEMBRE_ROLE_NAME}** pour t'inscrire.", ephemeral=True
