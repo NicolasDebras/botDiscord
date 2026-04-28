@@ -115,7 +115,7 @@ Une fois l'activité créée :
 | `/setrate taux` | Maitre de guilde | Modifier le taux de rachat guilde (%) |
 | `/balpartis [vider]` | Officier | Lister les joueurs qui ont quitté le Discord mais ont encore de la BAL |
 | `/totalbal` | Officier, GM | Afficher le total des BAL dues par la guilde (classé par montant) |
-| `/helpLiliumbot` | Tous | Afficher la liste de toutes les commandes du bot |
+| `/helpliliumbot` | Tous | Afficher la liste de toutes les commandes du bot |
 
 **Exemple `/addtemplate` — ZvZ PF1+PF2 avec specs :**
 ```

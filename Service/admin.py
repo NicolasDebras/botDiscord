@@ -669,7 +669,7 @@ class Admin(commands.Cog):
     # =========================================================================
     # /helpLiliumbot  — liste des commandes
     # =========================================================================
-    @app_commands.command(name="helpLiliumbot", description="Afficher toutes les commandes du bot")
+    @app_commands.command(name="helpliliumbot", description="Afficher toutes les commandes du bot")
     async def helpLiliumbot(self, interaction: discord.Interaction):
         embed = discord.Embed(
             title="📖  LiliumBot — Commandes",
@@ -721,7 +721,7 @@ class Admin(commands.Cog):
                 "`/setimage nom [url]` — Modifier l'image d'un template *(Officier)*\n"
                 "`/setdescription nom [description]` — Modifier la description d'un template *(Officier)*\n"
                 "`/setrate taux` — Taux de rachat guilde *(GM)*\n"
-                "`/helpLiliumbot` — Cette aide *(Tous)*"
+                "`/helpliliumbot` — Cette aide *(Tous)*"
             ),
             inline=False,
         )
