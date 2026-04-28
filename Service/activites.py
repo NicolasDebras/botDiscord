@@ -18,6 +18,9 @@ _templates_cache: dict[str, dict] = {}
 # ── CACHE IMAGE OVERRIDES (clé settings : img:{template_name}) ───────────────
 _image_overrides: dict[str, str] = {}
 
+# ── CACHE DESCRIPTION OVERRIDES (clé settings : desc:{template_name}) ────────
+_description_overrides: dict[str, str] = {}
+
 
 async def refresh_templates_cache() -> None:
     global _templates_cache
@@ -27,6 +30,11 @@ async def refresh_templates_cache() -> None:
 async def refresh_image_overrides() -> None:
     global _image_overrides
     _image_overrides = await db.get_image_overrides()
+
+
+async def refresh_description_overrides() -> None:
+    global _description_overrides
+    _description_overrides = await db.get_description_overrides()
 
 
 # ── PERSISTANCE ───────────────────────────────────────────────────────────────
@@ -120,12 +128,14 @@ def build_embed(data: dict) -> discord.Embed:
 
     all_templates = load_all_templates()
     tdata         = all_templates.get(template, {})
-    description   = tdata.get("description", "")
+    tpl_desc      = _description_overrides.get(template, tdata.get("description", "")) if template else tdata.get("description", "")
+    custom_desc   = data.get("custom_description", "")
+    full_desc     = "\n".join(filter(None, [tpl_desc, custom_desc])) or None
     image_url     = _image_overrides.get(template, tdata.get("image", ""))
 
     embed = discord.Embed(
         title=f"🗡️  {template or 'Activité'}  de {creator}",
-        description=description or None,
+        description=full_desc,
         color=color,
         timestamp=created,
     )
@@ -693,6 +703,87 @@ class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
         await interaction.followup.send(summary)
 
 
+# ── MODAL MODIFICATION D'ACTIVITÉ ────────────────────────────────────────────
+class EditActiModal(discord.ui.Modal, title="Modifier l'activité"):
+    def __init__(self, activity_id: int, data: dict):
+        super().__init__()
+        self.activity_id = activity_id
+        self.data        = data
+
+        self.desc_input = discord.ui.TextInput(
+            label="Description",
+            placeholder="Note libre affichée dans le post",
+            required=False,
+            max_length=500,
+            style=discord.TextStyle.paragraph,
+            default=data.get("custom_description", "") or None,
+        )
+        self.tier_input = discord.ui.TextInput(
+            label="Tier requis",
+            placeholder="Ex : T7, T8.3…",
+            required=False,
+            max_length=50,
+            default=data.get("tier", "") or None,
+        )
+        self.depart_input = discord.ui.TextInput(
+            label="Départ (Ville / HO / Libre)",
+            placeholder="Ville, HO ou Libre",
+            required=False,
+            max_length=10,
+            default=data.get("depart", "Libre"),
+        )
+        self.add_item(self.desc_input)
+        self.add_item(self.tier_input)
+        self.add_item(self.depart_input)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        _depart_map = {"ville": "Ville", "ho": "HO", "libre": "Libre"}
+        raw = self.depart_input.value.strip()
+        depart_val = _depart_map.get(raw.lower(), "") if raw else "Libre"
+        if raw and not depart_val:
+            await interaction.response.send_message(
+                "❌ Départ invalide. Choisir parmi : **Ville**, **HO**, **Libre**.", ephemeral=True
+            )
+            return
+
+        self.data["custom_description"] = self.desc_input.value.strip()
+        self.data["tier"]               = self.tier_input.value.strip()
+        self.data["depart"]             = depart_val
+
+        await save_activities(only=self.activity_id)
+        try:
+            channel = interaction.client.get_channel(self.data["channel_id"])
+            msg     = await channel.fetch_message(self.activity_id)
+            await msg.edit(embed=build_embed(self.data), view=build_view(self.activity_id))
+        except Exception:
+            pass
+        await interaction.response.send_message("✅ Activité mise à jour !", ephemeral=True)
+
+
+# ── BOUTON MODIFIER L'ACTIVITÉ ────────────────────────────────────────────────
+class EditActiButton(discord.ui.Button):
+    def __init__(self, activity_id: int):
+        super().__init__(
+            label="Modifier", emoji="✏️",
+            style=discord.ButtonStyle.secondary,
+            custom_id=f"editacti_{activity_id}",
+        )
+        self.activity_id = activity_id
+
+    async def callback(self, interaction: discord.Interaction):
+        data = activities.get(self.activity_id)
+        if not data:
+            await interaction.response.send_message("❌ Activité introuvable.", ephemeral=True)
+            return
+        is_creator = interaction.user.display_name == data["creator"]
+        if not (is_creator or is_caller_or_admin(interaction.user)):
+            await interaction.response.send_message(
+                "⛔ Seul l'organisateur ou un **Officier** peut modifier l'activité.", ephemeral=True
+            )
+            return
+        await interaction.response.send_modal(EditActiModal(self.activity_id, data))
+
+
 # ── BOUTON FIN D'ACTIVITÉ ─────────────────────────────────────────────────────
 class FinActiButton(discord.ui.Button):
     def __init__(self, activity_id: int):
@@ -843,6 +934,7 @@ class ActivityView(discord.ui.View):
         self.add_item(LeaveButton(activity_id))
         if tdata.get("has_waitlist"):
             self.add_item(WaitlistButton(activity_id))
+        self.add_item(EditActiButton(activity_id))
         self.add_item(FinActiButton(activity_id))
         self.add_item(CancelButton(activity_id))
 
@@ -870,6 +962,7 @@ class Activites(commands.Cog):
         # Charger les caches depuis la DB
         await refresh_templates_cache()
         await refresh_image_overrides()
+        await refresh_description_overrides()
 
         # Charger toutes les activités depuis la DB
         loaded = await db.load_activities()
@@ -958,16 +1051,17 @@ class Activites(commands.Cog):
             nbplayer = nbplayer or (sum(pf1.values()) + sum(pf2.values()))
 
         data = {
-            "creator":     interaction.user.display_name,
-            "created_at":  datetime.utcnow(),
-            "template":    template_name,
-            "max_players": nbplayer,
-            "bal":         bal,
-            "depart":      depart,
-            "tier":        tier,
-            "slots":       slots,
-            "channel_id":  interaction.channel_id,
-            "waitlist":    [],
+            "creator":            interaction.user.display_name,
+            "created_at":         datetime.utcnow(),
+            "template":           template_name,
+            "max_players":        nbplayer,
+            "bal":                bal,
+            "depart":             depart,
+            "tier":               tier,
+            "custom_description": "",
+            "slots":              slots,
+            "channel_id":         interaction.channel_id,
+            "waitlist":           [],
         }
 
         await interaction.response.send_message(embed=build_embed(data))

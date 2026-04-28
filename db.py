@@ -27,15 +27,15 @@ async def init_db(database_url: str) -> None:
     async with _pool.acquire() as conn:
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS activities (
-                message_id   BIGINT PRIMARY KEY,
-                channel_id   BIGINT    NOT NULL,
-                creator      TEXT      NOT NULL,
-                template     TEXT,
-                max_players  INT       NOT NULL,
-                bal          BOOLEAN   NOT NULL DEFAULT FALSE,
-                created_at   TIMESTAMPTZ NOT NULL,
-                slots        JSONB     NOT NULL DEFAULT '{}',
-                waitlist     JSONB     NOT NULL DEFAULT '[]'
+                message_id          BIGINT PRIMARY KEY,
+                channel_id          BIGINT    NOT NULL,
+                creator             TEXT      NOT NULL,
+                template            TEXT,
+                max_players         INT       NOT NULL,
+                bal                 BOOLEAN   NOT NULL DEFAULT FALSE,
+                created_at          TIMESTAMPTZ NOT NULL,
+                slots               JSONB     NOT NULL DEFAULT '{}',
+                waitlist            JSONB     NOT NULL DEFAULT '[]'
             );
 
             CREATE TABLE IF NOT EXISTS bal (
@@ -61,6 +61,15 @@ async def init_db(database_url: str) -> None:
                 value  TEXT NOT NULL
             );
         """)
+        # Migrations : colonnes ajoutées après le schéma initial
+        for col, default in [
+            ("depart",             "'Libre'"),
+            ("tier",               "''"),
+            ("custom_description", "''"),
+        ]:
+            await conn.execute(
+                f"ALTER TABLE activities ADD COLUMN IF NOT EXISTS {col} TEXT NOT NULL DEFAULT {default}"
+            )
 
 
 # ── ACTIVITIES ────────────────────────────────────────────────────────────────
@@ -83,14 +92,17 @@ async def load_activities() -> dict:
         if isinstance(created, str):
             created = datetime.fromisoformat(created)
         result[msg_id] = {
-            "creator":     row["creator"],
-            "created_at":  created,
-            "template":    row["template"],
-            "max_players": row["max_players"],
-            "bal":         row["bal"],
-            "slots":       slots,
-            "channel_id":  row["channel_id"],
-            "waitlist":    waitlist,
+            "creator":            row["creator"],
+            "created_at":         created,
+            "template":           row["template"],
+            "max_players":        row["max_players"],
+            "bal":                row["bal"],
+            "depart":             row["depart"],
+            "tier":               row["tier"],
+            "custom_description": row["custom_description"],
+            "slots":              slots,
+            "channel_id":         row["channel_id"],
+            "waitlist":           waitlist,
         }
     return result
 
@@ -108,19 +120,24 @@ async def save_activity(msg_id: int, data: dict) -> None:
     async with _pool.acquire() as conn:
         await conn.execute("""
             INSERT INTO activities
-                (message_id, channel_id, creator, template, max_players, bal, created_at, slots, waitlist)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb)
+                (message_id, channel_id, creator, template, max_players, bal, created_at, slots, waitlist,
+                 depart, tier, custom_description)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, $10, $11, $12)
             ON CONFLICT (message_id) DO UPDATE SET
-                channel_id   = EXCLUDED.channel_id,
-                creator      = EXCLUDED.creator,
-                template     = EXCLUDED.template,
-                max_players  = EXCLUDED.max_players,
-                bal          = EXCLUDED.bal,
-                created_at   = EXCLUDED.created_at,
-                slots        = EXCLUDED.slots,
-                waitlist     = EXCLUDED.waitlist
+                channel_id          = EXCLUDED.channel_id,
+                creator             = EXCLUDED.creator,
+                template            = EXCLUDED.template,
+                max_players         = EXCLUDED.max_players,
+                bal                 = EXCLUDED.bal,
+                created_at          = EXCLUDED.created_at,
+                slots               = EXCLUDED.slots,
+                waitlist            = EXCLUDED.waitlist,
+                depart              = EXCLUDED.depart,
+                tier                = EXCLUDED.tier,
+                custom_description  = EXCLUDED.custom_description
         """, msg_id, data["channel_id"], data["creator"], data["template"],
-             data["max_players"], data["bal"], created_at, slots_json, waitlist_json)
+             data["max_players"], data["bal"], created_at, slots_json, waitlist_json,
+             data.get("depart", "Libre"), data.get("tier", ""), data.get("custom_description", ""))
 
 
 async def delete_activity(msg_id: int) -> None:
@@ -244,6 +261,17 @@ async def get_image_overrides() -> dict:
 
 async def set_image_override(template_name: str, url: str) -> None:
     await set_setting(f"img:{template_name}", url)
+
+
+async def get_description_overrides() -> dict:
+    """Retourne toutes les overrides de description {template_name: description}."""
+    async with _pool.acquire() as conn:
+        rows = await conn.fetch("SELECT key, value FROM settings WHERE key LIKE 'desc:%'")
+    return {row["key"][5:]: row["value"] for row in rows}
+
+
+async def set_description_override(template_name: str, desc: str) -> None:
+    await set_setting(f"desc:{template_name}", desc)
 
 
 async def get_setting(key: str, default: str = "") -> str:

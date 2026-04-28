@@ -8,6 +8,7 @@ from config import ADMIN_ROLE_NAME, GM_ROLE_NAME, ROLES, DEFAULT_BAL_RATE, DEFAU
 from Service.activites import (
     activities, build_embed, build_view, get_pf1, get_pf2,
     load_all_templates, save_activities, refresh_templates_cache, refresh_image_overrides,
+    refresh_description_overrides, template_autocomplete,
     _parse_weapon_slots, _player_weapon,
 )
 from Service.utils import is_admin, is_membre, is_caller_or_admin, ActivitySelect, load_settings, save_settings, append_bal_log, fmt_silver
@@ -512,6 +513,39 @@ class Admin(commands.Cog):
         else:
             await interaction.response.send_message(
                 f"✅ Image du template **{nom}** retirée (image par défaut restaurée).", ephemeral=True
+            )
+
+    # =========================================================================
+    # /setdescription  — modifier la description d'un template
+    # =========================================================================
+    @app_commands.command(name="setdescription", description="[OFFICIER] Modifier la description d'un template")
+    @app_commands.describe(
+        nom         = "Nom du template",
+        description = "Nouvelle description (laisser vide pour retirer)",
+    )
+    @app_commands.autocomplete(nom=template_autocomplete)
+    async def setdescription(self, interaction: discord.Interaction, nom: str, description: str = ""):
+        if not await self.check_admin(interaction):
+            return
+
+        all_templates = load_all_templates()
+        if nom not in all_templates:
+            templates_list = ", ".join(f"`{k}`" for k in all_templates)
+            await interaction.response.send_message(
+                f"❌ Template **{nom}** introuvable.\nTemplates disponibles : {templates_list}", ephemeral=True
+            )
+            return
+
+        await db.set_description_override(nom, description)
+        await refresh_description_overrides()
+
+        if description:
+            await interaction.response.send_message(
+                f"✅ Description du template **{nom}** mise à jour.", ephemeral=True
+            )
+        else:
+            await interaction.response.send_message(
+                f"✅ Description du template **{nom}** retirée.", ephemeral=True
             )
 
     # =========================================================================
