@@ -93,6 +93,27 @@ DEFAULT_TEMPLATES: dict[str, dict] = {
             "DPS":     "Spirit (×1)  ·  Perma (×1)  ·  Aria (×1)  ·  Brassards (×infini)",
         },
     },
+    "Fushi 20/40": {
+        "description": "Compo ZvZ Fushi — 40 joueurs (PF1 + PF2)",
+        "type_acti":   "PVP",
+        "image":       "https://cdn.discordapp.com/attachments/94518390546255872/1284345624732635230/fatwizardBlick.gif?ex=69c9e512&is=69c89392&hm=4053fd8f86c884ba21d4193d893b325268ce1c54bba2c643419971a59d494875&",
+        "pf_1": {"CALLER": 1, "TANK": 4, "SUPPORT": 4, "HEAL": 4, "DPS": 7, "BM": 2},
+        "pf_2": {"TANK": 6, "SUPPORT": 3, "HEAL": 4, "DPS": 7},
+        "weapon": {
+            "CALLER":  "Selon strat",
+            "TANK":    "1H Masse controle (×2)  ·  Bec de corbin (×1)  ·  GA (×1)",
+            "SUPPORT": "Locus (×1)  ·  Incube (×1)  ·  Damnation (×1)  ·  Malédiction de vie (×1)",
+            "HEAL":    "Sancti cuir (×2)  ·  Sancti Plaque (×2)",
+            "DPS":     "Pointes (×1)  ·  Tranchante (×1)  ·  Perma (x1)  ·  Brassards (×infini)  ·  Mains Infernales (×infini)  ·  BR (×infini)",
+            "BM":      "Tour mobile (×1)  ·  Venom (×1)",
+        },
+        "weapon_pf2": {
+            "TANK":    "Second Repack (×1)  ·  1h arcane / heavy (×1)  ·  Equilibre (×1)  ·  GA (×1)  ·  Icicle (×1)  ·  1H hammer (×1)",
+            "SUPPORT": "Locus (×1)  ·  Garde-Serment (×2)",
+            "HEAL":    "Exalté (×1)  ·  Sancti plaque (×2)  ·  1h nature (×1)",
+            "DPS":     "Ursine (×1)  ·  Perma (×1)  ·  Saigneur (×1)  ·  Lame d'inf (×infini)  ·  Galatine(x2)",
+        },
+    },
     "MONKEY BANANA": {
         "description": "Compo monkey banana Spé 80 dps minimum, sinon go heal/tank/support. Pas de tiers minimum. 1 tank et heal pour 5 minimum.",
         "type_acti":   "PVP",
