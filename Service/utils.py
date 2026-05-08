@@ -60,15 +60,21 @@ MESSAGES_BAL_LIMIT = [
 
 
 async def notify_bal_limit(bot: discord.Client, user_id: int, new_total: int) -> None:
-    """Envoie un DM si la BAL dépasse BAL_LIMIT."""
-    if new_total < BAL_LIMIT:
-        return
-    try:
-        user = await bot.fetch_user(user_id)
-        msg  = random.choice(MESSAGES_BAL_LIMIT).format(mention=user.mention, total=fmt_silver(new_total))
-        await user.send(msg)
-    except Exception:
-        pass  # DM bloqué ou user introuvable, on ignore
+    """Envoie un DM si la BAL franchit BAL_LIMIT à la hausse (une seule fois).
+    Remet le flag à false si la BAL repasse sous BAL_LIMIT."""
+    uid_str = str(user_id)
+    if new_total >= BAL_LIMIT:
+        if await db.get_is_alerted(uid_str):
+            return  # déjà alerté, on ne respamme pas
+        try:
+            user = await bot.fetch_user(user_id)
+            msg  = random.choice(MESSAGES_BAL_LIMIT).format(mention=user.mention, total=fmt_silver(new_total))
+            await user.send(msg)
+        except Exception:
+            pass
+        await db.set_is_alerted(uid_str, True)
+    else:
+        await db.set_is_alerted(uid_str, False)
 
 
 async def load_bal_log() -> list:

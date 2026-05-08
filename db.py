@@ -70,6 +70,9 @@ async def init_db(database_url: str) -> None:
             await conn.execute(
                 f"ALTER TABLE activities ADD COLUMN IF NOT EXISTS {col} TEXT NOT NULL DEFAULT {default}"
             )
+        await conn.execute(
+            "ALTER TABLE bal ADD COLUMN IF NOT EXISTS is_alerted BOOLEAN NOT NULL DEFAULT FALSE"
+        )
 
 
 # ── ACTIVITIES ────────────────────────────────────────────────────────────────
@@ -257,6 +260,20 @@ async def get_image_overrides() -> dict:
     async with _pool.acquire() as conn:
         rows = await conn.fetch("SELECT key, value FROM settings WHERE key LIKE 'img:%'")
     return {row["key"][4:]: row["value"] for row in rows}
+
+
+async def get_is_alerted(user_id: str) -> bool:
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT is_alerted FROM bal WHERE user_id = $1", user_id)
+    return row["is_alerted"] if row else False
+
+
+async def set_is_alerted(user_id: str, value: bool) -> None:
+    async with _pool.acquire() as conn:
+        await conn.execute("""
+            INSERT INTO bal (user_id, amount, is_alerted) VALUES ($1, 0, $2)
+            ON CONFLICT (user_id) DO UPDATE SET is_alerted = EXCLUDED.is_alerted
+        """, user_id, value)
 
 
 async def set_image_override(template_name: str, url: str) -> None:

@@ -70,14 +70,16 @@ class Bal(commands.Cog):
         key    = str(joueur.id)
         ancien = await db.get_bal(key)
         reel   = min(montant, ancien)   # plancher à 0
-        await db.set_bal(key, ancien - reel)
+        new_total = ancien - reel
+        await db.set_bal(key, new_total)
 
         await append_bal_log("retirebal", interaction.user.display_name, [
-            {"uid": key, "name": joueur.display_name, "delta": -reel, "total": ancien - reel}
+            {"uid": key, "name": joueur.display_name, "delta": -reel, "total": new_total}
         ])
+        await notify_bal_limit(interaction.client, joueur.id, new_total)
 
         await interaction.response.send_message(
-            f"✅ **{joueur.display_name}** : -{reel} BAL  (total : **{ancien - reel}**)",
+            f"✅ **{joueur.display_name}** : -{reel} BAL  (total : **{new_total}**)",
             ephemeral=True,
         )
 
@@ -343,6 +345,7 @@ class Bal(commands.Cog):
             {"uid": receiver_key, "name": joueur.display_name,           "delta":  montant,  "total": new_receiver},
         ])
 
+        await notify_bal_limit(interaction.client, interaction.user.id, new_sender)
         await notify_bal_limit(interaction.client, joueur.id, new_receiver)
 
         await interaction.followup.send(
