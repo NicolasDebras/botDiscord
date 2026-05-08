@@ -616,6 +616,7 @@ class Admin(commands.Cog):
             log_entries = []
             for user_id_str, name, amount in partis:
                 await db.set_bal(user_id_str, 0)
+                await db.set_is_alerted(user_id_str, False)
                 log_entries.append({"uid": user_id_str, "name": name, "delta": -amount, "total": 0})
             await append_bal_log("retirebal", interaction.user.display_name, log_entries)
 
