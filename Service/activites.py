@@ -135,8 +135,12 @@ def build_embed(data: dict) -> discord.Embed:
         top_info_parts.append(f"📍 **Départ :** {depart}")
     if tier:
         top_info_parts.append(f"⚔️ **Tier :** {tier}")
-    top_info  = "   ".join(top_info_parts)
-    full_desc = "\n".join(filter(None, [tpl_desc, custom_desc, top_info])) or None
+    top_info   = "   ".join(top_info_parts)
+    desc_block = "\n".join(filter(None, [tpl_desc, custom_desc]))
+    if desc_block and top_info:
+        full_desc = f"{desc_block}\n\n{top_info}"
+    else:
+        full_desc = desc_block or top_info or None
     image_url     = _image_overrides.get(template, tdata.get("image", ""))
 
     embed = discord.Embed(
