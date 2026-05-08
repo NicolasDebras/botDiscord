@@ -598,13 +598,15 @@ class Admin(commands.Cog):
             if member is None:
                 try:
                     user = await interaction.client.fetch_user(int(user_id_str))
-                    name = f"{user.name} (ID: {user_id_str})"
+                    name = f"{user.name} *(quitté le serveur)*"
                 except Exception:
-                    name = f"Inconnu (ID: {user_id_str})"
+                    name = f"Inconnu *(quitté le serveur)* (ID: {user_id_str})"
                 partis.append((user_id_str, name, amount))
+            elif not is_membre(member):
+                partis.append((user_id_str, f"{member.display_name} *(sans rôle Membre)*", amount))
 
         if not partis:
-            await interaction.followup.send("✅ Aucun joueur parti n'a de BAL en attente.", ephemeral=True)
+            await interaction.followup.send("✅ Aucun joueur non-membre n'a de BAL en attente.", ephemeral=True)
             return
 
         partis.sort(key=lambda x: x[2], reverse=True)
@@ -619,7 +621,7 @@ class Admin(commands.Cog):
 
             lines = "\n".join(f"**{name}** — ~~{fmt_silver(amount)} silver~~ → 0" for _, name, amount in partis)
             embed = discord.Embed(
-                title="🗑️ BAL des joueurs partis vidées",
+                title="🗑️ BAL des joueurs non-membres vidées",
                 description=lines,
                 color=0xE74C3C,
             )
@@ -627,7 +629,7 @@ class Admin(commands.Cog):
         else:
             lines = "\n".join(f"**{name}** — {fmt_silver(amount)} silver" for _, name, amount in partis)
             embed = discord.Embed(
-                title="🚪 Joueurs partis avec de la BAL",
+                title="🚪 Joueurs non-membres avec de la BAL",
                 description=lines,
                 color=0xE74C3C,
             )
