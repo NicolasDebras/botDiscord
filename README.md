@@ -156,6 +156,7 @@ LiliumBot/
 |---|---|---|
 | RAID AVA | PVE | TANK, OFF TANK, FROST, DAMME, SCOOT, MAIN HEAL, IRON ROOT, DPS ×3, COBRA/GA — liste d'attente activée |
 | MiddleScale de G3 LE GOAT | PVP | PF1 : CALLER ×1, TANK ×4, SUPPORT ×4, HEAL ×4, DPS ×7, BM ×1 · PF2 : TANK ×4, SUPPORT ×4, HEAL ×4, DPS ×7 |
+| RAID AVA BN | PVE | MAIN TANK ×1, MAIN HEAL ×1, OFF TANK ×1, COBRA ×1, IRON ×1, SC ×1, HURLEGIVRE ×1, FAUX ×3, SCOUT ×1, LEACHER PVP ×1 — inscription via `/addacti` uniquement, LEACHER PVP reçoit 0 BAL |
 | STATIK | PVE | TANK ×2, HEAL ×2, SUPPORT ×1, DPS ×5 |
 
 Les templates par défaut sont définis dans `config.py` et ne peuvent pas être modifiés via les commandes. Les templates custom sont stockés en base de données.

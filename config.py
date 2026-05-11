@@ -24,19 +24,27 @@ TEMPLATES_FILE = "templates.json"
  
 # ── RÔLES avec emojis ────────────────────────────────────────────────────────
 ROLES: dict[str, str] = {
-    "TANK":      "🛡️",
-    "OFF TANK":  "🛡️",
-    "HEAL":      "💚",
-    "MAIN HEAL": "💚",
-    "IRON ROOT": "🌿",
-    "DPS":       "⚔️",
-    "DAMME":     "💥",
-    "SUPPORT":   "🔮",
-    "CALLER":    "📢",
-    "SCOOT":     "🏃",
-    "FROST":     "❄️",
-    "COBRA/GA":  "🏹",
-    "BM":        "🐴",
+    "TANK":        "🛡️",
+    "MAIN TANK":   "🛡️",
+    "OFF TANK":    "🛡️",
+    "HEAL":        "💚",
+    "MAIN HEAL":   "💚",
+    "IRON ROOT":   "🌿",
+    "IRON":        "🌿",
+    "DPS":         "⚔️",
+    "FAUX":        "🌾",
+    "DAMME":       "💥",
+    "SUPPORT":     "🔮",
+    "CALLER":      "📢",
+    "SCOOT":       "🏃",
+    "SCOUT":       "👁️",
+    "FROST":       "❄️",
+    "HURLEGIVRE":  "🌨️",
+    "SC":          "💣",
+    "COBRA/GA":    "🏹",
+    "COBRA":       "🐍",
+    "BM":          "🐴",
+    "LEACHER PVP": "⚡",
 }
  
 # ── TYPES D'ACTIVITÉS ────────────────────────────────────────────────────────
@@ -64,6 +72,31 @@ DEFAULT_TEMPLATES: dict[str, dict] = {
             "TANK": 1, "OFF TANK": 1, "FROST": 1,
             "DAMME": 1, "SCOOT": 1, "MAIN HEAL": 1, "IRON ROOT": 1,
             "DPS": 3, "COBRA/GA": 1,
+        },
+    },
+    "RAID AVA BN": {
+        "description": (
+            "Tous les stuffs équi T9 sont présents dans le doc "
+            "(c'est pas très beau pour le moment, je sais).\n\n"
+            "Merci de mettre votre IP dans le post (IP Diff priorité). "
+            "Le scout prend une part ×1.5 "
+            "( pas de scout tel, pas de scout grille pain, UN VRAI SCOUT SVP )"
+        ),
+        "type_acti":      "PVE",
+        "image":          "",
+        "no_register":    True,
+        "zero_pay_roles": ["LEACHER PVP"],
+        "pf_1": {
+            "MAIN TANK":   1,
+            "MAIN HEAL":   1,
+            "OFF TANK":    1,
+            "COBRA":       1,
+            "IRON":        1,
+            "SC":          1,
+            "HURLEGIVRE":  1,
+            "FAUX":        3,
+            "SCOUT":       1,
+            "LEACHER PVP": 1,
         },
     },
     "STATIK": {

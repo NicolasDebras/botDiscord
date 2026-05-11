@@ -573,10 +573,12 @@ class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
         self.data        = data
         self.has_scoot   = bool(data["slots"].get("SCOOT"))
 
-        template  = data.get("template")
-        all_tpl   = load_all_templates()
-        type_acti = all_tpl.get(template, {}).get("type_acti", "") if template else ""
-        self.is_pve = (type_acti == "PVE")
+        template        = data.get("template")
+        all_tpl         = load_all_templates()
+        tpl_data        = all_tpl.get(template, {}) if template else {}
+        type_acti       = tpl_data.get("type_acti", "")
+        self.is_pve         = (type_acti == "PVE")
+        self.zero_pay_roles = set(tpl_data.get("zero_pay_roles", []))
 
         if self.is_pve:
             self.cout_carte = discord.ui.TextInput(
@@ -660,7 +662,7 @@ class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
         scoot_total   = scoot_amount * nb_scoot
 
         other_members = [(entry[0], entry[1]) for role, members in data["slots"].items()
-                         for entry in members if role != "SCOOT"]
+                         for entry in members if role != "SCOOT" and role not in self.zero_pay_roles]
         nb_others     = len(other_members)
         remaining     = distributable - scoot_total
         part_indiv    = remaining // nb_others if nb_others > 0 else 0
@@ -954,8 +956,9 @@ class ActivityView(discord.ui.View):
         pf2_keys      = [f"PF2:{r}" for r in pf2.keys()]
         roles_to_show = _sort_roles(pf1_keys + pf2_keys)
 
-        self.add_item(RoleSelect(activity_id, roles_to_show))
-        self.add_item(LeaveButton(activity_id))
+        if not tdata.get("no_register"):
+            self.add_item(RoleSelect(activity_id, roles_to_show))
+            self.add_item(LeaveButton(activity_id))
         if tdata.get("has_waitlist"):
             self.add_item(WaitlistButton(activity_id))
         self.add_item(EditActiButton(activity_id))
