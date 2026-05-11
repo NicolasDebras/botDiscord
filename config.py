@@ -105,8 +105,8 @@ DEFAULT_TEMPLATES: dict[str, dict] = {
         "image":       "",
         "pf_1": {"TANK": 2, "HEAL": 2, "SUPPORT": 1, "DPS": 5},
     },
-    "MiddleScale de G3 LE GOAT": {
-        "description": "Compo ZvZ small de la guilde élaboré par le boss G3 — 40 joueurs (PF1 + PF2)",
+    "MiddleScale Pentacle": {
+        "description": "Compo ZvZ small de la guilde élaboré par le GOAT G3 — 40 joueurs (PF1 + PF2)",
         "type_acti":   "PVP",
         "image":       "https://cdn.discordapp.com/attachments/94518390546255872/1284345624732635230/fatwizardBlick.gif?ex=69c9e512&is=69c89392&hm=4053fd8f86c884ba21d4193d893b325268ce1c54bba2c643419971a59d494875&",
         "pf_1": {"CALLER": 1, "TANK": 4, "SUPPORT": 4, "HEAL": 4, "DPS": 7, "BM": 2},
@@ -123,7 +123,7 @@ DEFAULT_TEMPLATES: dict[str, dict] = {
             "TANK":    "Second Repack (×1)  ·  1h arcane / heavy (×1)  ·  Equilibre (×1)  ·  1H marteau (×1)",
             "SUPPORT": "Locus (×1)  ·  Garde-Serment (×1)  ·  Damnation (×1)  ·  Exalté (×1)",
             "HEAL":    "Sancti Plaque (×3)  ·  1h nature (×1)",
-            "DPS":     "Ursine (×1)  ·  Perma (×1)  ·  Aria (×1)  · Lame d'infini (×infini)",
+            "DPS":     "Ursine (×1)  ·  Saigneur (×1)  ·  Aria (×1)  · Lame d'infini (×infini)",
         },
     },
     "Fushi 20/40": {
