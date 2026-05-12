@@ -75,6 +75,7 @@ DEFAULT_TEMPLATES: dict[str, dict] = {
     },
     "RAID AVA BN": {
         "description": (
+            "[Doc des stuffs T9](https://docs.google.com/spreadsheets/d/1AshcOMisNmr3BqGWG9ayBpTxlyoaSYWbLBEvHAYBLLM/edit?usp=sharing&utm_source=chatgpt.com)\n"
             "Tous les stuffs équi T9 sont présents dans le doc "
             "(c'est pas très beau pour le moment, je sais).\n\n"
             "Merci de mettre votre IP dans le post (IP Diff priorité). "
