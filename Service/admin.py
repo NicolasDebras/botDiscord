@@ -651,14 +651,19 @@ class Admin(commands.Cog):
             )
             return
 
+        await interaction.response.defer(ephemeral=True)
+
         all_bal = await db.get_all_bal()
         if not all_bal:
-            await interaction.response.send_message("ℹ️ Aucune BAL enregistrée.", ephemeral=True)
+            await interaction.followup.send("ℹ️ Aucune BAL enregistrée.", ephemeral=True)
             return
 
         total = sum(all_bal.values())
         lines = sorted(all_bal.items(), key=lambda x: x[1], reverse=True)
         desc  = "\n".join(f"<@{uid}> — **{fmt_silver(amount)}** silver" for uid, amount in lines if amount > 0)
+
+        if len(desc) > 4000:
+            desc = desc[:4000] + "\n…*(liste tronquée)*"
 
         embed = discord.Embed(
             title="💰 Total BAL — Ce que la guilde doit",
@@ -666,7 +671,7 @@ class Admin(commands.Cog):
             color=0xF1C40F,
         )
         embed.set_footer(text=f"Total : {fmt_silver(total)} silver")
-        await interaction.response.send_message(embed=embed)
+        await interaction.followup.send(embed=embed, ephemeral=True)
 
 
     # =========================================================================
