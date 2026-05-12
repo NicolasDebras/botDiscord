@@ -97,6 +97,7 @@ class Bal(commands.Cog):
                 f"⛔ Tu dois avoir le rôle **{MEMBRE_ROLE_NAME}** pour utiliser cette commande.", ephemeral=True
             )
             return
+        await interaction.response.defer(ephemeral=True)
         solde     = await db.get_bal(str(interaction.user.id))
         name      = interaction.user.display_name.lower()
         solde_fmt = f"{solde:,}".replace(",", " ")
@@ -109,7 +110,7 @@ class Bal(commands.Cog):
         }
         egg = next((v for k, v in easter_eggs.items() if k in name), None)
         if egg:
-            await interaction.response.send_message(egg, ephemeral=True)
+            await interaction.followup.send(egg, ephemeral=True)
             return
 
         # ── Messages selon le solde ───────────────────────────────────────
@@ -192,7 +193,7 @@ class Bal(commands.Cog):
                 f"⚡ {s}. À ce niveau c'est plus du farming, c'est de l'art.",
             ])
 
-        await interaction.response.send_message(msg, ephemeral=True)
+        await interaction.followup.send(msg, ephemeral=True)
 
     # =========================================================================
     # /baljoueur  — voir le solde BAL d'un joueur spécifique
@@ -202,9 +203,10 @@ class Bal(commands.Cog):
     async def baljoueur(self, interaction: discord.Interaction, joueur: discord.Member):
         if not await self.check_admin(interaction):
             return
+        await interaction.response.defer(ephemeral=True)
         solde = await db.get_bal(str(joueur.id))
-        await interaction.response.send_message(
-            f"💰 Solde BAL de **{joueur.display_name}** : **{solde:,}**".replace(",", " "),
+        await interaction.followup.send(
+            f"💰 Solde BAL de **{joueur.display_name}** : **{fmt_silver(solde)} silver**",
             ephemeral=True,
         )
 
@@ -218,9 +220,10 @@ class Bal(commands.Cog):
                 f"⛔ Tu dois avoir le rôle **{MEMBRE_ROLE_NAME}** pour utiliser cette commande.", ephemeral=True
             )
             return
+        await interaction.response.defer()
         bal = await db.get_all_bal()
         if not bal:
-            await interaction.response.send_message("ℹ️ Aucune donnée BAL pour le moment.", ephemeral=True)
+            await interaction.followup.send("ℹ️ Aucune donnée BAL pour le moment.")
             return
 
         sorted_bal = sorted(bal.items(), key=lambda x: x[1], reverse=True)
@@ -234,7 +237,7 @@ class Bal(commands.Cog):
 
         embed = discord.Embed(title="🏆 Classement BAL", description="\n".join(lines), color=0xF1C40F)
         embed.set_footer(text=f"{len(sorted_bal)} joueurs au total")
-        await interaction.response.send_message(embed=embed, delete_after=300)
+        await interaction.followup.send(embed=embed, delete_after=300)
 
     # =========================================================================
     # /paybal  — distribuer les BAL aux participants d'une activité
@@ -278,6 +281,7 @@ class Bal(commands.Cog):
                 await inter.response.send_message("ℹ️ Aucun participant inscrit à cette activité.", ephemeral=True)
                 return
 
+            await inter.response.defer()
             deltas      = {str(uid): montant for uid, _ in participants}
             new_totals  = await db.increment_bal_batch(deltas)
             log_entries = [
@@ -298,7 +302,7 @@ class Bal(commands.Cog):
                 description=f"**{montant} BAL** versés à {len(payes)} participant(s) :\n\n{lines}",
                 color=0xF1C40F,
             )
-            await inter.response.send_message(embed=embed, delete_after=300)
+            await inter.followup.send(embed=embed, delete_after=300)
 
         view = discord.ui.View(timeout=60)
         view.add_item(ActivitySelect(on_select, "💰 Quelle activité payer ?"))

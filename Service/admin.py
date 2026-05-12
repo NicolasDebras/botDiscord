@@ -69,6 +69,7 @@ class AdminSpecLevelModal(discord.ui.Modal):
                     break
 
         slots.setdefault(self.chosen_role, []).append((self.target_id, self.target_name, spec))
+        await interaction.response.defer(ephemeral=True)
         await save_activities()
 
         try:
@@ -79,7 +80,7 @@ class AdminSpecLevelModal(discord.ui.Modal):
             pass
 
         label = f"{self.chosen_role[4:]} PF2" if self.chosen_role.startswith("PF2:") else self.chosen_role
-        await interaction.response.send_message(
+        await interaction.followup.send(
             f"✅ **{self.target_name}** {action} en **{label}**  —  {spec} !", ephemeral=True
         )
 
@@ -203,6 +204,7 @@ class Admin(commands.Cog):
                 )
                 return
 
+            await inter.response.defer(ephemeral=True)
             try:
                 channel = inter.client.get_channel(data["channel_id"])
                 msg     = await channel.fetch_message(msg_id)
@@ -211,7 +213,7 @@ class Admin(commands.Cog):
                 pass
 
             await save_activities()
-            await inter.response.send_message(
+            await inter.followup.send(
                 f"✅ **{target_name}** a été retiré de l'activité.", ephemeral=True
             )
 
@@ -315,6 +317,7 @@ class Admin(commands.Cog):
                         break
 
             slots[chosen_role].append((target_id, target_name, ""))
+            await inter.response.defer(ephemeral=True)
             try:
                 channel = inter.client.get_channel(data["channel_id"])
                 msg     = await channel.fetch_message(msg_id)
@@ -322,7 +325,7 @@ class Admin(commands.Cog):
             except Exception:
                 pass
             await save_activities()
-            await inter.response.send_message(
+            await inter.followup.send(
                 f"✅ **{target_name}** {action} en **{chosen_role}** !", ephemeral=True
             )
 
@@ -428,7 +431,7 @@ class Admin(commands.Cog):
                 return
 
         pf1   = {k.upper(): v for k, v in roles_dict.items()}
-        # Vérifier si déjà existant pour le message d'action
+        await interaction.response.defer(ephemeral=True)
         existing = await db.get_custom_templates()
         action   = "mis à jour" if nom in existing else "ajouté"
         entry = {
@@ -457,7 +460,7 @@ class Admin(commands.Cog):
                 for r, n in pf2.items()
             )
             total += sum(pf2.values())
-        await interaction.response.send_message(
+        await interaction.followup.send(
             f"✅ Template **{nom}** {action} — {tag} — {total} joueurs\n{preview}",
             ephemeral=True,
         )
@@ -477,14 +480,15 @@ class Admin(commands.Cog):
             )
             return
 
+        await interaction.response.defer(ephemeral=True)
         custom = await db.get_custom_templates()
         if nom not in custom:
-            await interaction.response.send_message(f"❌ Template **{nom}** introuvable.", ephemeral=True)
+            await interaction.followup.send(f"❌ Template **{nom}** introuvable.", ephemeral=True)
             return
 
         await db.delete_custom_template(nom)
         await refresh_templates_cache()
-        await interaction.response.send_message(f"🗑️ Template **{nom}** supprimé.", ephemeral=True)
+        await interaction.followup.send(f"🗑️ Template **{nom}** supprimé.", ephemeral=True)
 
     # =========================================================================
     # /setimage  — modifier l'image d'un template
@@ -503,15 +507,16 @@ class Admin(commands.Cog):
             )
             return
 
+        await interaction.response.defer(ephemeral=True)
         await db.set_image_override(nom, url)
         await refresh_image_overrides()
 
         if url:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 f"✅ Image du template **{nom}** mise à jour.", ephemeral=True
             )
         else:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 f"✅ Image du template **{nom}** retirée (image par défaut restaurée).", ephemeral=True
             )
 
@@ -536,15 +541,16 @@ class Admin(commands.Cog):
             )
             return
 
+        await interaction.response.defer(ephemeral=True)
         await db.set_description_override(nom, description)
         await refresh_description_overrides()
 
         if description:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 f"✅ Description du template **{nom}** mise à jour.", ephemeral=True
             )
         else:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 f"✅ Description du template **{nom}** retirée.", ephemeral=True
             )
 
@@ -564,11 +570,12 @@ class Admin(commands.Cog):
             )
             return
 
+        await interaction.response.defer(ephemeral=True)
         settings = await load_settings()
         old_rate = settings.get("bal_rate", DEFAULT_BAL_RATE)
         await save_settings({"bal_rate": taux})
 
-        await interaction.response.send_message(
+        await interaction.followup.send(
             f"✅ Taux de rachat mis à jour : **{old_rate} %** → **{taux} %**",
             ephemeral=True,
         )

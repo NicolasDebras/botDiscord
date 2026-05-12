@@ -868,6 +868,7 @@ class FinActiButton(discord.ui.Button):
             return
 
         # Activité Libre → clôture directe
+        await interaction.response.defer(ephemeral=True)
         fin_embed       = build_embed(data)
         fin_embed.title = f"🏁 FIN  ·  {fin_embed.title}"
         await remove_activity(self.activity_id)
@@ -878,7 +879,7 @@ class FinActiButton(discord.ui.Button):
         except Exception:
             pass
 
-        await interaction.response.send_message("✅ Activité clôturée !", ephemeral=True)
+        await interaction.followup.send("✅ Activité clôturée !", ephemeral=True)
 
 
 # ── BOUTON ANNULER ───────────────────────────────────────────────────────────
@@ -903,6 +904,7 @@ class CancelButton(discord.ui.Button):
             await interaction.response.send_message("⛔ Seul l'organisateur ou un admin peut annuler.", ephemeral=True)
             return
 
+        await interaction.response.defer(ephemeral=True)
         await remove_activity(self.activity_id)
         embed = discord.Embed(
             title="🚫 Activité annulée",
@@ -910,7 +912,7 @@ class CancelButton(discord.ui.Button):
             color=0x95A5A6,
         )
         await interaction.message.edit(embed=embed, view=discord.ui.View())
-        await interaction.response.send_message("✅ Activité annulée.", ephemeral=True)
+        await interaction.followup.send("✅ Activité annulée.", ephemeral=True)
 
 
 # ── BOUTON LISTE D'ATTENTE ────────────────────────────────────────────────────
@@ -948,16 +950,18 @@ class WaitlistButton(discord.ui.Button):
         for entry in list(waitlist):
             if entry[0] == user_id:
                 waitlist.remove(entry)
+                await interaction.response.defer(ephemeral=True)
                 await save_activities()
                 await interaction.message.edit(embed=build_embed(data), view=build_view(self.activity_id))
-                await interaction.response.send_message("👋 Tu t'es retiré de la liste d'attente.", ephemeral=True)
+                await interaction.followup.send("👋 Tu t'es retiré de la liste d'attente.", ephemeral=True)
                 return
 
         waitlist.append((user_id, user_name))
+        await interaction.response.defer(ephemeral=True)
         await save_activities()
         await interaction.message.edit(embed=build_embed(data), view=build_view(self.activity_id))
         pos = len(waitlist)
-        await interaction.response.send_message(
+        await interaction.followup.send(
             f"⏳ Inscrit en liste d'attente — position **{pos}**.", ephemeral=True
         )
 
