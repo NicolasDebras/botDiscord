@@ -90,7 +90,7 @@ Une fois l'activité créée :
 | Commande | Accès | Description |
 |---|---|---|
 | `/monbal` | Membre | Voir son propre solde BAL |
-| `/transferbal @joueur montant` | Membre | Transférer de la BAL à un autre joueur |
+| `/transferbal @joueur montant` | Membre | Transférer de la BAL à un autre joueur (le receveur reçoit un DM de confirmation) |
 | `/classement` | Membre | Voir le classement BAL du serveur (top 20) |
 | `/addbal @joueur montant` | Officier | Ajouter des BAL à un joueur |
 | `/retirebal @joueur montant` | Officier | Retirer des BAL à un joueur |

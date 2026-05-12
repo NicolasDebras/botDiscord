@@ -337,6 +337,7 @@ class Bal(commands.Cog):
             )
             return
 
+        old_receiver = await db.get_bal(receiver_key)
         new_sender   = await db.increment_bal(sender_key, -montant)
         new_receiver = await db.increment_bal(receiver_key, montant)
 
@@ -347,6 +348,14 @@ class Bal(commands.Cog):
 
         await notify_bal_limit(interaction.client, interaction.user.id, new_sender)
         await notify_bal_limit(interaction.client, joueur.id, new_receiver)
+
+        try:
+            await joueur.send(
+                f"💰 **{interaction.user.display_name}** t'a transféré **{fmt_silver(montant)} silver** depuis sa BAL.\n"
+                f"Tu es passé de **{fmt_silver(old_receiver)}** à **{fmt_silver(new_receiver)} silver**."
+            )
+        except Exception:
+            pass
 
         await interaction.followup.send(
             f"✅ **{fmt_silver(montant)} silver** transférés à {joueur.mention} !\n"
