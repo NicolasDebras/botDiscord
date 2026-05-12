@@ -577,8 +577,10 @@ class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
         all_tpl         = load_all_templates()
         tpl_data        = all_tpl.get(template, {}) if template else {}
         type_acti       = tpl_data.get("type_acti", "")
-        self.is_pve         = (type_acti == "PVE")
-        self.zero_pay_roles = set(tpl_data.get("zero_pay_roles", []))
+        self.is_pve          = (type_acti == "PVE")
+        self.zero_pay_roles  = set(tpl_data.get("zero_pay_roles", []))
+        self.template_tax    = tpl_data.get("tax_rate")          # None = utilise le taux guilde
+        self.role_multipliers = tpl_data.get("role_multipliers", {})
 
         if self.is_pve:
             self.cout_carte = discord.ui.TextInput(
@@ -652,7 +654,7 @@ class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
 
         data     = self.data
         settings = await load_settings()
-        rate     = settings.get("bal_rate", 85)
+        rate     = self.template_tax if self.template_tax is not None else settings.get("bal_rate", 85)
 
         part_guilde   = (total - carte_cost) * rate // 100
         distributable = part_guilde + sac_pieces
@@ -660,17 +662,22 @@ class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
         scoot_members = data["slots"].get("SCOOT", [])
         nb_scoot      = len(scoot_members)
         scoot_total   = scoot_amount * nb_scoot
-
-        other_members = [(entry[0], entry[1]) for role, members in data["slots"].items()
-                         for entry in members if role != "SCOOT" and role not in self.zero_pay_roles]
-        nb_others     = len(other_members)
         remaining     = distributable - scoot_total
-        part_indiv    = remaining // nb_others if nb_others > 0 else 0
+
+        # Liste des membres payés avec leur multiplicateur (uid, name, role, mult)
+        paying = [
+            (entry[0], entry[1], role, float(self.role_multipliers.get(role, 1.0)))
+            for role, members in data["slots"].items()
+            for entry in members
+            if role != "SCOOT" and role not in self.zero_pay_roles
+        ]
+        total_weight = sum(m[3] for m in paying)
+        part_base    = int(remaining / total_weight) if total_weight > 0 else 0
 
         # Créditer les BAL via DB (batch)
         deltas: dict[str, int] = {}
-        for uid, name in other_members:
-            deltas[str(uid)] = deltas.get(str(uid), 0) + part_indiv
+        for uid, name, role, mult in paying:
+            deltas[str(uid)] = deltas.get(str(uid), 0) + int(part_base * mult)
         for entry in scoot_members:
             key = str(entry[0])
             deltas[key] = deltas.get(key, 0) + scoot_amount
@@ -678,9 +685,9 @@ class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
         new_totals = await db.increment_bal_batch(deltas)
 
         log_entries = []
-        for uid, name in other_members:
+        for uid, name, role, mult in paying:
             key = str(uid)
-            log_entries.append({"uid": key, "name": name, "delta": part_indiv, "total": new_totals[key]})
+            log_entries.append({"uid": key, "name": name, "delta": int(part_base * mult), "total": new_totals[key]})
         for entry in scoot_members:
             uid, name = entry[0], entry[1]
             key = str(uid)
@@ -704,6 +711,17 @@ class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
         except Exception:
             pass
 
+        # ── Grouper les membres par multiplicateur pour le récap ─────────────
+        normal_members = [(m[0], m[1]) for m in paying if m[3] == 1.0]
+        bonus_groups: dict[tuple, list] = {}
+        for uid, name, role, mult in paying:
+            if mult != 1.0:
+                key_g = (role, mult)
+                bonus_groups.setdefault(key_g, []).append((uid, name))
+
+        nb_normal  = len(normal_members)
+        part_indiv = part_base  # mult=1.0
+
         label_cout = "Carte + réparations" if self.is_pve else "Réparations"
         summary = (
             f"✅ **Activité clôturée !**\n\n"
@@ -715,14 +733,19 @@ class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
         if sac_pieces:
             summary += f"🎒 Pièces : **+{fmt_silver(sac_pieces)} silver** → distributable : **{fmt_silver(distributable)} silver**\n"
         if self.has_scoot:
+            summary += f"🏃 Scoot ({nb_scoot} joueur(s)) : **{fmt_silver(scoot_amount)} silver/joueur**\n"
+        for (role, mult), members in bonus_groups.items():
+            emoji  = ROLES.get(role, "🔹")
+            pay_r  = int(part_base * mult)
+            summary += f"{emoji} {role} (×{mult}) : **{fmt_silver(pay_r)} silver/joueur** ({len(members)} joueur(s))\n"
+        if self.has_scoot:
             summary += (
-                f"🏃 Scoot ({nb_scoot} joueur(s)) : **{fmt_silver(scoot_amount)} silver/joueur**\n"
-                f"👥 Reste ({nb_others} joueur(s)) : **{fmt_silver(part_indiv)} silver/joueur**\n"
+                f"👥 Reste ({nb_normal} joueur(s)) : **{fmt_silver(part_indiv)} silver/joueur**\n"
                 f"📊 BAL crédités — Scoot : **+{fmt_silver(scoot_amount)}** · Reste : **+{fmt_silver(part_indiv)}**"
             )
         else:
             summary += (
-                f"👥 Participants : **{nb_others}**\n"
+                f"👥 Participants : **{nb_normal}**\n"
                 f"💵 Part individuelle : **{fmt_silver(part_indiv)} silver**\n"
                 f"📊 BAL crédités : **+{fmt_silver(part_indiv)} BAL / joueur**"
             )

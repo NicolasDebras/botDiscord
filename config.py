@@ -86,6 +86,8 @@ DEFAULT_TEMPLATES: dict[str, dict] = {
         "image":          "",
         "no_register":    True,
         "zero_pay_roles": ["LEACHER PVP"],
+        "tax_rate":       10,
+        "role_multipliers": {"SCOUT": 1.5},
         "pf_1": {
             "MAIN TANK":   1,
             "MAIN HEAL":   1,
