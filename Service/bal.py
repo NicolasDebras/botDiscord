@@ -46,6 +46,8 @@ class Bal(commands.Cog):
         if not await self.check_admin(interaction):
             return
 
+        await interaction.response.defer(ephemeral=True)
+
         key       = str(joueur.id)
         new_total = await db.increment_bal(key, montant)
         await append_bal_log("addbal", interaction.user.display_name, [
@@ -53,8 +55,8 @@ class Bal(commands.Cog):
         ])
         await notify_bal_limit(interaction.client, joueur.id, new_total)
 
-        await interaction.response.send_message(
-            f"✅ **{joueur.display_name}** : +{montant} BAL  (total : **{new_total}**)",
+        await interaction.followup.send(
+            f"✅ **{joueur.display_name}** : +{fmt_silver(montant)} silver  (total : **{fmt_silver(new_total)} silver**)",
             ephemeral=True,
         )
 
@@ -67,6 +69,8 @@ class Bal(commands.Cog):
         if not await self.check_admin(interaction):
             return
 
+        await interaction.response.defer(ephemeral=True)
+
         key    = str(joueur.id)
         ancien = await db.get_bal(key)
         reel   = min(montant, ancien)   # plancher à 0
@@ -78,8 +82,8 @@ class Bal(commands.Cog):
         ])
         await notify_bal_limit(interaction.client, joueur.id, new_total)
 
-        await interaction.response.send_message(
-            f"✅ **{joueur.display_name}** : -{reel} BAL  (total : **{new_total}**)",
+        await interaction.followup.send(
+            f"✅ **{joueur.display_name}** : -{fmt_silver(reel)} silver  (total : **{fmt_silver(new_total)} silver**)",
             ephemeral=True,
         )
 
