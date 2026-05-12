@@ -36,7 +36,6 @@ ROLES: dict[str, str] = {
     "DAMME":       "💥",
     "SUPPORT":     "🔮",
     "CALLER":      "📢",
-    "SCOOT":       "🏃",
     "SCOUT":       "👁️",
     "FROST":       "❄️",
     "HURLEGIVRE":  "🌨️",
@@ -70,7 +69,7 @@ DEFAULT_TEMPLATES: dict[str, dict] = {
         "has_waitlist": True,
         "pf_1": {
             "TANK": 1, "OFF TANK": 1, "FROST": 1,
-            "DAMME": 1, "SCOOT": 1, "MAIN HEAL": 1, "IRON ROOT": 1,
+            "DAMME": 1, "SCOUT": 1, "MAIN HEAL": 1, "IRON ROOT": 1,
             "DPS": 3, "COBRA/GA": 1,
         },
     },
@@ -86,7 +85,7 @@ DEFAULT_TEMPLATES: dict[str, dict] = {
         "image":          "",
         "no_register":    True,
         "zero_pay_roles": ["LEACHER PVP"],
-        "tax_rate":       10,
+        "tax_rate":       90,
         "role_multipliers": {"SCOUT": 1.5},
         "pf_1": {
             "MAIN TANK":   1,
