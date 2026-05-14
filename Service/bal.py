@@ -226,9 +226,17 @@ class Bal(commands.Cog):
             await interaction.followup.send("ℹ️ Aucune donnée BAL pour le moment.")
             return
 
-        sorted_bal = sorted(bal.items(), key=lambda x: x[1], reverse=True)
-        medals     = ["🥇", "🥈", "🥉"]
-        lines      = []
+        bot_id     = str(interaction.client.user.id)
+        sorted_bal = sorted(
+            [(uid, amt) for uid, amt in bal.items() if uid != bot_id and amt > 0],
+            key=lambda x: x[1], reverse=True,
+        )
+        if not sorted_bal:
+            await interaction.followup.send("ℹ️ Aucun solde positif pour le moment.")
+            return
+
+        medals = ["🥇", "🥈", "🥉"]
+        lines  = []
         for i, (uid, amount) in enumerate(sorted_bal[:20]):
             prefix = medals[i] if i < 3 else f"**{i + 1}.**"
             member = interaction.guild.get_member(int(uid))
@@ -237,7 +245,7 @@ class Bal(commands.Cog):
 
         embed = discord.Embed(title="🏆 Classement BAL", description="\n".join(lines), color=0xF1C40F)
         embed.set_footer(text=f"{len(sorted_bal)} joueurs au total")
-        await interaction.followup.send(embed=embed, delete_after=300)
+        await interaction.followup.send(embed=embed)
 
     # =========================================================================
     # /paybal  — distribuer les BAL aux participants d'une activité

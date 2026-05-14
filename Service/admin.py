@@ -665,9 +665,13 @@ class Admin(commands.Cog):
             await interaction.followup.send("ℹ️ Aucune BAL enregistrée.", ephemeral=True)
             return
 
-        total = sum(all_bal.values())
-        lines = sorted(all_bal.items(), key=lambda x: x[1], reverse=True)
-        desc  = "\n".join(f"<@{uid}> — **{fmt_silver(amount)}** silver" for uid, amount in lines if amount > 0)
+        bot_id = str(interaction.client.user.id)
+        total  = sum(v for k, v in all_bal.items() if k != bot_id)
+        lines  = sorted(
+            [(uid, amt) for uid, amt in all_bal.items() if uid != bot_id and amt > 0],
+            key=lambda x: x[1], reverse=True,
+        )
+        desc = "\n".join(f"<@{uid}> — **{fmt_silver(amount)}** silver" for uid, amount in lines)
 
         if len(desc) > 4000:
             desc = desc[:4000] + "\n…*(liste tronquée)*"
