@@ -104,9 +104,34 @@ class Bal(commands.Cog):
 
         # ── Easter eggs joueurs ───────────────────────────────────────────
         easter_eggs = {
-            "lilium122": f"👑 Ah, le chef en personne… Ton solde BAL : **{solde_fmt}**. On espère que c'est à la hauteur de ton ego.",
-            "naej":      f"🏹 Tiens, le vieux reprend du service. Ton solde BAL : **{solde_fmt}**. Essaie de ne pas tout dépenser, pense a ta retraite",
-            "arcwolf":   f"🐺 Le loup rôde… Ton solde BAL : **{solde_fmt}**. Toujours à l'affût du bon coup.",
+            "lilium122": random.choice([
+                f"👑 Ah, le chef en personne… **{solde_fmt} silver**. On espère que c'est à la hauteur de ton ego. (c'est pas possible de toute façon)",
+                f"😤 **{solde_fmt} silver** pour Lilium122. T'es déjà en train de faire croire que c'est grâce à toi si la guilde tourne. C'est mignon.",
+                f"🎭 **{solde_fmt} silver**. Tu vas encore faire un discours sur tes mérites ? On t'écoute... non en fait on t'écoute pas.",
+                f"📣 **{solde_fmt} silver**. T'as déjà informé tout le monde 3 fois ce soir. On sait, Lilium. On sait.",
+                f"🦚 **{solde_fmt} silver**. Impressionnant. Presque autant que ton ego. Presque.",
+            ]),
+            "naej": random.choice([
+                f"🏹 Tiens, le vieux GM reprend du service. **{solde_fmt} silver**. Essaie de pas tout dépenser avant la retraite.",
+                f"👴 **{solde_fmt} silver** pour Naej. *'De mon temps on farmait avec les pieds et on était content.'* — Naej, sûrement.",
+                f"🏺 **{solde_fmt} silver**. Naej veille. Naej juge. Naej se souvient d'un temps où les pixels coûtaient moins cher.",
+                f"☕ **{solde_fmt} silver**. Naej a vérifié sa BAL entre deux doléances sur l'ancienne meta. Respect quand même.",
+                f"📜 **{solde_fmt} silver**. Le GM a parlé. Les anciens se souviennent. Les jeunes s'en foutent. C'est l'ordre des choses.",
+            ]),
+            "arcwolf": random.choice([
+                f"💅 Arc et ses **{solde_fmt} silver**. Les riches vérifient quand même, on sait jamais.",
+                f"💰 **{solde_fmt} silver**. Arc regarde ça comme si c'était de la monnaie de poche. Pour elle c'est probablement le cas.",
+                f"🐺 **{solde_fmt} silver**. Toujours au top, toujours classe. La guilde a une star et elle le sait.",
+                f"👛 **{solde_fmt} silver**. Elle a vérifié juste pour s'assurer qu'elle est toujours la plus riche. Spoiler : probablement oui.",
+                f"💎 **{solde_fmt} silver** pour Arc. Le reste de la guilde farm pour atteindre son niveau. Elle, elle farm par habitude.",
+            ]),
+            "g3": random.choice([
+                f"😤 G3 sort du bois. **{solde_fmt} silver**. Au moins ta BAL elle répond, contrairement aux DPS de ton dernier raid.",
+                f"📢 **{solde_fmt} silver** pour G3. *'LES DPS ILS BOUGENT PAS, ILS FARM PAS, ILS...'* — G3, en permanence.",
+                f"🤬 **{solde_fmt} silver**. G3 a vérifié sa BAL entre deux plaintes sur les DPS. La constance, respect.",
+                f"⚔️ **{solde_fmt} silver** G3. Les DPS vont encore entendre parler de toi ce soir, c'est sûr.",
+                f"🎙️ **{solde_fmt} silver**. T'as la BAL, t'as la voix, t'as les plaintes. Le package complet.",
+            ]),
         }
         egg = next((v for k, v in easter_eggs.items() if k in name), None)
         if egg:
@@ -114,7 +139,6 @@ class Bal(commands.Cog):
             return
 
         # ── Messages selon le solde ───────────────────────────────────────
-        import random
         M = 1_000_000
         s = f"**{solde_fmt} silver**"
 
@@ -125,6 +149,9 @@ class Bal(commands.Cog):
                 f"😂 {s}. Bro t'as même pas participé une seule fois ? Sérieusement ?",
                 f"🦗 {s}. On entend les grillons dans ton portefeuille.",
                 f"💀 {s}. Financièrement décédé. Repose en paix.",
+                f"🙈 {s}. G3 a raison sur les DPS, et toi t'as même pas la BAL pour lui répondre.",
+                f"🫙 {s}. Même le coffre de guilde est plus riche que toi. C'est triste vraiment.",
+                f"👻 {s}. T'es un fantôme dans les raids ET dans la BAL. Double performance.",
             ])
         elif solde < 2 * M:
             msg = random.choice([
@@ -133,7 +160,9 @@ class Bal(commands.Cog):
                 f"🐣 {s}. Bébé farmer. Mignon. Inutile, mais mignon.",
                 f"📉 {s}. Les marchés ont vu mieux. Toi aussi on espère.",
                 f"🙃 {s}. C'est un début… très très humble.",
-                f"🙃 {s}. Plus pauvre que Beban, je ne pensais pas que c'était possible",
+                f"🙃 {s}. Plus pauvre que Beban, je ne pensais pas que c'était possible.",
+                f"🤡 {s}. T'as pas honte de vérifier ça ? Retourne farmer.",
+                f"🧸 {s}. Adorable. Complètement inutile financièrement, mais adorable.",
             ])
         elif solde < 5 * M:
             msg = random.choice([
@@ -142,6 +171,9 @@ class Bal(commands.Cog):
                 f"🐌 {s}. Tu farm au ralenti ou c'est juste toi ?",
                 f"📦 {s}. Du potentiel. Enfoui très très profond.",
                 f"🤏 {s}. Un peu. Vraiment un peu.",
+                f"🧱 {s}. Solide comme un mur. Un mur en carton.",
+                f"😑 {s}. G3 te demanderait pas de jouer DPS avec une BAL pareille. Soyons honnêtes.",
+                f"🐢 {s}. T'avances. Lentement. Très lentement. Mais t'avances.",
             ])
         elif solde < 7 * M:
             msg = random.choice([
@@ -150,6 +182,9 @@ class Bal(commands.Cog):
                 f"🤷 {s}. Pas ouf, pas nul. Tu es quelqu'un de très quelconque.",
                 f"📊 {s}. Statistiquement dans la moyenne. C'est déjà ça.",
                 f"😑 {s}. Tu fais le minimum et ça se voit.",
+                f"🥱 {s}. Bof. T'as survécu, c'est l'essentiel.",
+                f"🎯 {s}. Dans la moyenne. Ni honte ni fierté. Juste... là.",
+                f"🌫️ {s}. Tu passes inaperçu. Comme toujours. C'est ton super-pouvoir.",
             ])
         elif solde < 10 * M:
             msg = random.choice([
@@ -158,6 +193,9 @@ class Bal(commands.Cog):
                 f"🗡️ {s}. Solide effort. T'es pas une charge pour la guilde, c'est déjà bien.",
                 f"👀 {s}. Tiens tiens. Quelqu'un qui bosse. Rare.",
                 f"😏 {s}. Pas mal du tout. T'es clairement là quand ça compte.",
+                f"🔥 {s}. T'es dans les bons élèves. Enfin un peu.",
+                f"💡 {s}. Respectable. Pas au niveau d'Arc évidemment, mais respectable.",
+                f"🎖️ {s}. T'as de la gueule. Même G3 ne peut pas se plaindre de toi. Enfin, il va quand même le faire.",
             ])
         elif solde < 15 * M:
             msg = random.choice([
@@ -166,7 +204,9 @@ class Bal(commands.Cog):
                 f"🏅 {s}. Au-dessus de la moyenne. Tu te la pètes un peu mais c'est mérité.",
                 f"😎 {s}. Classe. Vraiment classe.",
                 f"💼 {s}. Professionnel. On apprécie.",
-                f"💰 {s}. Solide. Pense à faire un don a beban....",
+                f"💰 {s}. Solide. Pense à faire un don à Beban...",
+                f"🦅 {s}. T'as travaillé dur. Même G3 ne peut pas se plaindre. Même si il va essayer.",
+                f"🏹 {s}. Naej serait fier... s'il se souvenait de ton nom.",
             ])
         elif solde < 20 * M:
             msg = random.choice([
@@ -175,6 +215,19 @@ class Bal(commands.Cog):
                 f"👑 {s}. La guilde t'aime. Vraiment.",
                 f"🤑 {s}. Riche. Genre vraiment riche pour un pixel.",
                 f"🦁 {s}. Tu rugis, la bourse tremble.",
+                f"💎 {s}. Élite. Arc commence à te regarder d'un autre œil.",
+                f"🎖️ {s}. Impressionnant. Même Naej a lâché son café en voyant ça.",
+                f"🌟 {s}. T'as pas de vie mais t'as une BAL. C'est un choix de vie valable.",
+            ])
+        elif solde < 30 * M:
+            msg = random.choice([
+                f"💎 {s}. T'as dépassé les 20M. Arc a vérifié sa propre BAL par réflexe.",
+                f"🤯 {s}. On pensait que seul Arc avait autant. T'as du talent ou pas de vie — dans les deux cas, respect.",
+                f"🦈 {s}. T'es un prédateur financier maintenant. La guilde te regarde autrement.",
+                f"🏦 {s}. Les 30 millions dans le viseur. Arc vient de recalculer son avance.",
+                f"👁️ {s}. Les gens commencent à chuchoter ton nom dans les raids. C'est du respect ou de la jalousie.",
+                f"🧲 {s}. Richissime. G3 va arrêter de râler sur toi pour râler sur les autres.",
+                f"💰 {s}. T'es dans le top tier. Même Lilium122 te regarde de travers.",
             ])
         elif solde < 50 * M:
             msg = random.choice([
@@ -183,6 +236,31 @@ class Bal(commands.Cog):
                 f"🤖 {s}. T'es un bot ? Personne farm autant normalement.",
                 f"😱 {s}. On est impressionné et inquiet à la fois.",
                 f"🏦 {s}. À ce stade t'es toi-même une institution financière.",
+                f"🔱 {s}. Arc t'a envoyé un message privé pour te demander tes secrets. Elle nie.",
+                f"💫 {s}. Légendaire. Même Naej arrête de parler de l'ancien temps pour parler de toi.",
+                f"🌙 {s}. T'as plus besoin de travailler. Enfin si, t'es dans un jeu, mais tu vois l'idée.",
+            ])
+        elif solde < 75 * M:
+            msg = random.choice([
+                f"🌟 {s}. 75 millions dans le radar. T'as officiellement plus de silver que de sens commun.",
+                f"👑 {s}. Arc a vérifié ta BAL, s'est sentie pauvre, et est allée farmer. Tu lui as rendu service.",
+                f"🚁 {s}. À ce niveau de richesse t'arrives en hélico aux raids. C'est légitime.",
+                f"🦋 {s}. Transformation complète. De simple membre à pilier financier de la guilde.",
+                f"⚡ {s}. T'es devenu une légende urbaine. Les recrues racontent des histoires sur toi.",
+                f"🌌 {s}. Naej t'a félicité. C'est sa façon de dire qu'il est jaloux mais digne.",
+                f"🏆 {s}. G3 a arrêté de râler sur les DPS pour râler sur toi. Prends ça comme un honneur.",
+                f"💼 {s}. Arc a organisé une réunion pour comprendre comment t'as fait. Elle a pris des notes.",
+            ])
+        elif solde < 100 * M:
+            msg = random.choice([
+                f"🌌 {s}. Presque 100 millions. T'as plus besoin de jouer, t'es la guilde maintenant.",
+                f"😵 {s}. On sait même pas quoi dire. T'as sacrifié QUOI pour farm autant ?",
+                f"👽 {s}. T'es pas humain. On a pas vérifié, mais on se pose la question.",
+                f"💼 {s}. Arc a organisé un séminaire 'comment atteindre ce niveau'. Elle sait pas non plus.",
+                f"🔮 {s}. Lilium122 a essayé de faire croire que c'était grâce à lui. On lui a dit de se taire.",
+                f"📜 {s}. Naej a sorti ses lunettes pour bien lire le chiffre. Il a dit 'de mon temps on farmait pas autant'. Classique.",
+                f"⭐ {s}. G3 râle toujours sur les DPS mais il te parle avec respect maintenant. C'est dire.",
+                f"🎯 {s}. T'as presque atteint le mythe. Arc est ton seule rival. Elle le sait. Toi aussi.",
             ])
         else:
             msg = random.choice([
@@ -191,6 +269,9 @@ class Bal(commands.Cog):
                 f"🥇 {s}. Historique. Quelqu'un devrait écrire un livre.",
                 f"😵 {s}. On sait même pas quoi dire. Chapeau l'artiste.",
                 f"⚡ {s}. À ce niveau c'est plus du farming, c'est de l'art.",
+                f"🏛️ {s}. 100 MILLIONS. Arc a revérifié sa BAL. Naej a dit 'c'était mieux de mon temps'. G3 râle. Lilium122 revendique la paternité de ton succès. La guilde est en feu.",
+                f"🌠 {s}. T'as atteint la transcendance financière. La guilde ne peut plus rien pour toi. Tu ES la guilde.",
+                f"🎯 {s}. Cent millions. Arc pleure. G3 est muet pour une fois. Naej fait semblant de s'en foutre. Lilium122 se prend en photo à côté de toi. Tu gagnes.",
             ])
 
         await interaction.followup.send(msg, ephemeral=True)
