@@ -76,6 +76,7 @@ class Joueur(commands.Cog):
         ping = f"<@&{_RECRUTEUR_ROLE}>"
 
         if not pending:
+            await channel.send(f"{ping}\n✅ Aucun nouveau joueur à suivre cette semaine.")
             return
 
         lines = []
