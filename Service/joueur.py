@@ -126,6 +126,35 @@ class Joueur(commands.Cog):
             ephemeral=True,
         )
 
+    # ── /reporter @joueur ─────────────────────────────────────────────────────
+    @app_commands.command(name="reporter", description="Repousser le suivi d'un nouveau joueur d'une semaine (vacances, maladie…)")
+    @app_commands.describe(joueur="Le joueur à reporter")
+    async def reporter(self, interaction: discord.Interaction, joueur: discord.Member):
+        if not _is_recruteur_or_admin(interaction.user):
+            await interaction.response.send_message(
+                "⛔ Tu n'as pas la permission d'utiliser cette commande.", ephemeral=True
+            )
+            return
+
+        profile = await db.get_player_profile(str(joueur.id))
+        if not profile:
+            await interaction.response.send_message(
+                f"❌ **{joueur.display_name}** n'a pas de profil enregistré.", ephemeral=True
+            )
+            return
+        if profile["is_membre"]:
+            await interaction.response.send_message(
+                f"ℹ️ **{joueur.display_name}** est déjà membre, pas de suivi en cours.", ephemeral=True
+            )
+            return
+
+        await db.postpone_player_check(str(joueur.id), days=7)
+        nouvelle_date = profile["joined_at"] + datetime.timedelta(days=7)
+        await interaction.response.send_message(
+            f"📅 Le suivi de **{joueur.display_name}** est repoussé d'une semaine — prochain check après le **{nouvelle_date.strftime('%d/%m/%Y')}**.",
+            ephemeral=True,
+        )
+
     # ── /info @joueur ─────────────────────────────────────────────────────────
     @app_commands.command(name="info", description="Voir le profil d'un joueur (fame Albion, activités)")
     @app_commands.describe(joueur="Le joueur à consulter")

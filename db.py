@@ -393,6 +393,15 @@ async def update_player_igname(user_id: str, ig_name: str) -> None:
         )
 
 
+async def postpone_player_check(user_id: str, days: int = 7) -> None:
+    """Repousse le suivi d'un joueur de `days` jours en décalant joined_at."""
+    async with _pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE player_profiles SET joined_at = joined_at + ($2 * INTERVAL '1 day') WHERE user_id = $1",
+            user_id, days,
+        )
+
+
 async def delete_player_profile(user_id: str) -> None:
     async with _pool.acquire() as conn:
         await conn.execute("DELETE FROM player_profiles WHERE user_id = $1", user_id)
