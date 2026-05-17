@@ -4,7 +4,7 @@ from discord import app_commands
 
 import db
 from albion_api import fetch_albion_fame, fmt_fame
-from config import ADMIN_ROLE_NAME, RECRUTEUR_ROLE_ID
+from config import ADMIN_ROLE_NAME, RECRUTEUR_ROLE_ID, MEMBRE_ROLE_NAME
 
 
 def is_recruteur(member: discord.Member) -> bool:
@@ -14,10 +14,15 @@ def is_recruteur(member: discord.Member) -> bool:
     )
 
 
+def _has_membre_role(member: discord.Member) -> bool:
+    return any(r.name == MEMBRE_ROLE_NAME for r in member.roles)
+
+
 class RecrutementModal(discord.ui.Modal, title="Fiche de recrutement"):
-    def __init__(self, joueur: discord.Member):
+    def __init__(self, joueur: discord.Member, joueur_est_membre: bool):
         super().__init__()
-        self.joueur = joueur
+        self.joueur           = joueur
+        self.joueur_est_membre = joueur_est_membre
 
         self.pseudo_ig = discord.ui.TextInput(
             label="Pseudo IG",
@@ -45,6 +50,10 @@ class RecrutementModal(discord.ui.Modal, title="Fiche de recrutement"):
         )
         embed.add_field(name="Discord", value=self.joueur.mention, inline=True)
         embed.add_field(name="Pseudo IG", value=self.pseudo_ig.value, inline=True)
+
+        if not self.joueur_est_membre:
+            embed.add_field(name="⚠️ Statut", value="Pas encore **Membre**", inline=True)
+
         embed.set_thumbnail(url=self.joueur.display_avatar.url)
         embed.set_footer(text=f"Soumis par {interaction.user.display_name}")
 
@@ -62,7 +71,6 @@ class RecrutementModal(discord.ui.Modal, title="Fiche de recrutement"):
         except Exception:
             embed.add_field(name="Fame Albion", value="*Impossible de récupérer la fame (API indisponible)*", inline=False)
 
-        # Sauvegarder le profil initial (fame de référence pour la progression)
         if fame:
             await db.save_player_profile(
                 str(self.joueur.id),
@@ -70,6 +78,7 @@ class RecrutementModal(discord.ui.Modal, title="Fiche de recrutement"):
                 fame["pve"],
                 fame["pvp"],
                 self.info.value,
+                self.joueur_est_membre,
             )
 
         await interaction.followup.send(embed=embed)
@@ -90,7 +99,15 @@ class Recrutement(commands.Cog):
                 "⛔ Tu n'as pas la permission d'utiliser cette commande.", ephemeral=True
             )
             return
-        await interaction.response.send_modal(RecrutementModal(joueur))
+
+        if _has_membre_role(joueur):
+            await interaction.response.send_message(
+                f"ℹ️ **{joueur.display_name}** est déjà **{MEMBRE_ROLE_NAME}** — pas besoin de fiche de recrutement.",
+                ephemeral=True,
+            )
+            return
+
+        await interaction.response.send_modal(RecrutementModal(joueur, joueur_est_membre=False))
 
 
 async def setup(bot: commands.Bot):

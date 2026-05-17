@@ -26,6 +26,10 @@ class Joueur(commands.Cog):
         acti_count = profile["acti_count"] if profile else 0
         ig_name    = profile["ig_name"]    if profile and profile["ig_name"] else None
 
+        is_membre = profile["is_membre"] if profile else True
+        if not is_membre:
+            embed.add_field(name="⚠️ Statut", value="Pas encore **Membre**", inline=False)
+
         embed.add_field(name="🎯 Activités terminées", value=str(acti_count), inline=True)
         embed.add_field(name="🎮 Pseudo IG",           value=ig_name or "*Non enregistré*", inline=True)
 
