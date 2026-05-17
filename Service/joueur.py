@@ -76,9 +76,6 @@ class Joueur(commands.Cog):
         ping = f"<@&{_RECRUTEUR_ROLE}>"
 
         if not pending:
-            await channel.send(
-                f"{ping}\n✅ Aucun nouveau joueur en attente depuis plus de 2 semaines."
-            )
             return
 
         lines = []
@@ -91,7 +88,8 @@ class Joueur(commands.Cog):
 
         await channel.send(
             f"{ping}\n"
-            f"🆕 **Nouveaux joueurs sans rôle Membre depuis plus de 2 semaines** ({len(pending)})\n\n"
+            f"🆕 **Suivi nouveaux joueurs — recrutés il y a plus de 2 semaines** ({len(pending)})\n"
+            f"Pensez à vérifier leur activité et à leur donner le rôle **{MEMBRE_ROLE_NAME}** si tout est bon.\n\n"
             + "\n".join(lines)
         )
 
