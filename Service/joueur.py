@@ -114,17 +114,20 @@ class Joueur(commands.Cog):
                 f"❌ **{joueur.display_name}** n'a pas de profil enregistré.", ephemeral=True
             )
             return
-        if profile["is_membre"]:
-            await interaction.response.send_message(
-                f"ℹ️ **{joueur.display_name}** est déjà marqué comme membre.", ephemeral=True
-            )
-            return
 
-        await db.set_player_is_membre(str(joueur.id), True)
-        await interaction.response.send_message(
-            f"✅ **{joueur.display_name}** est maintenant marqué comme membre — le flag Nouveau joueur a été retiré.",
-            ephemeral=True,
-        )
+        nouveau_statut = not profile["is_membre"]
+        await db.set_player_is_membre(str(joueur.id), nouveau_statut)
+
+        if nouveau_statut:
+            await interaction.response.send_message(
+                f"✅ **{joueur.display_name}** est maintenant marqué comme **membre** — flag Nouveau joueur retiré.",
+                ephemeral=True,
+            )
+        else:
+            await interaction.response.send_message(
+                f"🔄 **{joueur.display_name}** est maintenant marqué comme **nouveau joueur**.",
+                ephemeral=True,
+            )
 
     # ── /reporter @joueur ─────────────────────────────────────────────────────
     @app_commands.command(name="reporter", description="Repousser le suivi d'un nouveau joueur d'une semaine (vacances, maladie…)")
