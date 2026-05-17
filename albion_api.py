@@ -1,10 +1,11 @@
 """
 albion_api.py — Utilitaires pour l'API Albion Online (gameinfo).
+Serveur EU : gameinfo.albiononline.com (serveur principal, joueurs EU inclus)
 """
 import aiohttp
 
-_BASE = "https://gameinfo-ams.albiononline.com/api/gameinfo"
-_TIMEOUT = aiohttp.ClientTimeout(total=8)
+_BASE = "https://gameinfo.albiononline.com/api/gameinfo"
+_TIMEOUT = aiohttp.ClientTimeout(total=10)
 
 
 def fmt_fame(n: int) -> str:
@@ -36,10 +37,11 @@ async def fetch_albion_fame(pseudo: str) -> dict | None:
                 return None
             stats = await resp.json()
 
-    pve = stats.get("PvE") or {}
-    pvp = stats.get("PvP") or {}
+    lifetime = stats.get("LifetimeStatistics") or {}
+    pve = lifetime.get("PvE") or {}
+    pvp = lifetime.get("PvP") or {}
     return {
         "pve":  pve.get("Total", 0),
-        "pvp":  pvp.get("Total", 0),
+        "pvp":  pvp.get("KillFame", pvp.get("Total", 0)),
         "name": match["Name"],
     }
