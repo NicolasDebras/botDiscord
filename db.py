@@ -60,6 +60,15 @@ async def init_db(database_url: str) -> None:
                 key    TEXT PRIMARY KEY,
                 value  TEXT NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS player_profiles (
+                user_id          TEXT PRIMARY KEY,
+                ig_name          TEXT        NOT NULL DEFAULT '',
+                initial_pve_fame BIGINT      NOT NULL DEFAULT 0,
+                initial_pvp_fame BIGINT      NOT NULL DEFAULT 0,
+                joined_at        TIMESTAMPTZ,
+                acti_count       INT         NOT NULL DEFAULT 0
+            );
         """)
         # Migrations : colonnes ajoutées après le schéma initial
         for col, default in [
@@ -303,3 +312,45 @@ async def set_setting(key: str, value: str) -> None:
             INSERT INTO settings (key, value) VALUES ($1, $2)
             ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
         """, key, value)
+
+
+# ── PLAYER PROFILES ───────────────────────────────────────────────────────────
+
+async def get_player_profile(user_id: str) -> dict | None:
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT * FROM player_profiles WHERE user_id = $1", user_id)
+    if not row:
+        return None
+    return {
+        "user_id":          row["user_id"],
+        "ig_name":          row["ig_name"],
+        "initial_pve_fame": row["initial_pve_fame"],
+        "initial_pvp_fame": row["initial_pvp_fame"],
+        "joined_at":        row["joined_at"],
+        "acti_count":       row["acti_count"],
+    }
+
+
+async def save_player_profile(user_id: str, ig_name: str, initial_pve: int, initial_pvp: int) -> None:
+    joined_at = datetime.now(timezone.utc)
+    async with _pool.acquire() as conn:
+        await conn.execute("""
+            INSERT INTO player_profiles (user_id, ig_name, initial_pve_fame, initial_pvp_fame, joined_at)
+            VALUES ($1, $2, $3, $4, $5)
+            ON CONFLICT (user_id) DO UPDATE SET
+                ig_name          = EXCLUDED.ig_name,
+                initial_pve_fame = EXCLUDED.initial_pve_fame,
+                initial_pvp_fame = EXCLUDED.initial_pvp_fame,
+                joined_at        = EXCLUDED.joined_at
+        """, user_id, ig_name, initial_pve, initial_pvp, joined_at)
+
+
+async def increment_acti_count(user_ids: list[str]) -> None:
+    async with _pool.acquire() as conn:
+        async with conn.transaction():
+            for user_id in user_ids:
+                await conn.execute("""
+                    INSERT INTO player_profiles (user_id, acti_count)
+                    VALUES ($1, 1)
+                    ON CONFLICT (user_id) DO UPDATE SET acti_count = player_profiles.acti_count + 1
+                """, user_id)

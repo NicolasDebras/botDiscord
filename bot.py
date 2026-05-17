@@ -19,6 +19,8 @@ EXTENSIONS = [
     "Service.admin",
     "Service.bal",
     "Service.massup",
+    "Service.recrutement",
+    "Service.joueur",
 ]
 
 

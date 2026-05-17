@@ -684,6 +684,11 @@ class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
 
         new_totals = await db.increment_bal_batch(deltas)
 
+        # Compter la présence de tous les participants
+        all_ids = list({str(entry[0]) for members in data["slots"].values() for entry in members})
+        if all_ids:
+            await db.increment_acti_count(all_ids)
+
         log_entries = []
         for uid, name, role, mult in paying:
             key = str(uid)
@@ -871,6 +876,11 @@ class FinActiButton(discord.ui.Button):
         await interaction.response.defer(ephemeral=True)
         fin_embed       = build_embed(data)
         fin_embed.title = f"🏁 FIN  ·  {fin_embed.title}"
+
+        all_ids = list({str(entry[0]) for members in data["slots"].values() for entry in members})
+        if all_ids:
+            await db.increment_acti_count(all_ids)
+
         await remove_activity(self.activity_id)
         try:
             channel = interaction.client.get_channel(data["channel_id"])

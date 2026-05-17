@@ -102,6 +102,36 @@ Une fois l'activité créée :
 
 ---
 
+### Recrutement
+
+| Commande | Accès | Description |
+|---|---|---|
+| `/recrutement @joueur` | Recruteur, Officier | Enregistrer une candidature de recrutement |
+
+La commande ouvre une pop-up avec deux champs :
+- **Pseudo IG** — pseudo en jeu du candidat (court)
+- **Informations** — classe, stuff, IP, disponibilités, motivation… (paragraphe libre)
+
+Une fois soumise, un embed récapitulatif est posté dans le canal avec la mention Discord du joueur, ainsi que la **fame PvP et PvE** récupérée automatiquement via l'API Albion Online. La fame du moment est enregistrée comme **baseline** pour suivre la progression du joueur.
+
+> Accessible aux membres ayant le rôle **Recruteur** (ID `1473779038106685568`) ou **Officier**.
+
+### Profil joueur
+
+| Commande | Accès | Description |
+|---|---|---|
+| `/info @joueur` | Tous | Voir le profil d'un joueur : pseudo IG, fame Albion, activités terminées |
+
+L'embed affiche :
+- **Pseudo IG** (enregistré via `/recrutement`)
+- **Activités terminées** — nombre de fins d'activité auxquelles le joueur était présent
+- **Fame PvP / PvE actuelle** (API Albion Online en temps réel)
+- **Fame gagnée depuis le recrutement** (différence avec la baseline enregistrée lors du `/recrutement`)
+
+> Si le joueur n'a jamais été recruté via le bot, seul le compteur d'activités est disponible.
+
+---
+
 ### Administration
 
 | Commande | Accès | Description |
@@ -139,12 +169,15 @@ LiliumBot/
 ├── bot.py              # Point d'entrée, init DB, chargement des cogs
 ├── config.py           # Token, rôles, templates par défaut, couleurs
 ├── db.py               # Couche d'accès PostgreSQL (asyncpg)
+├── albion_api.py       # Client API Albion Online (fame, recherche joueur)
 ├── requirements.txt
 └── Service/
     ├── activites.py    # Commandes /acti et /templates, UI des activités
     ├── admin.py        # Commandes d'administration
     ├── bal.py          # Commandes BAL
     ├── massup.py       # Commande /massup (ping participants)
+    ├── recrutement.py  # Commande /recrutement (fiche de candidature + baseline fame)
+    ├── joueur.py       # Commande /info (profil joueur + fame Albion)
     └── utils.py        # Helpers partagés (is_admin, ActivitySelect, settings)
 ```
 

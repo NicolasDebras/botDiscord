@@ -14,7 +14,9 @@ GM_ROLE_NAME     = "Maitre de guilde"
 # Rôle minimum requis pour utiliser les commandes membres
 MEMBRE_ROLE_NAME = "Membre"
 # Rôle Caller (accès à kickacti / addacti)
-CALLER_ROLE_NAME = "Caller"
+CALLER_ROLE_NAME   = "Caller"
+# Rôle Recruteur (accès à /recrutement)
+RECRUTEUR_ROLE_ID  = 1473779038106685568
 
 # ── GUILD ID (sync instantanée des slash commands) ────────────────────────────
 GUILD_ID = int(os.environ["DISCORD_GUILD_ID"])
