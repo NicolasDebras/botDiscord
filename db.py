@@ -357,6 +357,47 @@ async def save_player_profile(user_id: str, ig_name: str, initial_pve: int, init
         """, user_id, ig_name, initial_pve, initial_pvp, joined_at, recruitment_info, is_membre)
 
 
+async def get_pending_new_players(min_days: int = 14) -> list[dict]:
+    """Nouveaux joueurs (is_membre=FALSE) présents depuis plus de min_days jours."""
+    async with _pool.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT user_id, ig_name, joined_at FROM player_profiles
+            WHERE is_membre = FALSE
+              AND joined_at IS NOT NULL
+              AND joined_at <= NOW() - ($1 * INTERVAL '1 day')
+            ORDER BY joined_at ASC
+        """, min_days)
+    return [{"user_id": r["user_id"], "ig_name": r["ig_name"], "joined_at": r["joined_at"]} for r in rows]
+
+
+async def get_all_profiles() -> list[dict]:
+    """Retourne tous les profils recrutés."""
+    async with _pool.acquire() as conn:
+        rows = await conn.fetch("SELECT user_id, ig_name, joined_at, is_membre FROM player_profiles")
+    return [{"user_id": r["user_id"], "ig_name": r["ig_name"], "joined_at": r["joined_at"], "is_membre": r["is_membre"]} for r in rows]
+
+
+async def set_player_is_membre(user_id: str, value: bool) -> None:
+    async with _pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE player_profiles SET is_membre = $2 WHERE user_id = $1",
+            user_id, value,
+        )
+
+
+async def update_player_igname(user_id: str, ig_name: str) -> None:
+    async with _pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE player_profiles SET ig_name = $2 WHERE user_id = $1",
+            user_id, ig_name,
+        )
+
+
+async def delete_player_profile(user_id: str) -> None:
+    async with _pool.acquire() as conn:
+        await conn.execute("DELETE FROM player_profiles WHERE user_id = $1", user_id)
+
+
 async def increment_acti_count(user_ids: list[str]) -> None:
     async with _pool.acquire() as conn:
         async with conn.transaction():

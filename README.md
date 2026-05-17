@@ -130,6 +130,8 @@ L'embed affiche :
 
 > Si le joueur n'a jamais été recruté via le bot, seul le compteur d'activités est disponible.
 
+**Rappel automatique** — chaque jour à **22h** (heure de Paris), le bot envoie dans le salon dédié la liste des nouveaux joueurs (sans rôle Membre) présents depuis plus de **2 semaines**.
+
 ---
 
 ### Administration

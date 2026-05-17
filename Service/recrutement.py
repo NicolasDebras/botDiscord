@@ -100,14 +100,7 @@ class Recrutement(commands.Cog):
             )
             return
 
-        if _has_membre_role(joueur):
-            await interaction.response.send_message(
-                f"ℹ️ **{joueur.display_name}** est déjà **{MEMBRE_ROLE_NAME}** — pas besoin de fiche de recrutement.",
-                ephemeral=True,
-            )
-            return
-
-        await interaction.response.send_modal(RecrutementModal(joueur, joueur_est_membre=False))
+        await interaction.response.send_modal(RecrutementModal(joueur, joueur_est_membre=_has_membre_role(joueur)))
 
 
 async def setup(bot: commands.Bot):
