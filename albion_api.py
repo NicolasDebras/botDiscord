@@ -3,7 +3,7 @@ albion_api.py — Utilitaires pour l'API Albion Online (gameinfo).
 """
 import aiohttp
 
-_BASE = "https://gameinfo.albiononline.com/api/gameinfo"
+_BASE = "https://gameinfo-ams.albiononline.com/api/gameinfo"
 _TIMEOUT = aiohttp.ClientTimeout(total=8)
 
 
