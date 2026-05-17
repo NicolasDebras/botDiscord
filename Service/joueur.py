@@ -17,22 +17,27 @@ class Joueur(commands.Cog):
 
         profile = await db.get_player_profile(str(joueur.id))
 
+        acti_count       = profile["acti_count"]       if profile else 0
+        ig_name          = profile["ig_name"]           if profile and profile["ig_name"] else None
+        is_membre        = profile["is_membre"]         if profile else True
+        recruitment_info = profile["recruitment_info"]  if profile and profile.get("recruitment_info") else None
+        joined_at        = profile["joined_at"]         if profile else None
+
+        color = 0xE67E22 if not is_membre else 0x3498DB
+
         embed = discord.Embed(
-            title=f"👤 {joueur.display_name}",
-            color=0x3498DB,
+            title=f"{joueur.display_name}",
+            color=color,
         )
-        embed.set_thumbnail(url=joueur.display_avatar.url)
+        embed.set_image(url=joueur.display_avatar.url)
 
-        acti_count = profile["acti_count"] if profile else 0
-        ig_name    = profile["ig_name"]    if profile and profile["ig_name"] else None
-
-        is_membre = profile["is_membre"] if profile else True
+        # ── Ligne 1 : identité ────────────────────────────────────────────────
+        embed.add_field(name="🎮 Pseudo IG", value=ig_name or "*Non enregistré*", inline=True)
+        embed.add_field(name="🎯 Activités", value=str(acti_count),               inline=True)
         if not is_membre:
-            embed.add_field(name="⚠️ Statut", value="Pas encore **Membre**", inline=False)
+            embed.add_field(name="🆕 Statut", value="Nouveau joueur", inline=True)
 
-        embed.add_field(name="🎯 Activités terminées", value=str(acti_count), inline=True)
-        embed.add_field(name="🎮 Pseudo IG",           value=ig_name or "*Non enregistré*", inline=True)
-
+        # ── Ligne 2 : fame ────────────────────────────────────────────────────
         if ig_name:
             try:
                 fame = await fetch_albion_fame(ig_name)
@@ -57,12 +62,12 @@ class Joueur(commands.Cog):
             except Exception:
                 embed.add_field(name="Fame Albion", value="*API indisponible*", inline=False)
 
-        recruitment_info = profile["recruitment_info"] if profile and profile.get("recruitment_info") else None
+        # ── Infos recrutement ─────────────────────────────────────────────────
         if recruitment_info:
-            embed.add_field(name="📝 Infos recrutement", value=recruitment_info, inline=False)
+            embed.add_field(name="📋 Infos recrutement", value=recruitment_info, inline=False)
 
-        if profile and profile["joined_at"]:
-            embed.set_footer(text=f"Recruté le {profile['joined_at'].strftime('%d/%m/%Y')}")
+        if joined_at:
+            embed.set_footer(text=f"Recruté le {joined_at.strftime('%d/%m/%Y')}")
 
         await interaction.followup.send(embed=embed, ephemeral=True)
 

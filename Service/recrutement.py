@@ -52,7 +52,7 @@ class RecrutementModal(discord.ui.Modal, title="Fiche de recrutement"):
         embed.add_field(name="Pseudo IG", value=self.pseudo_ig.value, inline=True)
 
         if not self.joueur_est_membre:
-            embed.add_field(name="⚠️ Statut", value="Pas encore **Membre**", inline=True)
+            embed.add_field(name="🆕 Statut", value="**Nouveau joueur**", inline=True)
 
         embed.set_thumbnail(url=self.joueur.display_avatar.url)
         embed.set_footer(text=f"Soumis par {interaction.user.display_name}")
