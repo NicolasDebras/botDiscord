@@ -1,10 +1,10 @@
 """
 albion_api.py — Utilitaires pour l'API Albion Online (gameinfo).
-Serveur EU : gameinfo.albiononline.com (serveur principal, joueurs EU inclus)
+Serveur EU : gameinfo-ams.albiononline.com
 """
 import aiohttp
 
-_BASE = "https://gameinfo.albiononline.com/api/gameinfo"
+_BASE = "https://gameinfo-ams.albiononline.com/api/gameinfo"
 _TIMEOUT = aiohttp.ClientTimeout(total=10)
 
 
@@ -21,7 +21,8 @@ def fmt_fame(n: int) -> str:
 async def fetch_albion_fame(pseudo: str) -> dict | None:
     """Retourne {'pve': int, 'pvp': int, 'name': str} ou None si introuvable."""
     async with aiohttp.ClientSession(timeout=_TIMEOUT) as session:
-        async with session.get(f"{_BASE}/players/search", params={"q": pseudo}) as resp:
+        # 1. Recherche — endpoint /search (pas /players/search)
+        async with session.get(f"{_BASE}/search", params={"q": pseudo}) as resp:
             if resp.status != 200:
                 return None
             data = await resp.json()
@@ -32,12 +33,13 @@ async def fetch_albion_fame(pseudo: str) -> dict | None:
 
         match = next((p for p in players if p["Name"].lower() == pseudo.lower()), players[0])
 
-        async with session.get(f"{_BASE}/players/{match['Id']}/stats") as resp:
+        # 2. Détails joueur — /players/{id} (pas /players/{id}/stats)
+        async with session.get(f"{_BASE}/players/{match['Id']}") as resp:
             if resp.status != 200:
                 return None
-            stats = await resp.json()
+            player = await resp.json()
 
-    lifetime = stats.get("LifetimeStatistics") or {}
+    lifetime = player.get("LifetimeStatistics") or {}
     pve = lifetime.get("PvE") or {}
     pvp = lifetime.get("PvP") or {}
     return {
