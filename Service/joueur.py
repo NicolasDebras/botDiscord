@@ -53,6 +53,10 @@ class Joueur(commands.Cog):
             except Exception:
                 embed.add_field(name="Fame Albion", value="*API indisponible*", inline=False)
 
+        recruitment_info = profile["recruitment_info"] if profile and profile.get("recruitment_info") else None
+        if recruitment_info:
+            embed.add_field(name="📝 Infos recrutement", value=recruitment_info, inline=False)
+
         if profile and profile["joined_at"]:
             embed.set_footer(text=f"Recruté le {profile['joined_at'].strftime('%d/%m/%Y')}")
 

@@ -67,7 +67,8 @@ async def init_db(database_url: str) -> None:
                 initial_pve_fame BIGINT      NOT NULL DEFAULT 0,
                 initial_pvp_fame BIGINT      NOT NULL DEFAULT 0,
                 joined_at        TIMESTAMPTZ,
-                acti_count       INT         NOT NULL DEFAULT 0
+                acti_count       INT         NOT NULL DEFAULT 0,
+                recruitment_info TEXT        NOT NULL DEFAULT ''
             );
         """)
         # Migrations : colonnes ajoutées après le schéma initial
@@ -81,6 +82,9 @@ async def init_db(database_url: str) -> None:
             )
         await conn.execute(
             "ALTER TABLE bal ADD COLUMN IF NOT EXISTS is_alerted BOOLEAN NOT NULL DEFAULT FALSE"
+        )
+        await conn.execute(
+            "ALTER TABLE player_profiles ADD COLUMN IF NOT EXISTS recruitment_info TEXT NOT NULL DEFAULT ''"
         )
 
 
@@ -328,21 +332,23 @@ async def get_player_profile(user_id: str) -> dict | None:
         "initial_pvp_fame": row["initial_pvp_fame"],
         "joined_at":        row["joined_at"],
         "acti_count":       row["acti_count"],
+        "recruitment_info": row["recruitment_info"],
     }
 
 
-async def save_player_profile(user_id: str, ig_name: str, initial_pve: int, initial_pvp: int) -> None:
+async def save_player_profile(user_id: str, ig_name: str, initial_pve: int, initial_pvp: int, recruitment_info: str = "") -> None:
     joined_at = datetime.now(timezone.utc)
     async with _pool.acquire() as conn:
         await conn.execute("""
-            INSERT INTO player_profiles (user_id, ig_name, initial_pve_fame, initial_pvp_fame, joined_at)
-            VALUES ($1, $2, $3, $4, $5)
+            INSERT INTO player_profiles (user_id, ig_name, initial_pve_fame, initial_pvp_fame, joined_at, recruitment_info)
+            VALUES ($1, $2, $3, $4, $5, $6)
             ON CONFLICT (user_id) DO UPDATE SET
                 ig_name          = EXCLUDED.ig_name,
                 initial_pve_fame = EXCLUDED.initial_pve_fame,
                 initial_pvp_fame = EXCLUDED.initial_pvp_fame,
-                joined_at        = EXCLUDED.joined_at
-        """, user_id, ig_name, initial_pve, initial_pvp, joined_at)
+                joined_at        = EXCLUDED.joined_at,
+                recruitment_info = EXCLUDED.recruitment_info
+        """, user_id, ig_name, initial_pve, initial_pvp, joined_at, recruitment_info)
 
 
 async def increment_acti_count(user_ids: list[str]) -> None:

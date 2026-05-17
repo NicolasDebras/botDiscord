@@ -41,9 +41,8 @@ async def fetch_albion_fame(pseudo: str) -> dict | None:
 
     lifetime = player.get("LifetimeStatistics") or {}
     pve = lifetime.get("PvE") or {}
-    pvp = lifetime.get("PvP") or {}
     return {
         "pve":  pve.get("Total", 0),
-        "pvp":  pvp.get("KillFame", pvp.get("Total", 0)),
+        "pvp":  player.get("KillFame", 0),
         "name": match["Name"],
     }

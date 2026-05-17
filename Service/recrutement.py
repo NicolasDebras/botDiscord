@@ -69,6 +69,7 @@ class RecrutementModal(discord.ui.Modal, title="Fiche de recrutement"):
                 fame["name"],
                 fame["pve"],
                 fame["pvp"],
+                self.info.value,
             )
 
         await interaction.followup.send(embed=embed)
