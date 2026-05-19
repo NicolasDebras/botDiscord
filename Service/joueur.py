@@ -228,8 +228,8 @@ class Joueur(commands.Cog):
         # ── Ligne 1 : identité ────────────────────────────────────────────────
         embed.add_field(name="🎮 Pseudo IG", value=ig_name or "*Non enregistré*", inline=True)
         embed.add_field(name="🎯 Activités", value=str(acti_count),               inline=True)
-        if not is_membre:
-            embed.add_field(name="🆕 Statut", value="Nouveau joueur", inline=True)
+        statut = "🆕 Nouveau joueur" if not is_membre else "✅ Membre"
+        embed.add_field(name="📋 Statut", value=statut, inline=True)
 
         # ── Ligne 2 : fame ────────────────────────────────────────────────────
         if ig_name:
