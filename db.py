@@ -66,6 +66,9 @@ async def init_db(database_url: str) -> None:
                 ig_name          TEXT        NOT NULL DEFAULT '',
                 initial_pve_fame BIGINT      NOT NULL DEFAULT 0,
                 initial_pvp_fame BIGINT      NOT NULL DEFAULT 0,
+                current_pve_fame BIGINT      NOT NULL DEFAULT 0,
+                current_pvp_fame BIGINT      NOT NULL DEFAULT 0,
+                fame_updated_at  TIMESTAMPTZ,
                 joined_at        TIMESTAMPTZ,
                 acti_count       INT         NOT NULL DEFAULT 0,
                 recruitment_info TEXT        NOT NULL DEFAULT '',
@@ -89,6 +92,16 @@ async def init_db(database_url: str) -> None:
         )
         await conn.execute(
             "ALTER TABLE player_profiles ADD COLUMN IF NOT EXISTS is_membre BOOLEAN NOT NULL DEFAULT FALSE"
+        )
+        for col, default in [
+            ("current_pve_fame", "0"),
+            ("current_pvp_fame", "0"),
+        ]:
+            await conn.execute(
+                f"ALTER TABLE player_profiles ADD COLUMN IF NOT EXISTS {col} BIGINT NOT NULL DEFAULT {default}"
+            )
+        await conn.execute(
+            "ALTER TABLE player_profiles ADD COLUMN IF NOT EXISTS fame_updated_at TIMESTAMPTZ"
         )
 
 
@@ -223,20 +236,23 @@ async def append_bal_log(action: str, by: str, entries: list) -> None:
             "INSERT INTO bal_log (ts, action, by_user, entries) VALUES ($1, $2, $3, $4::jsonb)",
             ts, action, by, entries_json,
         )
-        # Conserver uniquement les BAL_LOG_MAX dernières entrées
-        await conn.execute(f"""
-            DELETE FROM bal_log WHERE id NOT IN (
-                SELECT id FROM bal_log ORDER BY id DESC LIMIT {BAL_LOG_MAX}
-            )
-        """)
-
-
-async def get_bal_log() -> list:
-    async with _pool.acquire() as conn:
-        rows = await conn.fetch(
-            "SELECT ts, action, by_user, entries FROM bal_log ORDER BY id DESC LIMIT $1",
-            BAL_LOG_MAX,
+        # Conserver les 6 derniers mois
+        await conn.execute(
+            "DELETE FROM bal_log WHERE ts < NOW() - INTERVAL '6 months'"
         )
+
+
+async def get_bal_log(action: str | None = None) -> list:
+    async with _pool.acquire() as conn:
+        if action:
+            rows = await conn.fetch(
+                "SELECT ts, action, by_user, entries FROM bal_log WHERE action = $1 ORDER BY id DESC LIMIT 1000",
+                action,
+            )
+        else:
+            rows = await conn.fetch(
+                "SELECT ts, action, by_user, entries FROM bal_log ORDER BY id DESC LIMIT 1000"
+            )
     return [
         {
             "ts":      row["ts"].strftime("%Y-%m-%dT%H:%M:%S"),
@@ -338,6 +354,9 @@ async def get_player_profile(user_id: str) -> dict | None:
         "acti_count":       row["acti_count"],
         "recruitment_info": row["recruitment_info"],
         "is_membre":        row["is_membre"],
+        "current_pve_fame": row["current_pve_fame"],
+        "current_pvp_fame": row["current_pvp_fame"],
+        "fame_updated_at":  row["fame_updated_at"],
     }
 
 
@@ -391,6 +410,16 @@ async def update_player_igname(user_id: str, ig_name: str) -> None:
             "UPDATE player_profiles SET ig_name = $2 WHERE user_id = $1",
             user_id, ig_name,
         )
+
+
+async def update_player_fame(user_id: str, ig_name: str, pve: int, pvp: int) -> None:
+    updated_at = datetime.now(timezone.utc)
+    async with _pool.acquire() as conn:
+        await conn.execute("""
+            UPDATE player_profiles
+            SET ig_name = $2, current_pve_fame = $3, current_pvp_fame = $4, fame_updated_at = $5
+            WHERE user_id = $1
+        """, user_id, ig_name, pve, pvp, updated_at)
 
 
 async def postpone_player_check(user_id: str, days: int = 7) -> None:

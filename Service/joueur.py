@@ -8,12 +8,14 @@ from discord import app_commands
 
 import db
 from albion_api import fetch_albion_fame, fmt_fame
-from config import ADMIN_ROLE_NAME, MEMBRE_ROLE_NAME, RECRUTEUR_ROLE_ID
+from config import ADMIN_ROLE_NAME, MEMBRE_ROLE_NAME, RECRUTEUR_ROLE_ID, GM_ROLE_NAME
+from Service.utils import fmt_silver
 
 _PARIS          = ZoneInfo("Europe/Paris")
 _RAPPEL_HEURE   = datetime.time(hour=22, minute=0, tzinfo=_PARIS)
 _RAPPEL_SALON   = 1505623773708025992
 _RECRUTEUR_ROLE = 1473779038106685568
+_ABSENT_ROLE_ID = 1496637644283576452
 
 
 def _is_recruteur_or_admin(member: discord.Member) -> bool:
@@ -60,12 +62,12 @@ class Joueur(commands.Cog):
             if est_membre != p["is_membre"]:
                 await db.set_player_is_membre(p["user_id"], est_membre)
 
-            # Rafraîchir le pseudo IG via l'API Albion (gère les changements de pseudo)
+            # Rafraîchir fame + pseudo IG via l'API Albion
             if p["ig_name"]:
                 try:
                     fame = await fetch_albion_fame(p["ig_name"])
-                    if fame and fame["name"].lower() != p["ig_name"].lower():
-                        await db.update_player_igname(p["user_id"], fame["name"])
+                    if fame:
+                        await db.update_player_fame(p["user_id"], fame["name"], fame["pve"], fame["pvp"])
                 except Exception:
                     pass
                 await asyncio.sleep(0.5)  # évite le rate-limit API
@@ -129,6 +131,53 @@ class Joueur(commands.Cog):
                 ephemeral=True,
             )
 
+    # ── /kick @joueur ─────────────────────────────────────────────────────────
+    @app_commands.command(name="kick", description="Passer un joueur en statut AFK (retire tous ses rôles)")
+    @app_commands.describe(joueur="Le joueur à passer AFK")
+    async def kick(self, interaction: discord.Interaction, joueur: discord.Member):
+        is_gm = (
+            interaction.user.guild_permissions.administrator
+            or any(r.name == GM_ROLE_NAME for r in interaction.user.roles)
+        )
+        if not is_gm:
+            await interaction.response.send_message(
+                "⛔ Cette commande est réservée au **Maître de guilde**.", ephemeral=True
+            )
+            return
+
+        await interaction.response.defer(ephemeral=True)
+
+        absent_role = interaction.guild.get_role(_ABSENT_ROLE_ID)
+        if not absent_role:
+            await interaction.followup.send("❌ Rôle Absent introuvable (ID invalide ?).", ephemeral=True)
+            return
+
+        bal = await db.get_bal(str(joueur.id))
+
+        try:
+            await joueur.edit(roles=[absent_role])
+        except discord.Forbidden:
+            await interaction.followup.send(
+                "❌ Je n'ai pas la permission de modifier les rôles de ce joueur.", ephemeral=True
+            )
+            return
+
+        dm_ok = True
+        try:
+            await joueur.send(
+                f"👋 Tu as été passé en statut **AFK** sur le serveur de la guilde.\n\n"
+                f"Tu as actuellement **{fmt_silver(bal)} silver** sur ta BAL.\n"
+                f"Tu as **3 jours** pour te manifester et récupérer tes BAL — "
+                f"passé ce délai, elles seront remises à zéro."
+            )
+        except discord.Forbidden:
+            dm_ok = False
+
+        confirm = f"✅ **{joueur.display_name}** est maintenant AFK — tous ses rôles ont été retirés et le rôle Absent ajouté."
+        if not dm_ok:
+            confirm += "\n⚠️ Impossible d'envoyer le DM (DMs désactivés)."
+        await interaction.followup.send(confirm, ephemeral=True)
+
     # ── /reporter @joueur ─────────────────────────────────────────────────────
     @app_commands.command(name="reporter", description="Repousser le suivi d'un nouveau joueur d'une semaine (vacances, maladie…)")
     @app_commands.describe(joueur="Le joueur à reporter")
@@ -185,28 +234,41 @@ class Joueur(commands.Cog):
 
         # ── Ligne 2 : fame ────────────────────────────────────────────────────
         if ig_name:
-            try:
-                fame = await fetch_albion_fame(ig_name)
-                if fame:
-                    pve_init   = profile["initial_pve_fame"] if profile else 0
-                    pvp_init   = profile["initial_pvp_fame"] if profile else 0
-                    pve_gained = max(0, fame["pve"] - pve_init)
-                    pvp_gained = max(0, fame["pvp"] - pvp_init)
+            pve_init = profile["initial_pve_fame"] if profile else 0
+            pvp_init = profile["initial_pvp_fame"] if profile else 0
 
-                    embed.add_field(
-                        name="⚔️ Fame PvP",
-                        value=f"**{fmt_fame(fame['pvp'])}** total\n+{fmt_fame(pvp_gained)} depuis recrutement",
-                        inline=True,
-                    )
-                    embed.add_field(
-                        name="🏰 Fame PvE",
-                        value=f"**{fmt_fame(fame['pve'])}** total\n+{fmt_fame(pve_gained)} depuis recrutement",
-                        inline=True,
-                    )
-                else:
-                    embed.add_field(name="Fame Albion", value="*Joueur introuvable sur l'API*", inline=False)
+            fame_live = None
+            try:
+                fame_live = await fetch_albion_fame(ig_name)
             except Exception:
-                embed.add_field(name="Fame Albion", value="*API indisponible*", inline=False)
+                pass
+
+            if fame_live:
+                pve_val    = fame_live["pve"]
+                pvp_val    = fame_live["pvp"]
+                fame_label = ""
+            elif profile and profile.get("current_pve_fame"):
+                pve_val    = profile["current_pve_fame"]
+                pvp_val    = profile["current_pvp_fame"]
+                ts         = profile["fame_updated_at"]
+                maj        = ts.strftime("%d/%m %H:%M") if ts else "?"
+                fame_label = f" *(maj {maj})*"
+            else:
+                pve_val = pvp_val = None
+
+            if pve_val is not None:
+                embed.add_field(
+                    name="⚔️ Fame PvP",
+                    value=f"**{fmt_fame(pvp_val)}** total{fame_label}\n+{fmt_fame(max(0, pvp_val - pvp_init))} depuis recrutement",
+                    inline=True,
+                )
+                embed.add_field(
+                    name="🏰 Fame PvE",
+                    value=f"**{fmt_fame(pve_val)}** total{fame_label}\n+{fmt_fame(max(0, pve_val - pve_init))} depuis recrutement",
+                    inline=True,
+                )
+            else:
+                embed.add_field(name="Fame Albion", value="*Indisponible — aucune donnée en cache*", inline=False)
 
         # ── Infos recrutement ─────────────────────────────────────────────────
         if recruitment_info:

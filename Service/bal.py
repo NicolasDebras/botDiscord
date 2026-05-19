@@ -461,25 +461,34 @@ class Bal(commands.Cog):
         )
 
     # =========================================================================
-    # /ballog  — historique des 100 dernières actions BAL
+    # /ballog  — historique BAL sur 6 mois
     # =========================================================================
-    @app_commands.command(name="ballog", description="[ADMIN] Voir l'historique des actions BAL")
+    @app_commands.command(name="ballog", description="[ADMIN] Voir l'historique des actions BAL (6 mois)")
     @app_commands.describe(
         page="Numéro de page (10 entrées par page, défaut : 1)",
-        joueur="Filtrer l'historique pour un joueur spécifique (optionnel)",
+        joueur="Filtrer pour un joueur spécifique (optionnel)",
+        action="Filtrer par type d'action (optionnel)",
     )
+    @app_commands.choices(action=[
+        app_commands.Choice(name="🏁 Fin d'activité",          value="finacti"),
+        app_commands.Choice(name="➕ Ajout manuel",             value="addbal"),
+        app_commands.Choice(name="➖ Retrait manuel",           value="retirebal"),
+        app_commands.Choice(name="💰 PayBAL (activité)",        value="paybal"),
+        app_commands.Choice(name="🔄 Transfert entre joueurs",  value="transferbal"),
+    ])
     async def ballog(
         self,
         interaction: discord.Interaction,
         page:   app_commands.Range[int, 1] = 1,
         joueur: discord.Member | None = None,
+        action: str | None = None,
     ):
         if not await self.check_admin(interaction):
             return
 
         await interaction.response.defer(ephemeral=True)
 
-        log = await load_bal_log()
+        log = await load_bal_log(action=action)
         if not log:
             await interaction.followup.send("ℹ️ Aucune action BAL enregistrée.", ephemeral=True)
             return
@@ -495,9 +504,9 @@ class Bal(commands.Cog):
             log = filtered
 
         if not log:
-            await interaction.followup.send(
-                f"ℹ️ Aucune action BAL trouvée pour {joueur.mention}.", ephemeral=True
-            )
+            detail = joueur.mention if joueur else (ACTION_LABELS.get(action, action) if action else None)
+            msg    = f"ℹ️ Aucune action BAL trouvée{f' pour {detail}' if detail else ''}."
+            await interaction.followup.send(msg, ephemeral=True)
             return
 
         # log est déjà trié du plus récent au plus ancien (ORDER BY id DESC dans db.py)
@@ -509,6 +518,8 @@ class Bal(commands.Cog):
         title = f"📋 Historique BAL  —  Page {page}/{total_page}"
         if joueur:
             title += f"  —  {joueur.display_name}"
+        if action:
+            title += f"  —  {ACTION_LABELS.get(action, action)}"
 
         embed = discord.Embed(title=title, color=0x3498DB)
 
@@ -531,9 +542,7 @@ class Bal(commands.Cog):
 
             embed.add_field(name=title_f, value="\n".join(lines) or "—", inline=False)
 
-        footer = f"{len(log)} action(s)"
-        if not joueur:
-            footer += "  •  max 100 conservées"
+        footer = f"{len(log)} action(s)  •  historique 6 mois"
         embed.set_footer(text=footer)
         await interaction.followup.send(embed=embed, ephemeral=True)
 

@@ -77,8 +77,8 @@ async def notify_bal_limit(bot: discord.Client, user_id: int, new_total: int) ->
         await db.set_is_alerted(uid_str, False)
 
 
-async def load_bal_log() -> list:
-    return await db.get_bal_log()
+async def load_bal_log(action: str | None = None) -> list:
+    return await db.get_bal_log(action)
 
 
 # ── SELECT : choix d'une activité en cours ───────────────────────────────────
