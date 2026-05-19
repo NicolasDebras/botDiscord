@@ -3,7 +3,7 @@ import asyncio
 import discord
 from discord.ext import commands
 from discord import app_commands
-from datetime import datetime
+from datetime import datetime, timezone
 
 import db
 from config import ROLES, DEFAULT_TEMPLATES, ACTIVITY_COLORS, DEFAULT_COLOR, ADMIN_ROLE_NAME, MEMBRE_ROLE_NAME
@@ -961,14 +961,14 @@ class WaitlistButton(discord.ui.Button):
             if entry[0] == user_id:
                 waitlist.remove(entry)
                 await interaction.response.defer(ephemeral=True)
-                await save_activities()
+                await save_activities(only=self.activity_id)
                 await interaction.message.edit(embed=build_embed(data), view=build_view(self.activity_id))
                 await interaction.followup.send("👋 Tu t'es retiré de la liste d'attente.", ephemeral=True)
                 return
 
         waitlist.append((user_id, user_name))
         await interaction.response.defer(ephemeral=True)
-        await save_activities()
+        await save_activities(only=self.activity_id)
         await interaction.message.edit(embed=build_embed(data), view=build_view(self.activity_id))
         pos = len(waitlist)
         await interaction.followup.send(
@@ -1116,7 +1116,7 @@ class Activites(commands.Cog):
 
         data = {
             "creator":            interaction.user.display_name,
-            "created_at":         datetime.utcnow(),
+            "created_at":         datetime.now(timezone.utc),
             "template":           template_name,
             "max_players":        nbplayer,
             "bal":                bal,

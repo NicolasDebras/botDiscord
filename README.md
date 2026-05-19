@@ -96,7 +96,7 @@ Une fois l'activité créée :
 | `/retirebal @joueur montant` | Officier | Retirer des BAL à un joueur |
 | `/paybal montant` | Officier | Distribuer des BAL à tous les participants d'une activité |
 | `/baljoueur @joueur` | Officier | Voir le solde BAL d'un joueur spécifique |
-| `/ballog [page] [joueur]` | Officier | Historique des 100 dernières transactions BAL (paginé, filtrable par joueur) |
+| `/ballog [page] [joueur] [action]` | Officier | Historique BAL sur 6 mois (paginé, filtrable par joueur et par type d'action) |
 
 > `/paybal` ne fonctionne que sur les activités créées avec `bal: true`.
 
@@ -116,21 +116,29 @@ Une fois soumise, un embed récapitulatif est posté dans le canal avec la menti
 
 > Accessible aux membres ayant le rôle **Recruteur** (ID `1473779038106685568`) ou **Officier**.
 
-### Profil joueur
+### Profil & suivi joueur
 
 | Commande | Accès | Description |
 |---|---|---|
 | `/info @joueur` | Tous | Voir le profil d'un joueur : pseudo IG, fame Albion, activités terminées |
+| `/ancien @joueur` | Recruteur, Officier | Basculer le statut Nouveau joueur ↔ Membre |
+| `/reporter @joueur` | Recruteur, Officier | Repousser le suivi d'un nouveau joueur d'une semaine (vacances, maladie…) |
+| `/kick @joueur` | Maitre de guilde | Passer un joueur en AFK — retire tous ses rôles, ajoute le rôle Absent, envoie un DM |
 
-L'embed affiche :
+L'embed `/info` affiche :
 - **Pseudo IG** (enregistré via `/recrutement`)
 - **Activités terminées** — nombre de fins d'activité auxquelles le joueur était présent
-- **Fame PvP / PvE actuelle** (API Albion Online en temps réel)
+- **Fame PvP / PvE actuelle** (API Albion Online en temps réel, cache si API indisponible)
 - **Fame gagnée depuis le recrutement** (différence avec la baseline enregistrée lors du `/recrutement`)
+- **Infos recrutement** (notes saisies lors de la candidature)
 
 > Si le joueur n'a jamais été recruté via le bot, seul le compteur d'activités est disponible.
 
-**Rappel automatique** — chaque jour à **22h** (heure de Paris), le bot envoie dans le salon dédié la liste des nouveaux joueurs (sans rôle Membre) présents depuis plus de **2 semaines**.
+**Rappel automatique 22h** — chaque soir à **22h** (heure de Paris), le bot :
+- Envoie la liste des nouveaux joueurs présents depuis plus de **2 semaines** (ping Recruteur)
+- Met à jour les fames via l'API Albion Online
+- Synchronise le statut `is_membre` selon les rôles Discord actuels
+- Supprime les profils des joueurs qui ont quitté le Discord depuis plus d'une semaine
 
 ---
 
@@ -179,7 +187,7 @@ LiliumBot/
     ├── bal.py          # Commandes BAL
     ├── massup.py       # Commande /massup (ping participants)
     ├── recrutement.py  # Commande /recrutement (fiche de candidature + baseline fame)
-    ├── joueur.py       # Commande /info (profil joueur + fame Albion)
+    ├── joueur.py       # /info, /ancien, /reporter, /kick + tâche 22h
     └── utils.py        # Helpers partagés (is_admin, ActivitySelect, settings)
 ```
 

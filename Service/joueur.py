@@ -14,14 +14,13 @@ from Service.utils import fmt_silver
 _PARIS          = ZoneInfo("Europe/Paris")
 _RAPPEL_HEURE   = datetime.time(hour=22, minute=0, tzinfo=_PARIS)
 _RAPPEL_SALON   = 1505623773708025992
-_RECRUTEUR_ROLE = 1473779038106685568
 _ABSENT_ROLE_ID = 1496637644283576452
 
 
 def _is_recruteur_or_admin(member: discord.Member) -> bool:
     return (
         member.guild_permissions.administrator
-        or any(r.id == _RECRUTEUR_ROLE or r.name == ADMIN_ROLE_NAME for r in member.roles)
+        or any(r.id == RECRUTEUR_ROLE_ID or r.name == ADMIN_ROLE_NAME for r in member.roles)
     )
 
 
@@ -75,7 +74,7 @@ class Joueur(commands.Cog):
         # ── 2. Rappel nouveaux joueurs ────────────────────────────────────────
         pending = await db.get_pending_new_players(min_days=14)
 
-        ping = f"<@&{_RECRUTEUR_ROLE}>"
+        ping = f"<@&{RECRUTEUR_ROLE_ID}>"
 
         if not pending:
             await channel.send(f"{ping}\n✅ Aucun nouveau joueur à suivre cette semaine.")
@@ -201,7 +200,7 @@ class Joueur(commands.Cog):
             return
 
         await db.postpone_player_check(str(joueur.id), days=7)
-        nouvelle_date = profile["joined_at"] + datetime.timedelta(days=7)
+        nouvelle_date = profile["joined_at"] + datetime.timedelta(days=7 + 14)
         await interaction.response.send_message(
             f"📅 Le suivi de **{joueur.display_name}** est repoussé d'une semaine — prochain check après le **{nouvelle_date.strftime('%d/%m/%Y')}**.",
             ephemeral=True,

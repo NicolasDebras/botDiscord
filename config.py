@@ -21,9 +21,6 @@ RECRUTEUR_ROLE_ID  = 1473779038106685568
 # ── GUILD ID (sync instantanée des slash commands) ────────────────────────────
 GUILD_ID = int(os.environ["DISCORD_GUILD_ID"])
  
-# ── FICHIER DE TEMPLATES PERSISTANT ──────────────────────────────────────────
-TEMPLATES_FILE = "templates.json"
- 
 # ── RÔLES avec emojis ────────────────────────────────────────────────────────
 ROLES: dict[str, str] = {
     "TANK":        "🛡️",
@@ -47,18 +44,6 @@ ROLES: dict[str, str] = {
     "BM":          "🐴",
     "LEACHER PVP": "⚡",
 }
- 
-# ── TYPES D'ACTIVITÉS ────────────────────────────────────────────────────────
-ACTIVITY_TYPES: list[str] = [
-    "ZvZ",
-    "HCE",
-    "Avalon Road",
-    "Corrupted Dungeon",
-    "Ganking",
-    "Rat",
-    "Gathering",
-    "Mists",
-]
  
 # ── TEMPLATES PAR DÉFAUT ──────────────────────────────────────────────────────
 # Structure : { nom: { "description": str, "type_acti": "PVP"|"PVE", "image": url|"", "pf_1": {rôle: slots} } }
@@ -159,10 +144,4 @@ ACTIVITY_COLORS: dict[str, int] = {
 }
 DEFAULT_COLOR = 0xF1C40F
 
-# ── FICHIER SETTINGS (taux de rachat, etc.) ───────────────────────────────────
-SETTINGS_FILE   = "settings.json"
 DEFAULT_BAL_RATE = 90   # % de rachat guilde par défaut
-
-# ── FICHIER LOG BAL ───────────────────────────────────────────────────────────
-BAL_LOG_FILE    = "bal_log.json"
-BAL_LOG_MAX     = 100   # nombre max d'entrées conservées

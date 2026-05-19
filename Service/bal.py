@@ -100,7 +100,7 @@ class Bal(commands.Cog):
         await interaction.response.defer(ephemeral=True)
         solde     = await db.get_bal(str(interaction.user.id))
         name      = interaction.user.display_name.lower()
-        solde_fmt = f"{solde:,}".replace(",", " ")
+        solde_fmt = fmt_silver(solde)
 
         # ── Easter eggs joueurs ───────────────────────────────────────────
         easter_eggs = {

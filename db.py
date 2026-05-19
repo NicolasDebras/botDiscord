@@ -7,7 +7,7 @@ import json
 import asyncpg
 from datetime import datetime, timezone
 
-from config import BAL_LOG_MAX, DEFAULT_BAL_RATE
+from config import DEFAULT_BAL_RATE
 
 _pool: asyncpg.Pool | None = None
 

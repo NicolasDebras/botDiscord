@@ -745,6 +745,18 @@ class Admin(commands.Cog):
             inline=False,
         )
 
+        embed.add_field(
+            name="🆕  Recrutement",
+            value=(
+                "`/recrutement @joueur` — Enregistrer une candidature *(Recruteur)*\n"
+                "`/info @joueur` — Profil, fame Albion, activités *(Tous)*\n"
+                "`/ancien @joueur` — Basculer statut Nouveau ↔ Membre *(Recruteur)*\n"
+                "`/reporter @joueur` — Repousser le suivi d'une semaine *(Recruteur)*\n"
+                "`/kick @joueur` — Passer un joueur en AFK (retire tous les rôles) *(GM)*"
+            ),
+            inline=False,
+        )
+
         await interaction.response.send_message(embed=embed)
 
 
