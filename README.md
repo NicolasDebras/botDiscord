@@ -186,6 +186,7 @@ LiliumBot/
     ├── admin.py        # Commandes d'administration
     ├── bal.py          # Commandes BAL
     ├── massup.py       # Commande /massup (ping participants)
+    ├── moderation.py   # Surveillance format canal acti-flash
     ├── recrutement.py  # Commande /recrutement (fiche de candidature + baseline fame)
     ├── joueur.py       # /info, /ancien, /reporter, /kick + tâche 22h
     └── utils.py        # Helpers partagés (is_admin, ActivitySelect, settings)
