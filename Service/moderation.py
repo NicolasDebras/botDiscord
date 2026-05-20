@@ -11,22 +11,22 @@ class Moderation(commands.Cog):
         self.bot = bot
 
     @commands.Cog.listener()
-    async def on_message(self, message: discord.Message):
-        if message.author.bot:
+    async def on_thread_create(self, thread: discord.Thread):
+        if thread.parent_id != _ACTI_FLASH_ID:
             return
-        if message.channel.id != _ACTI_FLASH_ID:
-            return
-        if _FORMAT_RE.match(message.content):
+        if _FORMAT_RE.match(thread.name):
             return
 
+        owner_id = thread.owner_id
         try:
-            await message.delete()
+            await thread.delete()
         except discord.Forbidden:
             return
 
         try:
-            await message.author.send(
-                f"❌ Ton message dans <#{_ACTI_FLASH_ID}> a été supprimé — format invalide.\n\n"
+            user = await self.bot.fetch_user(owner_id)
+            await user.send(
+                f"❌ Ton post dans <#{_ACTI_FLASH_ID}> a été supprimé — format invalide.\n\n"
                 f"**Format attendu :** `JJ/MM - HHhMM - Nom de l'activité`\n"
                 f"**Exemple :** `21/05 - 21h30 - RAID AVA`"
             )
