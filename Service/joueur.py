@@ -69,9 +69,9 @@ class Joueur(commands.Cog):
         # ── 2. Récap suivi recrutement ────────────────────────────────────────
         nouveaux = [p for p in profiles if not p["is_membre"] and p["joined_at"]]
 
-        moins_1s  = [p for p in nouveaux if (now - p["joined_at"]) < datetime.timedelta(days=7)]
-        moins_2s  = [p for p in nouveaux if datetime.timedelta(days=7) <= (now - p["joined_at"]) < datetime.timedelta(days=14)]
-        a_valider = [p for p in nouveaux if (now - p["joined_at"]) >= datetime.timedelta(days=14)]
+        moins_1s  = sorted([p for p in nouveaux if (now - p["joined_at"]) < datetime.timedelta(days=7)], key=lambda p: p["joined_at"])
+        moins_2s  = sorted([p for p in nouveaux if datetime.timedelta(days=7) <= (now - p["joined_at"]) < datetime.timedelta(days=14)], key=lambda p: p["joined_at"])
+        a_valider = sorted([p for p in nouveaux if (now - p["joined_at"]) >= datetime.timedelta(days=14)], key=lambda p: p["joined_at"])
 
         def fmt_joueur(p) -> str:
             member  = guild.get_member(int(p["user_id"]))
