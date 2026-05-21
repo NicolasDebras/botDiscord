@@ -8,7 +8,7 @@ from discord import app_commands
 
 import db
 from albion_api import fetch_albion_fame, fmt_fame
-from config import ADMIN_ROLE_NAME, MEMBRE_ROLE_NAME, RECRUTEUR_ROLE_ID, GM_ROLE_NAME
+from config import ADMIN_ROLE_NAME, RECRUTEUR_ROLE_ID, GM_ROLE_NAME
 from Service.utils import fmt_silver
 
 _PARIS          = ZoneInfo("Europe/Paris")
@@ -56,11 +56,6 @@ class Joueur(commands.Cog):
                     await db.delete_player_profile(p["user_id"])
                 continue
 
-            # Mettre à jour is_membre selon le rôle Discord actuel
-            est_membre = any(r.name == MEMBRE_ROLE_NAME for r in member.roles)
-            if est_membre != p["is_membre"]:
-                await db.set_player_is_membre(p["user_id"], est_membre)
-
             # Rafraîchir fame + pseudo IG via l'API Albion
             if p["ig_name"]:
                 try:
@@ -71,28 +66,30 @@ class Joueur(commands.Cog):
                     pass
                 await asyncio.sleep(0.5)  # évite le rate-limit API
 
-        # ── 2. Rappel nouveaux joueurs ────────────────────────────────────────
-        pending = await db.get_pending_new_players(min_days=14)
+        # ── 2. Récap suivi recrutement ────────────────────────────────────────
+        nouveaux = [p for p in profiles if not p["is_membre"] and p["joined_at"]]
 
-        ping = f"<@&{RECRUTEUR_ROLE_ID}>"
+        moins_1s  = [p for p in nouveaux if (now - p["joined_at"]) < datetime.timedelta(days=7)]
+        moins_2s  = [p for p in nouveaux if datetime.timedelta(days=7) <= (now - p["joined_at"]) < datetime.timedelta(days=14)]
+        a_valider = [p for p in nouveaux if (now - p["joined_at"]) >= datetime.timedelta(days=14)]
 
-        if not pending:
-            await channel.send(f"{ping}\n✅ Aucun nouveau joueur à suivre cette semaine.")
-            return
-
-        lines = []
-        for p in pending:
+        def fmt_joueur(p) -> str:
             member  = guild.get_member(int(p["user_id"]))
             mention = member.mention if member else f"*(parti — ID {p['user_id']})*"
             ig      = f"**{p['ig_name']}**" if p["ig_name"] else "*pseudo IG inconnu*"
             depuis  = p["joined_at"].strftime("%d/%m/%Y")
-            lines.append(f"• {ig} — {mention} — recruté le {depuis}")
+            return f"• {ig} — {mention} — recruté le {depuis}"
 
+        def fmt_section(players) -> str:
+            return "\n".join(fmt_joueur(p) for p in players) if players else "*Aucun*"
+
+        ping = f"<@&{RECRUTEUR_ROLE_ID}>"
         await channel.send(
             f"{ping}\n"
-            f"🆕 **Suivi nouveaux joueurs — recrutés il y a plus de 2 semaines** ({len(pending)})\n"
-            f"Pensez à vérifier leur activité et à leur donner le rôle **{MEMBRE_ROLE_NAME}** si tout est bon.\n\n"
-            + "\n".join(lines)
+            f"📋 **Récap suivi recrutement**\n\n"
+            f"**Joueurs qui ont rejoint la guilde il y a moins d'une semaine :**\n{fmt_section(moins_1s)}\n\n"
+            f"**Joueurs qui ont rejoint la guilde il y a moins de 2 semaines :**\n{fmt_section(moins_2s)}\n\n"
+            f"**Joueurs à valider via `/ancien` (plus de 2 semaines dans la guilde) :**\n{fmt_section(a_valider)}"
         )
 
     @rappel_nouveaux.before_loop
