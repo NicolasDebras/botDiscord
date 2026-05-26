@@ -61,15 +61,14 @@ def _build_raid_ava_lines(data: dict) -> list[str]:
             for i in range(n):
                 loot   = _LOOT_DPS[i] if i < len(_LOOT_DPS) else "🎒 All"
                 player = f"<@{members[i][0]}>" if i < len(members) else "*Vide*"
-                lines.append(f"{player} — {loot}")
+                lines.append(f"**{role} {i+1}** - {player} - {loot}")
         else:
-            loot   = _LOOT_FIXE.get(role, "")
-            suffix = f" — {loot}" if loot else ""
+            loot = _LOOT_FIXE.get(role, "")
             if members:
                 for entry in members:
-                    lines.append(f"<@{entry[0]}>{suffix}")
+                    lines.append(f"**{role}** - <@{entry[0]}> - {loot}")
             else:
-                lines.append(f"*Vide*{suffix}")
+                lines.append(f"**{role}** - *Vide* - {loot}")
     return lines
 
 
