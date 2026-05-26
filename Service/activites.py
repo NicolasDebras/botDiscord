@@ -1048,6 +1048,10 @@ class Activites(commands.Cog):
             try:
                 channel = self.bot.get_channel(data["channel_id"])
                 if channel:
+                    # Enrichir thread_name pour les vieilles activités
+                    if data.get("thread_name") is None and isinstance(channel, discord.Thread):
+                        data["thread_name"] = channel.name
+                        await save_activities(only=msg_id)
                     msg = await channel.fetch_message(msg_id)
                     await msg.edit(view=build_view(msg_id))
                 else:
