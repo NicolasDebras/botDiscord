@@ -9,7 +9,7 @@ from Service.activites import (
     activities, build_embed, build_view, get_pf1, get_pf2,
     load_all_templates, save_activities, refresh_templates_cache, refresh_image_overrides,
     refresh_description_overrides, template_autocomplete,
-    _parse_weapon_slots, _player_weapon, _is_creator,
+    _parse_weapon_slots, _player_weapon, _is_creator, _acti_label,
 )
 from Service.utils import is_admin, is_membre, is_caller_or_admin, ActivitySelect, load_settings, save_settings, append_bal_log, fmt_silver
 
@@ -214,7 +214,7 @@ class Admin(commands.Cog):
 
             await save_activities()
             await inter.followup.send(
-                f"✅ **{target_name}** a été retiré de l'activité.", ephemeral=True
+                f"✅ **{target_name}** a été retiré de **{_acti_label(data)}**.", ephemeral=True
             )
 
         view = discord.ui.View(timeout=60)
@@ -326,7 +326,7 @@ class Admin(commands.Cog):
                 pass
             await save_activities()
             await inter.followup.send(
-                f"✅ **{target_name}** {action} en **{chosen_role}** !", ephemeral=True
+                f"✅ **{target_name}** {action} en **{chosen_role}** dans **{_acti_label(data)}** !", ephemeral=True
             )
 
         view = discord.ui.View(timeout=60)

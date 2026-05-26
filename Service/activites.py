@@ -244,6 +244,11 @@ def build_view(activity_id: int) -> discord.ui.View:
     return ActivityView(activity_id)
 
 
+# ── HELPER : label affiché d'une activité ───────────────────────────────────
+def _acti_label(data: dict) -> str:
+    return data.get("thread_name") or data.get("template") or "Activité"
+
+
 # ── HELPER : vérification créateur ──────────────────────────────────────────
 def _is_creator(user: discord.User | discord.Member, data: dict) -> bool:
     if data.get("creator_id"):
