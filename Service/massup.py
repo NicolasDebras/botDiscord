@@ -25,6 +25,19 @@ _LOOT_FIXE: dict[str, str] = {
     "DAMME":       "🎒 All",
 }
 
+# Ordre d'affichage imposé (correspond à l'ordre du message de convocation)
+_RAID_AVA_ORDER: list[str] = [
+    "TANK", "MAIN TANK",
+    "OFF TANK",
+    "MAIN HEAL",
+    "COBRA/GA", "COBRA",
+    "IRON ROOT", "IRON",
+    "DPS", "FAUX",
+    "SC",
+    "FROST", "HURLEGIVRE",
+    "SCOOT", "SCOUT", "LEACHER PVP", "DAMME",
+]
+
 # Pour DPS / FAUX : loot selon la position dans le slot (index 0, 1, 2…)
 _LOOT_DPS: list[str] = [
     "🏹 Hunter weapon + Left hand",
@@ -35,8 +48,14 @@ _DPS_ROLES = {"DPS", "FAUX"}
 
 
 def _build_raid_ava_lines(data: dict) -> list[str]:
+    slots = data["slots"]
     lines = []
-    for role, members in data["slots"].items():
+    seen  = set()
+    for role in _RAID_AVA_ORDER:
+        if role not in slots or role in seen:
+            continue
+        seen.add(role)
+        members = slots[role]
         if role in _DPS_ROLES:
             n = max(len(members), len(_LOOT_DPS))
             for i in range(n):
@@ -44,7 +63,7 @@ def _build_raid_ava_lines(data: dict) -> list[str]:
                 player = f"<@{members[i][0]}>" if i < len(members) else "*Vide*"
                 lines.append(f"{player} — {loot}")
         else:
-            loot = _LOOT_FIXE.get(role, "")
+            loot   = _LOOT_FIXE.get(role, "")
             suffix = f" — {loot}" if loot else ""
             if members:
                 for entry in members:
@@ -96,6 +115,8 @@ class MassUp(commands.Cog):
                 intro += f"> {message}\n"
 
             is_raid_ava = template and "RAID AVA" in template.upper()
+            if is_raid_ava:
+                intro += "`#forcecityoverload true`\n"
             if is_raid_ava:
                 body = "\n".join(_build_raid_ava_lines(data))
             else:
