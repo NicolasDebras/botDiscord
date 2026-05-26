@@ -40,7 +40,7 @@ _RAID_AVA_ORDER: list[str] = [
 
 # Pour DPS / FAUX : loot selon la position dans le slot (index 0, 1, 2…)
 _LOOT_DPS: list[str] = [
-    "🏹 Hunter weapon + Left hand",
+    "🏹 Mage weapon + Left hand",
     "🏹 Hunter weapon + Left hand",
     "🛡️ Armor *(all)*",
 ]
