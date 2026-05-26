@@ -44,7 +44,7 @@ class Joueur(commands.Cog):
         guild    = channel.guild
         profiles = await db.get_all_profiles()
         now      = datetime.datetime.now(datetime.timezone.utc)
-        une_semaine = datetime.timedelta(days=7)
+        une_semaine = datetime.timedelta(days=3)
 
         # ── 1. Mise à jour des profils ────────────────────────────────────────
         for p in profiles:
