@@ -62,11 +62,8 @@ class MassUp(commands.Cog):
         self.bot = bot
 
     @app_commands.command(name="massup", description="Ping tous les joueurs inscrits à une activité")
-    @app_commands.describe(
-        message="Message optionnel à joindre au ping",
-        ville="Ville de rendez-vous (ajoute /join et #forcecityoverload pour RAID AVA)",
-    )
-    async def massup(self, interaction: discord.Interaction, message: str | None = None, ville: str | None = None):
+    @app_commands.describe(message="Message optionnel à joindre au ping")
+    async def massup(self, interaction: discord.Interaction, message: str | None = None):
         if not is_membre(interaction.user):
             await interaction.response.send_message(
                 f"⛔ Tu dois avoir le rôle **{MEMBRE_ROLE_NAME}** pour utiliser cette commande.", ephemeral=True
@@ -99,9 +96,6 @@ class MassUp(commands.Cog):
                 intro += f"> {message}\n"
 
             is_raid_ava = template and "RAID AVA" in template.upper()
-            if is_raid_ava and ville:
-                intro += f"`/join {ville}`\n`#forcecityoverload true`\n"
-
             if is_raid_ava:
                 body = "\n".join(_build_raid_ava_lines(data))
             else:
