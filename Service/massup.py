@@ -37,14 +37,20 @@ _DPS_ROLES = {"DPS", "FAUX"}
 def _build_raid_ava_lines(data: dict) -> list[str]:
     lines = []
     for role, members in data["slots"].items():
-        for i, entry in enumerate(members):
-            uid  = entry[0]
-            if role in _DPS_ROLES:
-                loot = _LOOT_DPS[i] if i < len(_LOOT_DPS) else "🎒 All"
-            else:
-                loot = _LOOT_FIXE.get(role, "")
+        if role in _DPS_ROLES:
+            n = max(len(members), len(_LOOT_DPS))
+            for i in range(n):
+                loot   = _LOOT_DPS[i] if i < len(_LOOT_DPS) else "🎒 All"
+                player = f"<@{members[i][0]}>" if i < len(members) else "*Vide*"
+                lines.append(f"{player} — {loot}")
+        else:
+            loot = _LOOT_FIXE.get(role, "")
             suffix = f" — {loot}" if loot else ""
-            lines.append(f"<@{uid}>{suffix}")
+            if members:
+                for entry in members:
+                    lines.append(f"<@{entry[0]}>{suffix}")
+            else:
+                lines.append(f"*Vide*{suffix}")
     return lines
 
 
@@ -56,8 +62,11 @@ class MassUp(commands.Cog):
         self.bot = bot
 
     @app_commands.command(name="massup", description="Ping tous les joueurs inscrits à une activité")
-    @app_commands.describe(message="Message optionnel à joindre au ping")
-    async def massup(self, interaction: discord.Interaction, message: str | None = None):
+    @app_commands.describe(
+        message="Message optionnel à joindre au ping",
+        ville="Ville de rendez-vous (ajoute /join et #forcecityoverload pour RAID AVA)",
+    )
+    async def massup(self, interaction: discord.Interaction, message: str | None = None, ville: str | None = None):
         if not is_membre(interaction.user):
             await interaction.response.send_message(
                 f"⛔ Tu dois avoir le rôle **{MEMBRE_ROLE_NAME}** pour utiliser cette commande.", ephemeral=True
@@ -90,6 +99,9 @@ class MassUp(commands.Cog):
                 intro += f"> {message}\n"
 
             is_raid_ava = template and "RAID AVA" in template.upper()
+            if is_raid_ava and ville:
+                intro += f"`/join {ville}`\n`#forcecityoverload true`\n"
+
             if is_raid_ava:
                 body = "\n".join(_build_raid_ava_lines(data))
             else:
