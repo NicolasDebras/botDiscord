@@ -9,7 +9,7 @@ from Service.activites import (
     activities, build_embed, build_view, get_pf1, get_pf2,
     load_all_templates, save_activities, refresh_templates_cache, refresh_image_overrides,
     refresh_description_overrides, template_autocomplete,
-    _parse_weapon_slots, _player_weapon,
+    _parse_weapon_slots, _player_weapon, _is_creator,
 )
 from Service.utils import is_admin, is_membre, is_caller_or_admin, ActivitySelect, load_settings, save_settings, append_bal_log, fmt_silver
 
@@ -180,7 +180,7 @@ class Admin(commands.Cog):
                 await inter.response.send_message("❌ Activité introuvable.", ephemeral=True)
                 return
 
-            is_creator = inter.user.display_name == data["creator"]
+            is_creator = _is_creator(inter.user, data)
             if not (is_caller_or_admin(inter.user) or is_creator):
                 await inter.response.send_message(
                     f"⛔ Seul l'organisateur (**{data['creator']}**), un **Officier** ou un **Caller** peut retirer un joueur.",

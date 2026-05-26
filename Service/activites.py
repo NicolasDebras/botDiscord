@@ -244,6 +244,13 @@ def build_view(activity_id: int) -> discord.ui.View:
     return ActivityView(activity_id)
 
 
+# ── HELPER : vérification créateur ──────────────────────────────────────────
+def _is_creator(user: discord.User | discord.Member, data: dict) -> bool:
+    if data.get("creator_id"):
+        return user.id == data["creator_id"]
+    return user.display_name == data["creator"]
+
+
 # ── HELPER : logique d'inscription mutualisée ────────────────────────────────
 async def _reply(interaction: discord.Interaction, *args, **kwargs) -> None:
     """Répond via followup si déjà déféré, sinon via send_message."""
@@ -829,7 +836,7 @@ class EditActiButton(discord.ui.Button):
         if not data:
             await interaction.response.send_message("❌ Activité introuvable.", ephemeral=True)
             return
-        is_creator = interaction.user.display_name == data["creator"]
+        is_creator = _is_creator(interaction.user, data)
         if not (is_creator or is_caller_or_admin(interaction.user)):
             await interaction.response.send_message(
                 "⛔ Seul l'organisateur ou un **Officier** peut modifier l'activité.", ephemeral=True
@@ -855,7 +862,7 @@ class FinActiButton(discord.ui.Button):
                 await interaction.response.send_message("❌ Activité introuvable.", ephemeral=True)
                 return
 
-            is_creator = interaction.user.display_name == data["creator"]
+            is_creator = _is_creator(interaction.user, data)
             has_role   = any(r.name == ADMIN_ROLE_NAME for r in interaction.user.roles)
             if not (is_creator or has_role or interaction.user.guild_permissions.administrator):
                 await interaction.response.send_message(
@@ -908,7 +915,7 @@ class CancelButton(discord.ui.Button):
             await interaction.response.send_message("❌ Activité introuvable.", ephemeral=True)
             return
 
-        is_creator = interaction.user.display_name == data["creator"]
+        is_creator = _is_creator(interaction.user, data)
         is_admin   = interaction.user.guild_permissions.administrator
         if not (is_creator or is_admin):
             await interaction.response.send_message("⛔ Seul l'organisateur ou un admin peut annuler.", ephemeral=True)
@@ -1114,10 +1121,18 @@ class Activites(commands.Cog):
             slots.update({f"PF2:{role}": [] for role in pf2})
             nbplayer = nbplayer or (sum(pf1.values()) + sum(pf2.values()))
 
+        thread_name = (
+            interaction.channel.name
+            if isinstance(interaction.channel, discord.Thread)
+            else None
+        )
+
         data = {
             "creator":            interaction.user.display_name,
+            "creator_id":         interaction.user.id,
             "created_at":         datetime.now(timezone.utc),
             "template":           template_name,
+            "thread_name":        thread_name,
             "max_players":        nbplayer,
             "bal":                bal,
             "depart":             depart,

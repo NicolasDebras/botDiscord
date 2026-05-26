@@ -91,7 +91,7 @@ class ActivitySelect(discord.ui.Select):
         self._callback_fn = callback_fn
         options = []
         for msg_id, data in activities.items():
-            label = data["template"] or "Sans template"
+            label = data.get("thread_name") or data["template"] or "Sans template"
             desc  = f"Par {data['creator']} • {sum(len(v) for v in data['slots'].values())}/{data['max_players']} joueurs"
             options.append(discord.SelectOption(label=label[:100], description=desc[:100], value=str(msg_id)))
 
