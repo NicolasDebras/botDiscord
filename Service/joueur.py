@@ -34,29 +34,30 @@ class Joueur(commands.Cog):
     async def cog_unload(self):
         self.rappel_nouveaux.cancel()
 
-    # ── Tâche 22h ─────────────────────────────────────────────────────────────
-    @tasks.loop(time=_RAPPEL_HEURE)
-    async def rappel_nouveaux(self):
+    # ── Logique commune recap ──────────────────────────────────────────────────
+    async def _run_recap(self, guild: discord.Guild, purge_immediate: bool = False) -> None:
         channel = self.bot.get_channel(_RAPPEL_SALON)
         if not channel:
             return
 
-        guild    = channel.guild
+        if not guild.chunked:
+            await guild.chunk()
+
         profiles = await db.get_all_profiles()
         now      = datetime.datetime.now(datetime.timezone.utc)
-        une_semaine = datetime.timedelta(days=3)
+        delai    = datetime.timedelta(days=3)
 
-        # ── 1. Mise à jour des profils ────────────────────────────────────────
+        # ── 1. Mise à jour / nettoyage des profils ────────────────────────────
         for p in profiles:
             member = guild.get_member(int(p["user_id"]))
 
-            # Parti du Discord depuis > 1 semaine → on supprime le profil
             if member is None:
-                if p["joined_at"] and (now - p["joined_at"]) > une_semaine:
+                # purge_immediate = depuis /recap (supprime sans délai)
+                # sinon règle des 3 jours
+                if purge_immediate or (p["joined_at"] and (now - p["joined_at"]) > delai):
                     await db.delete_player_profile(p["user_id"])
                 continue
 
-            # Rafraîchir fame + pseudo IG via l'API Albion
             if p["ig_name"]:
                 try:
                     fame = await fetch_albion_fame(p["ig_name"])
@@ -64,12 +65,15 @@ class Joueur(commands.Cog):
                         await db.update_player_fame(p["user_id"], fame["name"], fame["pve"], fame["pvp"])
                 except Exception:
                     pass
-                await asyncio.sleep(0.5)  # évite le rate-limit API
+                await asyncio.sleep(0.5)
+
+        # Recharger après purge
+        profiles = await db.get_all_profiles()
 
         # ── 2. Récap suivi recrutement ────────────────────────────────────────
-        nouveaux = [p for p in profiles if not p["is_membre"] and p["joined_at"]]
+        nouveaux  = [p for p in profiles if not p["is_membre"] and p["joined_at"]]
 
-        moins_1s  = sorted([p for p in nouveaux if (now - p["joined_at"]) < datetime.timedelta(days=7)], key=lambda p: p["joined_at"])
+        moins_1s  = sorted([p for p in nouveaux if (now - p["joined_at"]) < datetime.timedelta(days=7)],  key=lambda p: p["joined_at"])
         moins_2s  = sorted([p for p in nouveaux if datetime.timedelta(days=7) <= (now - p["joined_at"]) < datetime.timedelta(days=14)], key=lambda p: p["joined_at"])
         a_valider = sorted([p for p in nouveaux if (now - p["joined_at"]) >= datetime.timedelta(days=14)], key=lambda p: p["joined_at"])
 
@@ -92,9 +96,30 @@ class Joueur(commands.Cog):
             f"**Joueurs à valider via `/ancien` (plus de 2 semaines dans la guilde) :**\n{fmt_section(a_valider)}"
         )
 
+    # ── Tâche 22h ─────────────────────────────────────────────────────────────
+    @tasks.loop(time=_RAPPEL_HEURE)
+    async def rappel_nouveaux(self):
+        channel = self.bot.get_channel(_RAPPEL_SALON)
+        if not channel:
+            return
+        await self._run_recap(channel.guild, purge_immediate=False)
+
     @rappel_nouveaux.before_loop
     async def before_rappel(self):
         await self.bot.wait_until_ready()
+
+    # ── /recap ─────────────────────────────────────────────────────────────────
+    @app_commands.command(name="recap", description="Relancer manuellement le récap recrutement (purge les profils des partis)")
+    async def recap(self, interaction: discord.Interaction):
+        if not _is_recruteur_or_admin(interaction.user):
+            await interaction.response.send_message(
+                "⛔ Tu n'as pas la permission d'utiliser cette commande.", ephemeral=True
+            )
+            return
+
+        await interaction.response.defer(ephemeral=True)
+        await self._run_recap(interaction.guild, purge_immediate=True)
+        await interaction.followup.send("✅ Récap envoyé et base nettoyée.", ephemeral=True)
 
     # ── /ancien @joueur ───────────────────────────────────────────────────────
     @app_commands.command(name="ancien", description="Marquer un joueur comme ancien membre (retire le flag Nouveau joueur)")

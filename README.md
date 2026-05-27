@@ -124,6 +124,7 @@ Une fois soumise, un embed récapitulatif est posté dans le canal avec la menti
 | `/ancien @joueur` | Recruteur, Officier | Basculer le statut Nouveau joueur ↔ Membre |
 | `/reporter @joueur` | Recruteur, Officier | Repousser le suivi d'un nouveau joueur d'une semaine (vacances, maladie…) |
 | `/kick @joueur` | Maitre de guilde | Passer un joueur en AFK — retire tous ses rôles, ajoute le rôle Absent, envoie un DM |
+| `/recap` | Recruteur, Officier | Relancer manuellement le récap recrutement — purge immédiate des profils des partis |
 
 L'embed `/info` affiche :
 - **Pseudo IG** (enregistré via `/recrutement`)
@@ -135,10 +136,11 @@ L'embed `/info` affiche :
 > Si le joueur n'a jamais été recruté via le bot, seul le compteur d'activités est disponible.
 
 **Rappel automatique 22h** — chaque soir à **22h** (heure de Paris), le bot :
-- Envoie la liste des nouveaux joueurs présents depuis plus de **2 semaines** (ping Recruteur)
+- Envoie un récap en 3 sections : < 1 semaine / < 2 semaines / à valider via `/ancien` (ping Recruteur)
 - Met à jour les fames via l'API Albion Online
-- Synchronise le statut `is_membre` selon les rôles Discord actuels
-- Supprime les profils des joueurs qui ont quitté le Discord depuis plus d'une semaine
+- Supprime les profils des joueurs qui ont quitté le Discord depuis plus de **3 jours**
+
+> `/recap` permet de déclencher manuellement la même logique avec purge immédiate des profils des partis (sans attendre le délai de 3 jours).
 
 ---
 
