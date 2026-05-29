@@ -710,7 +710,7 @@ class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
             key = str(uid)
             log_entries.append({"uid": key, "name": name, "delta": scoot_amount, "total": new_totals[key]})
 
-        await append_bal_log("finacti", interaction.user.display_name, log_entries)
+        await append_bal_log("finacti", interaction.user.display_name, log_entries, template=data.get("template", ""))
         await asyncio.gather(*[
             notify_bal_limit(interaction.client, int(uid), total)
             for uid, total in new_totals.items()

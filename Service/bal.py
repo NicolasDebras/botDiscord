@@ -12,11 +12,13 @@ from Service.utils import is_admin, is_membre, ActivitySelect, append_bal_log, l
 
 # Labels affichés dans /ballog
 ACTION_LABELS = {
-    "addbal":      "➕ Ajout manuel",
-    "retirebal":   "➖ Retrait manuel",
-    "paybal":      "💰 PayBAL (activité)",
-    "finacti":     "🏁 Fin d'activité",
-    "transferbal": "🔄 Transfert entre joueurs",
+    "addbal":               "➕ Ajout manuel",
+    "retirebal":            "➖ Retrait manuel",
+    "paybal":               "💰 PayBAL (activité)",
+    "paybal_raid_ava":      "💰 PayBAL RAID AVA",
+    "finacti":              "🏁 Fin d'activité",
+    "finacti_raid_ava":     "🏁 Fin d'activité RAID AVA",
+    "transferbal":          "🔄 Transfert entre joueurs",
 }
 
 
@@ -378,7 +380,7 @@ class Bal(commands.Cog):
                 for uid, name in participants
             ]
 
-            await append_bal_log("paybal", by, log_entries)
+            await append_bal_log("paybal", by, log_entries, template=data.get("template", ""))
             await asyncio.gather(*[
                 notify_bal_limit(interaction.client, uid, new_totals[str(uid)])
                 for uid, _ in participants

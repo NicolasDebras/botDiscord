@@ -103,6 +103,9 @@ async def init_db(database_url: str) -> None:
         await conn.execute(
             "ALTER TABLE player_profiles ADD COLUMN IF NOT EXISTS fame_updated_at TIMESTAMPTZ"
         )
+        await conn.execute(
+            "ALTER TABLE bal_log ADD COLUMN IF NOT EXISTS template TEXT NOT NULL DEFAULT ''"
+        )
 
 
 # ── ACTIVITIES ────────────────────────────────────────────────────────────────
@@ -228,36 +231,51 @@ async def set_bal(user_id: str, amount: int) -> None:
 
 # ── BAL LOG ───────────────────────────────────────────────────────────────────
 
-async def append_bal_log(action: str, by: str, entries: list) -> None:
+async def append_bal_log(action: str, by: str, entries: list, template: str = "") -> None:
     ts           = datetime.now(timezone.utc)
     entries_json = json.dumps(entries, ensure_ascii=False)
     async with _pool.acquire() as conn:
         await conn.execute(
-            "INSERT INTO bal_log (ts, action, by_user, entries) VALUES ($1, $2, $3, $4::jsonb)",
-            ts, action, by, entries_json,
+            "INSERT INTO bal_log (ts, action, by_user, entries, template) VALUES ($1, $2, $3, $4::jsonb, $5)",
+            ts, action, by, entries_json, template,
         )
-        # Conserver les 6 derniers mois
         await conn.execute(
             "DELETE FROM bal_log WHERE ts < NOW() - INTERVAL '6 months'"
         )
 
 
 async def get_silver_stats(days: int = 7) -> list:
-    """Retourne le silver distribué (deltas positifs) par type d'action sur les N derniers jours."""
+    """Retourne le silver distribué (deltas positifs) par type d'action sur les N derniers jours.
+    Pour finacti et paybal, distingue les calls RAID AVA des autres."""
     async with _pool.acquire() as conn:
         rows = await conn.fetch("""
-            SELECT action,
-                   COUNT(DISTINCT id)                          AS nb_actions,
-                   SUM((elem->>'delta')::bigint)               AS total_silver,
-                   COUNT(DISTINCT elem->>'uid')                AS nb_joueurs
+            SELECT
+                CASE
+                    WHEN action IN ('finacti', 'paybal') AND template ILIKE '%RAID AVA%'
+                        THEN action || '_raid_ava'
+                    ELSE action
+                END                                            AS action_key,
+                template,
+                COUNT(DISTINCT id)                             AS nb_actions,
+                SUM((elem->>'delta')::bigint)                  AS total_silver,
+                COUNT(DISTINCT elem->>'uid')                   AS nb_joueurs
             FROM bal_log,
                  jsonb_array_elements(entries) AS elem
             WHERE ts >= NOW() - ($1 * INTERVAL '1 day')
               AND (elem->>'delta')::bigint > 0
-            GROUP BY action
+            GROUP BY action_key, template
             ORDER BY total_silver DESC
         """, days)
-    return [{"action": r["action"], "nb_actions": r["nb_actions"], "total_silver": r["total_silver"], "nb_joueurs": r["nb_joueurs"]} for r in rows]
+    return [
+        {
+            "action":       r["action_key"],
+            "template":     r["template"],
+            "nb_actions":   r["nb_actions"],
+            "total_silver": r["total_silver"],
+            "nb_joueurs":   r["nb_joueurs"],
+        }
+        for r in rows
+    ]
 
 
 async def get_bal_log(action: str | None = None) -> list:
