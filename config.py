@@ -43,6 +43,7 @@ ROLES: dict[str, str] = {
     "COBRA":       "🐍",
     "BM":          "🐴",
     "LEACHER PVP": "⚡",
+    "HO":          "🏠",
 }
  
 # ── TEMPLATES PAR DÉFAUT ──────────────────────────────────────────────────────
@@ -87,6 +88,7 @@ DEFAULT_TEMPLATES: dict[str, dict] = {
             "FAUX":        3,
             "SCOUT":       1,
             "LEACHER PVP": 1,
+            "HO":          1
         },
     },
     "STATIK": {

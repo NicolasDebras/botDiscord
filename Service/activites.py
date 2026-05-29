@@ -1046,17 +1046,32 @@ class Activites(commands.Cog):
 
         # Enregistrer les vues persistantes + vérifier que les messages existent
         to_delete = []
+        all_templates = {**DEFAULT_TEMPLATES, **_templates_cache}
         for msg_id in list(activities.keys()):
             data = activities[msg_id]
+            changed = False
+
+            # Enrichir thread_name pour les vieilles activités
+            channel = self.bot.get_channel(data["channel_id"])
+            if channel and data.get("thread_name") is None and isinstance(channel, discord.Thread):
+                data["thread_name"] = channel.name
+                changed = True
+
+            # Ajouter les slots manquants si le template a évolué
+            tpl = all_templates.get(data.get("template") or "")
+            if tpl:
+                for role in list(tpl.get("pf_1", {})) + list(tpl.get("pf_2", {})):
+                    if role not in data["slots"]:
+                        data["slots"][role] = []
+                        changed = True
+
+            if changed:
+                await save_activities(only=msg_id)
+
             # Enregistrer la vue pour que les boutons/selects fonctionnent sans re-edit
             self.bot.add_view(build_view(msg_id))
             try:
-                channel = self.bot.get_channel(data["channel_id"])
                 if channel:
-                    # Enrichir thread_name pour les vieilles activités
-                    if data.get("thread_name") is None and isinstance(channel, discord.Thread):
-                        data["thread_name"] = channel.name
-                        await save_activities(only=msg_id)
                     msg = await channel.fetch_message(msg_id)
                     await msg.edit(view=build_view(msg_id))
                 else:
