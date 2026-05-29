@@ -45,8 +45,8 @@ async def save_settings(data: dict) -> None:
 
 
 # ── HELPERS : log BAL ─────────────────────────────────────────────────────────
-async def append_bal_log(action: str, by: str, entries: list) -> None:
-    await db.append_bal_log(action, by, entries)
+async def append_bal_log(action: str, by: str, entries: list, template: str = "") -> None:
+    await db.append_bal_log(action, by, entries, template)
 
 
 BAL_LIMIT = 20_000_000
