@@ -97,6 +97,7 @@ Une fois l'activité créée :
 | `/paybal montant` | Officier | Distribuer des BAL à tous les participants d'une activité |
 | `/baljoueur @joueur` | Officier | Voir le solde BAL d'un joueur spécifique |
 | `/ballog [page] [joueur] [action]` | Officier | Historique BAL sur 6 mois (paginé, filtrable par joueur et par type d'action) |
+| `/statbal [jours]` | Officier | Total silver distribué sur une période (défaut : 7 jours), ventilé par type d'action |
 
 > `/paybal` ne fonctionne que sur les activités créées avec `bal: true`.
 

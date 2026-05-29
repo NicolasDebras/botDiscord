@@ -242,6 +242,24 @@ async def append_bal_log(action: str, by: str, entries: list) -> None:
         )
 
 
+async def get_silver_stats(days: int = 7) -> list:
+    """Retourne le silver distribué (deltas positifs) par type d'action sur les N derniers jours."""
+    async with _pool.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT action,
+                   COUNT(DISTINCT id)                          AS nb_actions,
+                   SUM((elem->>'delta')::bigint)               AS total_silver,
+                   COUNT(DISTINCT elem->>'uid')                AS nb_joueurs
+            FROM bal_log,
+                 jsonb_array_elements(entries) AS elem
+            WHERE ts >= NOW() - ($1 * INTERVAL '1 day')
+              AND (elem->>'delta')::bigint > 0
+            GROUP BY action
+            ORDER BY total_silver DESC
+        """, days)
+    return [{"action": r["action"], "nb_actions": r["nb_actions"], "total_silver": r["total_silver"], "nb_joueurs": r["nb_joueurs"]} for r in rows]
+
+
 async def get_bal_log(action: str | None = None) -> list:
     async with _pool.acquire() as conn:
         if action:

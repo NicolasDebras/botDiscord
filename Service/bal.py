@@ -547,6 +547,46 @@ class Bal(commands.Cog):
         await interaction.followup.send(embed=embed, ephemeral=True)
 
 
+    # =========================================================================
+    # /statbal  — silver distribué sur une période
+    # =========================================================================
+    @app_commands.command(name="statbal", description="[ADMIN] Total silver distribué sur une période (défaut : 7 jours)")
+    @app_commands.describe(jours="Période en jours (1–90, défaut : 7)")
+    async def statbal(self, interaction: discord.Interaction, jours: app_commands.Range[int, 1, 90] = 7):
+        if not await self.check_admin(interaction):
+            return
+
+        await interaction.response.defer(ephemeral=True)
+
+        rows = await db.get_silver_stats(jours)
+
+        if not rows:
+            await interaction.followup.send(f"ℹ️ Aucune distribution BAL sur les {jours} derniers jours.", ephemeral=True)
+            return
+
+        total_global = sum(r["total_silver"] for r in rows)
+
+        embed = discord.Embed(
+            title=f"📊 Silver distribué — {jours} dernier(s) jour(s)",
+            color=0xF1C40F,
+        )
+
+        for r in rows:
+            label = ACTION_LABELS.get(r["action"], r["action"])
+            embed.add_field(
+                name=label,
+                value=f"**{fmt_silver(r['total_silver'])}** silver\n{r['nb_actions']} action(s) · {r['nb_joueurs']} joueur(s)",
+                inline=True,
+            )
+
+        embed.add_field(
+            name="─────────────────",
+            value=f"**Total : {fmt_silver(total_global)} silver**",
+            inline=False,
+        )
+        await interaction.followup.send(embed=embed, ephemeral=True)
+
+
 # ── SETUP ─────────────────────────────────────────────────────────────────────
 async def setup(bot: commands.Bot):
     await bot.add_cog(Bal(bot))
