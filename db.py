@@ -106,6 +106,9 @@ async def init_db(database_url: str) -> None:
         await conn.execute(
             "ALTER TABLE bal_log ADD COLUMN IF NOT EXISTS template TEXT NOT NULL DEFAULT ''"
         )
+        await conn.execute(
+            "ALTER TABLE player_profiles ADD COLUMN IF NOT EXISTS last_acti_at TIMESTAMPTZ"
+        )
 
 
 # ── ACTIVITIES ────────────────────────────────────────────────────────────────
@@ -473,11 +476,25 @@ async def delete_player_profile(user_id: str) -> None:
 
 
 async def increment_acti_count(user_ids: list[str]) -> None:
+    now = datetime.now(timezone.utc)
     async with _pool.acquire() as conn:
         async with conn.transaction():
             for user_id in user_ids:
                 await conn.execute("""
-                    INSERT INTO player_profiles (user_id, acti_count)
-                    VALUES ($1, 1)
-                    ON CONFLICT (user_id) DO UPDATE SET acti_count = player_profiles.acti_count + 1
-                """, user_id)
+                    INSERT INTO player_profiles (user_id, acti_count, last_acti_at)
+                    VALUES ($1, 1, $2)
+                    ON CONFLICT (user_id) DO UPDATE
+                        SET acti_count   = player_profiles.acti_count + 1,
+                            last_acti_at = $2
+                """, user_id, now)
+
+
+async def get_inactive_member_ids(days: int) -> set[str]:
+    """Retourne les user_ids n'ayant pas participé à une activité depuis N jours."""
+    async with _pool.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT user_id FROM player_profiles
+            WHERE last_acti_at IS NULL
+               OR last_acti_at < NOW() - ($1 * INTERVAL '1 day')
+        """, days)
+    return {r["user_id"] for r in rows}

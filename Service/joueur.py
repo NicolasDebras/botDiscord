@@ -8,7 +8,7 @@ from discord import app_commands
 
 import db
 from albion_api import fetch_albion_fame, fmt_fame
-from config import ADMIN_ROLE_NAME, RECRUTEUR_ROLE_ID, GM_ROLE_NAME
+from config import ADMIN_ROLE_NAME, RECRUTEUR_ROLE_ID, GM_ROLE_NAME, MEMBRE_ROLE_NAME
 from Service.utils import fmt_silver
 
 _PARIS          = ZoneInfo("Europe/Paris")
@@ -94,6 +94,30 @@ class Joueur(commands.Cog):
             f"**Joueurs qui ont rejoint la guilde il y a moins d'une semaine :**\n{fmt_section(moins_1s)}\n\n"
             f"**Joueurs qui ont rejoint la guilde il y a moins de 2 semaines :**\n{fmt_section(moins_2s)}\n\n"
             f"**Joueurs à valider via `/ancien` (plus de 2 semaines dans la guilde) :**\n{fmt_section(a_valider)}"
+        )
+
+        # ── 3. Stats silver depuis lundi ──────────────────────────────────────
+        days_since_monday = max(1, now.astimezone(_PARIS).weekday() + 1)
+        stats = await db.get_silver_stats(days_since_monday)
+        payout_normal = sum(r["total_silver"] for r in stats if r["action"] in ("finacti", "paybal"))
+        payout_raid   = sum(r["total_silver"] for r in stats if r["action"] in ("finacti_raid_ava", "paybal_raid_ava"))
+
+        # ── 4. Membres inactifs depuis 2 semaines ─────────────────────────────
+        inactive_ids = await db.get_inactive_member_ids(14)
+        membre_role  = discord.utils.get(guild.roles, name=MEMBRE_ROLE_NAME)
+        inactifs     = []
+        if membre_role:
+            for m in membre_role.members:
+                if str(m.id) in inactive_ids:
+                    inactifs.append(m)
+
+        inactifs_str = "\n".join(f"• {m.mention}" for m in inactifs) if inactifs else "*Aucun*"
+
+        await channel.send(
+            f"📊 **Stats de la semaine (depuis lundi)**\n\n"
+            f"💰 Payout hors RAID AVA : **{fmt_silver(payout_normal)} silver**\n"
+            f"⚔️ RAID AVA : **{fmt_silver(payout_raid)} silver**\n\n"
+            f"😴 **Membres sans activité depuis 2 semaines :**\n{inactifs_str}"
         )
 
     # ── Tâche 22h ─────────────────────────────────────────────────────────────
