@@ -8,7 +8,7 @@ from discord import app_commands
 
 import db
 from albion_api import fetch_albion_fame, fmt_fame
-from config import ADMIN_ROLE_NAME, RECRUTEUR_ROLE_ID, GM_ROLE_NAME, MEMBRE_ROLE_NAME
+from config import ADMIN_ROLE_NAME, RECRUTEUR_ROLE_ID, MEMBRE_ROLE_NAME
 from Service.utils import fmt_silver
 
 _PARIS          = ZoneInfo("Europe/Paris")
@@ -180,13 +180,9 @@ class Joueur(commands.Cog):
     @app_commands.command(name="kick", description="Passer un joueur en statut AFK (retire tous ses rôles)")
     @app_commands.describe(joueur="Le joueur à passer AFK")
     async def kick(self, interaction: discord.Interaction, joueur: discord.Member):
-        is_gm = (
-            interaction.user.guild_permissions.administrator
-            or any(r.name == GM_ROLE_NAME for r in interaction.user.roles)
-        )
-        if not is_gm:
+        if not _is_recruteur_or_admin(interaction.user):
             await interaction.response.send_message(
-                "⛔ Cette commande est réservée au **Maître de guilde**.", ephemeral=True
+                "⛔ Tu n'as pas la permission d'utiliser cette commande.", ephemeral=True
             )
             return
 
