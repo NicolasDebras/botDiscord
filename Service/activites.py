@@ -396,6 +396,27 @@ class SpecLevelModal(discord.ui.Modal):
         await _register_player(interaction, self.activity_id, self.chosen_role, spec)
 
 
+# ── MODAL ARME LIBRE (no_spec — rôles avec * dans le hint) ──────────────────
+class FreeWeaponModal(discord.ui.Modal):
+    def __init__(self, activity_id: int, chosen_role: str, hint: str):
+        super().__init__(title=f"⚔️ {chosen_role}"[:45])
+        self.activity_id = activity_id
+        self.chosen_role = chosen_role
+
+        placeholder = re.sub(r"\s*\*", "", hint).strip()[:100]
+        self.weapon_input = discord.ui.TextInput(
+            label="Quelle arme joues-tu ?",
+            placeholder=placeholder,
+            required=True,
+            max_length=50,
+        )
+        self.add_item(self.weapon_input)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        await _register_player(interaction, self.activity_id, self.chosen_role, self.weapon_input.value.strip())
+
+
 # ── SELECT ARME (PVP uniquement) ─────────────────────────────────────────────
 class WeaponSelect(discord.ui.Select):
     def __init__(self, activity_id: int, chosen_role: str, weapons_list: list[str],
@@ -517,6 +538,12 @@ class RoleSelect(discord.ui.Select):
                     ephemeral=True,
                 )
                 return
+
+        if tdata.get("no_spec") and hint_spec and "*" in hint_spec:
+            await interaction.response.send_modal(
+                FreeWeaponModal(self.activity_id, chosen_role, hint_spec)
+            )
+            return
 
         await interaction.response.defer(ephemeral=True)
         await _register_player(interaction, self.activity_id, chosen_role, "")

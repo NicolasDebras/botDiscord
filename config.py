@@ -123,10 +123,11 @@ DEFAULT_TEMPLATES: dict[str, dict] = {
         "type_acti":   "PVP",
         "no_spec":     True,
         "image":       "",
-        "pf_1": {"TANK": 4, "SUPPORT": 4, "HEAL": 4, "DPS": 7},
+        "pf_1": {"CALLER": 1, "TANK": 4, "SUPPORT": 4, "HEAL": 4, "DPS": 7},
         "weapon": {
+            "CALLER":  "Selon strat",
             "TANK":    "Tank Def (×2) *  ·  1H Marteau off (×1) *  ·  Fill (×1)",
-            "SUPPORT": "Garde-Serment (×1)  ·  Damna (×1)  ·  Autres (×2) *",
+            "SUPPORT": "Gardes-Serment (×1)  ·  Damna (×1)  ·  Autres (×2) *",
             "HEAL":    "Sancti (×3)  ·  Exalté (×1)",
             "DPS":     "Galatines (×3)  ·  Anti-heal (×1) *  ·  Execute (×1) *  ·  DPS (×2) *",
         },
