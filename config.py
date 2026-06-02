@@ -118,6 +118,19 @@ DEFAULT_TEMPLATES: dict[str, dict] = {
             "DPS":     "Ursine (×1)  ·  Saigneur (×1)  ·  Aria (×1)  · Lame d'infini (×infini)",
         },
     },
+    "HeavyMelee": {
+        "description": "Compo HeavyMelee — inscription directe, armes indicatives",
+        "type_acti":   "PVP",
+        "no_spec":     True,
+        "image":       "",
+        "pf_1": {"TANK": 4, "SUPPORT": 4, "HEAL": 4, "DPS": 7},
+        "weapon": {
+            "TANK":    "Tank Def (×2) *  ·  1H Marteau off (×1) *  ·  Fill (×1)",
+            "SUPPORT": "Garde-Serment (×1)  ·  Damna (×1)  ·  Autres (×2) *",
+            "HEAL":    "Sancti (×3)  ·  Exalté (×1)",
+            "DPS":     "Galatines (×3)  ·  Anti-heal (×1) *  ·  Execute (×1) *  ·  DPS (×2) *",
+        },
+    },
     "MONKEY BANANA": {
         "description": "Compo monkey banana Spé 80 dps minimum, sinon go heal/tank/support. Pas de tiers minimum. 1 tank et heal pour 5 minimum.",
         "type_acti":   "PVP",

@@ -186,7 +186,7 @@ def build_embed(data: dict) -> discord.Embed:
         field_name = f"{emoji} {label}  [{count}]"
 
         # ── Format PVP avec specs : sous-groupes par arme ─────────────────
-        if type_acti == "PVP" and role_spec:
+        if type_acti == "PVP" and role_spec and not tdata.get("no_spec"):
             weapon_groups = _parse_weapon_slots(role_spec)
             lines = []
             matched_uids: set[int] = set()
@@ -215,6 +215,8 @@ def build_embed(data: dict) -> discord.Embed:
         # ── Format PVE / sans spec : liste simple ────────────────────────
         else:
             lines = []
+            if role_spec and tdata.get("no_spec"):
+                lines.append(f"*{role_spec}*")
             for entry in members:
                 uid         = entry[0]
                 player_spec = entry[2] if len(entry) > 2 else ""
@@ -504,7 +506,7 @@ class RoleSelect(discord.ui.Select):
         else:
             hint_spec = get_specs(tdata).get(chosen_role, "")
 
-        if type_acti == "PVP" and hint_spec:
+        if type_acti == "PVP" and hint_spec and not tdata.get("no_spec"):
             weapons_list     = [w.strip() for w in hint_spec.split("·") if w.strip()]
             current_members  = data["slots"].get(chosen_role, [])
             if weapons_list:
