@@ -109,6 +109,13 @@ async def init_db(database_url: str) -> None:
         await conn.execute(
             "ALTER TABLE player_profiles ADD COLUMN IF NOT EXISTS last_acti_at TIMESTAMPTZ"
         )
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS recruitment_tickets (
+                user_id    TEXT PRIMARY KEY,
+                thread_id  BIGINT      NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL
+            )
+        """)
 
 
 # ── ACTIVITIES ────────────────────────────────────────────────────────────────
@@ -473,6 +480,27 @@ async def postpone_player_check(user_id: str, days: int = 7) -> None:
 async def delete_player_profile(user_id: str) -> None:
     async with _pool.acquire() as conn:
         await conn.execute("DELETE FROM player_profiles WHERE user_id = $1", user_id)
+
+
+async def save_recruitment_ticket(user_id: str, thread_id: int) -> None:
+    ts = datetime.now(timezone.utc)
+    async with _pool.acquire() as conn:
+        await conn.execute("""
+            INSERT INTO recruitment_tickets (user_id, thread_id, created_at)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (user_id) DO UPDATE SET thread_id = EXCLUDED.thread_id, created_at = EXCLUDED.created_at
+        """, user_id, thread_id, ts)
+
+
+async def get_recruitment_ticket(user_id: str) -> int | None:
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT thread_id FROM recruitment_tickets WHERE user_id = $1", user_id)
+    return row["thread_id"] if row else None
+
+
+async def delete_recruitment_ticket(user_id: str) -> None:
+    async with _pool.acquire() as conn:
+        await conn.execute("DELETE FROM recruitment_tickets WHERE user_id = $1", user_id)
 
 
 async def increment_acti_count(user_ids: list[str]) -> None:

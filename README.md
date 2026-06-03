@@ -191,8 +191,9 @@ LiliumBot/
     ├── massup.py       # Commande /massup (ping participants)
     ├── moderation.py   # Surveillance format canal acti-flash
     ├── recrutement.py  # Commande /recrutement (fiche de candidature + baseline fame)
-    ├── joueur.py       # /info, /ancien, /reporter, /kick + tâche 22h
-    └── utils.py        # Helpers partagés (is_admin, ActivitySelect, settings)
+    ├── joueur.py                # /info, /ancien, /reporter, /kick + tâche 22h
+    ├── recrutement_externe.py  # Système de candidature automatique (second serveur)
+    └── utils.py                # Helpers partagés (is_admin, ActivitySelect, settings)
 ```
 
 ---
