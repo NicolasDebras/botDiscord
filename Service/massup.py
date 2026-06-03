@@ -121,7 +121,7 @@ class MassUp(commands.Cog):
             else:
                 body = " ".join(f"<@{uid}>" for uid in participants)
 
-            await inter.response.send_message(intro + body, delete_after=None if is_raid_ava else 300)
+            await inter.response.send_message(intro + body)
 
         view = discord.ui.View(timeout=60)
         view.add_item(ActivitySelect(on_select, "📢 Quelle activité convoquer ?"))
