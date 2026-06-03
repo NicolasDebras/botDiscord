@@ -5,6 +5,7 @@ import db
 
 _RECRUTEMENT_GUILD_ID = 1479604079754743970
 _FORUM_CHANNEL_ID     = 1511837675974561942
+_CANDIDAT_ROLE_ID     = 1511832805665931334
 
 
 # ── MODAL QUESTIONNAIRE ───────────────────────────────────────────────────────
@@ -123,6 +124,14 @@ class RecrutementExterne(commands.Cog):
         )
 
         await db.save_recruitment_ticket(str(member.id), thread.id)
+
+        # Attribuer le rôle candidat
+        candidat_role = member.guild.get_role(_CANDIDAT_ROLE_ID)
+        if candidat_role:
+            try:
+                await member.add_roles(candidat_role)
+            except discord.Forbidden:
+                pass
 
         # DM au joueur
         try:
