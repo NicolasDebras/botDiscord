@@ -1,10 +1,12 @@
 import discord
 from discord.ext import commands
+from discord import app_commands
 
 import db
 
 _RECRUTEMENT_GUILD_ID = 1479604079754743970
 _FORUM_CHANNEL_ID     = 1511837675974561942
+_RULES_CHANNEL_ID     = 1511837232435171430
 _CANDIDAT_ROLE_ID     = 1511832805665931334
 
 
@@ -43,23 +45,25 @@ class QuestionnaireModal(discord.ui.Modal, title="📋 Questionnaire de candidat
         max_length=300,
     )
 
-    def __init__(self, thread_id: int):
-        super().__init__()
-        self.thread_id = thread_id
-
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
 
-        thread = interaction.client.get_channel(self.thread_id)
-        if thread is None:
-            try:
-                thread = await interaction.client.fetch_channel(self.thread_id)
-            except Exception:
+        forum = interaction.client.get_channel(_FORUM_CHANNEL_ID)
+        if not isinstance(forum, discord.ForumChannel):
+            await interaction.followup.send("❌ Forum introuvable. Contacte un recruteur.", ephemeral=True)
+            return
+
+        # Vérifier si un ticket existe déjà
+        existing = await db.get_recruitment_ticket(str(interaction.user.id))
+        if existing:
+            thread = interaction.client.get_channel(existing)
+            if thread:
                 await interaction.followup.send(
-                    "❌ Impossible de trouver ton fil de candidature. Contacte un recruteur.", ephemeral=True
+                    f"⚠️ Tu as déjà une candidature en cours : {thread.mention}", ephemeral=True
                 )
                 return
 
+        # Créer le thread dans le forum
         embed = discord.Embed(
             title=f"📋 Candidature — {self.pseudo_ig.value}",
             color=0x3498DB,
@@ -72,29 +76,30 @@ class QuestionnaireModal(discord.ui.Modal, title="📋 Questionnaire de candidat
         embed.add_field(name="🏰 Recherche dans une guilde",      value=self.recherche.value,  inline=False)
         embed.set_footer(text=f"Discord : {interaction.user} ({interaction.user.id})")
 
-        await thread.send(embed=embed)
-        await db.delete_recruitment_ticket(str(interaction.user.id))
-        await interaction.followup.send("✅ Ta candidature a bien été envoyée !", ephemeral=True)
+        thread, _ = await forum.create_thread(
+            name=f"{self.pseudo_ig.value} — Candidature",
+            embed=embed,
+        )
+        await db.save_recruitment_ticket(str(interaction.user.id), thread.id)
+
+        await interaction.followup.send(
+            f"✅ Ta candidature a bien été envoyée ! Nos recruteurs reviendront vers toi prochainement.",
+            ephemeral=True,
+        )
 
 
-# ── VUE PERSISTANTE (bouton DM) ───────────────────────────────────────────────
-class QuestionnairePersistentView(discord.ui.View):
+# ── VUE PERSISTANTE ───────────────────────────────────────────────────────────
+class RecrutementView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
     @discord.ui.button(
-        label="📋 Remplir le questionnaire",
+        label="📋 Déposer ma candidature",
         style=discord.ButtonStyle.primary,
-        custom_id="recru_questionnaire",
+        custom_id="recru_start",
     )
-    async def fill(self, interaction: discord.Interaction, button: discord.ui.Button):
-        thread_id = await db.get_recruitment_ticket(str(interaction.user.id))
-        if not thread_id:
-            await interaction.response.send_message(
-                "❌ Aucune candidature en attente trouvée. Contacte un recruteur.", ephemeral=True
-            )
-            return
-        await interaction.response.send_modal(QuestionnaireModal(thread_id))
+    async def start(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(QuestionnaireModal())
 
 
 # ── COG ───────────────────────────────────────────────────────────────────────
@@ -103,29 +108,12 @@ class RecrutementExterne(commands.Cog):
         self.bot = bot
 
     async def cog_load(self):
-        self.bot.add_view(QuestionnairePersistentView())
+        self.bot.add_view(RecrutementView())
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
         if member.guild.id != _RECRUTEMENT_GUILD_ID:
             return
-
-        forum = self.bot.get_channel(_FORUM_CHANNEL_ID)
-        if not isinstance(forum, discord.ForumChannel):
-            return
-
-        # Créer le thread dans le forum
-        thread, _ = await forum.create_thread(
-            name=f"{member.display_name} — Candidature",
-            content=(
-                f"📥 Nouvelle candidature de {member.mention}\n"
-                f"*(En attente du questionnaire…)*"
-            ),
-        )
-
-        await db.save_recruitment_ticket(str(member.id), thread.id)
-
-        # Attribuer le rôle candidat
         candidat_role = member.guild.get_role(_CANDIDAT_ROLE_ID)
         if candidat_role:
             try:
@@ -133,20 +121,33 @@ class RecrutementExterne(commands.Cog):
             except discord.Forbidden:
                 pass
 
-        # DM au joueur
-        try:
-            await member.send(
-                "👋 **Bienvenue !**\n\n"
-                "Pour rejoindre la guilde, merci de remplir le questionnaire de candidature "
-                "en cliquant sur le bouton ci-dessous :",
-                view=QuestionnairePersistentView(),
-            )
-        except discord.Forbidden:
-            # DMs désactivés : poster le bouton directement dans le thread
-            await thread.send(
-                f"{member.mention} Tes DMs sont désactivés — clique ici pour remplir le questionnaire :",
-                view=QuestionnairePersistentView(),
-            )
+    @app_commands.command(
+        name="setup-recrutement",
+        description="[ADMIN] Poster le message de recrutement dans le canal dédié",
+    )
+    async def setup_recrutement(self, interaction: discord.Interaction):
+        if not interaction.user.guild_permissions.administrator:
+            await interaction.response.send_message("⛔ Réservé aux administrateurs.", ephemeral=True)
+            return
+
+        channel = self.bot.get_channel(_RULES_CHANNEL_ID)
+        if not channel:
+            await interaction.response.send_message("❌ Canal introuvable.", ephemeral=True)
+            return
+
+        embed = discord.Embed(
+            title="⚔️ Rejoindre la guilde",
+            description=(
+                "Bienvenue !\n\n"
+                "Pour déposer ta candidature, clique sur le bouton ci-dessous.\n"
+                "Un formulaire s'ouvrira avec quelques questions rapides.\n\n"
+                "Nos recruteurs examineront ta candidature et te contacteront pour la suite."
+            ),
+            color=0xF1C40F,
+        )
+
+        await channel.send(embed=embed, view=RecrutementView())
+        await interaction.response.send_message("✅ Message de recrutement posté.", ephemeral=True)
 
 
 async def setup(bot: commands.Bot):
