@@ -39,8 +39,6 @@ Créer un fichier `.env` à la racine :
 DISCORD_TOKEN=ton_token_discord
 DISCORD_GUILD_ID=ton_guild_id          # Serveur principal (ID : 1466706466051330061)
 DATABASE_URL=postgresql://user:password@host:5432/dbname
-# Optionnel — troisième serveur (les commandes globales y sont copiées et synchronisées)
-DISCORD_GUILD_ID_3=ton_guild_id_3
 ```
 
 > Sur **Railway**, `DATABASE_URL` est injecté automatiquement par le plugin PostgreSQL. Pas besoin de le définir manuellement.
@@ -240,8 +238,7 @@ Les templates par défaut sont définis dans `config.py` et ne peuvent pas être
 2. Créer un projet Railway depuis le repo
 3. Ajouter le plugin **PostgreSQL** → les variables `DATABASE_URL` et `PGXXX` sont injectées automatiquement
 4. Ajouter les variables d'environnement `DISCORD_TOKEN` et `DISCORD_GUILD_ID`
-5. Optionnel : ajouter `DISCORD_GUILD_ID_3` pour un troisième serveur — les commandes globales y seront copiées et synchronisées automatiquement
-6. Railway build et démarre le bot — les tables sont créées au premier démarrage
+5. Railway build et démarre le bot — les tables sont créées au premier démarrage
 
 > Les soldes BAL **et les profils joueurs** sont isolés par serveur (`guild_id`). Chaque serveur a son propre pool BAL, son propre taux de rachat (`/setrate`) et ses propres profils de recrutement. Les données existantes sont migrées automatiquement vers le serveur principal au démarrage.
 

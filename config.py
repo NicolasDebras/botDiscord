@@ -21,7 +21,7 @@ RECRUTEUR_ROLE_ID  = 1473779038106685568
 # ── GUILD ID (sync instantanée des slash commands) ────────────────────────────
 GUILD_ID              = int(os.environ["DISCORD_GUILD_ID"])
 RECRUTEMENT_GUILD_ID  = 1479604079754743970
-GUILD_ID_3            = int(os.environ["DISCORD_GUILD_ID_3"]) if os.environ.get("DISCORD_GUILD_ID_3") else None
+GUILD_ID_3            = 1514409248921227326
  
 # ── RÔLES avec emojis ────────────────────────────────────────────────────────
 ROLES: dict[str, str] = {
