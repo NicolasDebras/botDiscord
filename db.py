@@ -296,9 +296,9 @@ async def append_bal_log(action: str, by: str, entries: list, template: str = ""
 
 
 async def get_silver_stats(days: int = 7, guild_id: int = 0) -> list:
-    """Retourne le silver distribué (deltas positifs) par type d'action sur les N derniers jours.
-    Pour finacti et paybal, distingue les calls RAID AVA des autres.
-    Toutes les fins d'activité non-RAID AVA sont regroupées en une seule ligne."""
+    """Retourne le silver distribué (deltas positifs) par type d'action et template.
+    Les actions finacti/paybal RAID AVA sont distinguées des autres.
+    Les autres fins d'activité sont détaillées par template."""
     async with _pool.acquire() as conn:
         rows = await conn.fetch("""
             SELECT
@@ -307,6 +307,11 @@ async def get_silver_stats(days: int = 7, guild_id: int = 0) -> list:
                         THEN action || '_raid_ava'
                     ELSE action
                 END                                            AS action_key,
+                CASE
+                    WHEN action IN ('finacti', 'paybal') AND template ILIKE '%RAID AVA%'
+                        THEN ''
+                    ELSE template
+                END                                            AS template_label,
                 COUNT(DISTINCT id)                             AS nb_actions,
                 SUM((elem->>'delta')::bigint)                  AS total_silver,
                 COUNT(DISTINCT elem->>'uid')                   AS nb_joueurs
@@ -315,12 +320,13 @@ async def get_silver_stats(days: int = 7, guild_id: int = 0) -> list:
             WHERE ts >= NOW() - ($1 * INTERVAL '1 day')
               AND (elem->>'delta')::bigint > 0
               AND guild_id = $2
-            GROUP BY action_key
+            GROUP BY action_key, template_label
             ORDER BY total_silver DESC
         """, days, guild_id)
     return [
         {
             "action":       r["action_key"],
+            "template":     r["template_label"],
             "nb_actions":   r["nb_actions"],
             "total_silver": r["total_silver"],
             "nb_joueurs":   r["nb_joueurs"],

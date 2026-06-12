@@ -585,7 +585,9 @@ class Bal(commands.Cog):
         )
 
         for r in rows:
-            label = ACTION_LABELS.get(r["action"], r["action"])
+            base_label = ACTION_LABELS.get(r["action"], r["action"])
+            tpl = r.get("template", "")
+            label = f"{base_label} — {tpl}" if tpl else base_label
             embed.add_field(
                 name=label,
                 value=f"**{fmt_silver(r['total_silver'])}** silver\n{r['nb_actions']} action(s) · {r['nb_joueurs']} joueur(s)",
