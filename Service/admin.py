@@ -571,9 +571,9 @@ class Admin(commands.Cog):
             return
 
         await interaction.response.defer(ephemeral=True)
-        settings = await load_settings()
+        settings = await load_settings(guild_id=interaction.guild.id)
         old_rate = settings.get("bal_rate", DEFAULT_BAL_RATE)
-        await save_settings({"bal_rate": taux})
+        await save_settings({"bal_rate": taux}, guild_id=interaction.guild.id)
 
         await interaction.followup.send(
             f"✅ Taux de rachat mis à jour : **{old_rate} %** → **{taux} %**",
@@ -592,7 +592,7 @@ class Admin(commands.Cog):
 
         await interaction.response.defer(ephemeral=True)
 
-        all_bal = await db.get_all_bal()
+        all_bal = await db.get_all_bal(guild_id=interaction.guild.id)
         if not all_bal:
             await interaction.followup.send("ℹ️ Aucune BAL enregistrée.", ephemeral=True)
             return
@@ -622,10 +622,10 @@ class Admin(commands.Cog):
         if vider:
             log_entries = []
             for user_id_str, name, amount in partis:
-                await db.set_bal(user_id_str, 0)
-                await db.set_is_alerted(user_id_str, False)
+                await db.set_bal(user_id_str, 0, guild_id=interaction.guild.id)
+                await db.set_is_alerted(user_id_str, False, guild_id=interaction.guild.id)
                 log_entries.append({"uid": user_id_str, "name": name, "delta": -amount, "total": 0})
-            await append_bal_log("retirebal", interaction.user.display_name, log_entries)
+            await append_bal_log("retirebal", interaction.user.display_name, log_entries, guild_id=interaction.guild.id)
 
             lines = "\n".join(f"**{name}** — ~~{fmt_silver(amount)} silver~~ → 0" for _, name, amount in partis)
             embed = discord.Embed(
@@ -660,7 +660,7 @@ class Admin(commands.Cog):
 
         await interaction.response.defer(ephemeral=True)
 
-        all_bal = await db.get_all_bal()
+        all_bal = await db.get_all_bal(guild_id=interaction.guild.id)
         if not all_bal:
             await interaction.followup.send("ℹ️ Aucune BAL enregistrée.", ephemeral=True)
             return

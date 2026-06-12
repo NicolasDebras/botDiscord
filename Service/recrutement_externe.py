@@ -3,8 +3,9 @@ from discord.ext import commands
 from discord import app_commands
 
 import db
+from config import RECRUTEMENT_GUILD_ID
 
-_RECRUTEMENT_GUILD_ID = 1479604079754743970
+_RECRUTEMENT_GUILD_ID = RECRUTEMENT_GUILD_ID
 _FORUM_CHANNEL_ID     = 1511837675974561942
 _RULES_CHANNEL_ID     = 1511837232435171430
 _CANDIDAT_ROLE_ID     = 1511832805665931334
@@ -121,6 +122,7 @@ class RecrutementExterne(commands.Cog):
             except discord.Forbidden:
                 pass
 
+    @app_commands.guilds(discord.Object(id=RECRUTEMENT_GUILD_ID))
     @app_commands.command(
         name="setup-recrutement",
         description="[ADMIN] Poster le message de recrutement dans le canal dédié",

@@ -2,7 +2,7 @@ import random
 import discord
 import db
 
-from config import ADMIN_ROLE_NAME, GM_ROLE_NAME, MEMBRE_ROLE_NAME, CALLER_ROLE_NAME, DEFAULT_BAL_RATE
+from config import ADMIN_ROLE_NAME, GM_ROLE_NAME, MEMBRE_ROLE_NAME, CALLER_ROLE_NAME, DEFAULT_BAL_RATE, GUILD_ID as _MAIN_GUILD_ID
 
 
 def fmt_silver(n: int) -> str:
@@ -35,18 +35,18 @@ def is_caller_or_admin(member: discord.Member) -> bool:
 
 
 # ── HELPERS : settings persistants (taux de rachat, etc.) ────────────────────
-async def load_settings() -> dict:
-    rate = await db.get_setting("bal_rate", str(DEFAULT_BAL_RATE))
-    return {"bal_rate": int(rate)}
+async def load_settings(guild_id: int = 0) -> dict:
+    rate = await db.get_bal_rate(guild_id)
+    return {"bal_rate": rate}
 
 
-async def save_settings(data: dict) -> None:
-    await db.set_setting("bal_rate", str(data.get("bal_rate", DEFAULT_BAL_RATE)))
+async def save_settings(data: dict, guild_id: int = 0) -> None:
+    await db.set_bal_rate(guild_id, data.get("bal_rate", DEFAULT_BAL_RATE))
 
 
 # ── HELPERS : log BAL ─────────────────────────────────────────────────────────
-async def append_bal_log(action: str, by: str, entries: list, template: str = "") -> None:
-    await db.append_bal_log(action, by, entries, template)
+async def append_bal_log(action: str, by: str, entries: list, template: str = "", guild_id: int = 0) -> None:
+    await db.append_bal_log(action, by, entries, template, guild_id)
 
 
 BAL_LIMIT = 20_000_000
@@ -59,12 +59,15 @@ MESSAGES_BAL_LIMIT = [
 ]
 
 
-async def notify_bal_limit(bot: discord.Client, user_id: int, new_total: int) -> None:
+async def notify_bal_limit(bot: discord.Client, user_id: int, new_total: int, guild_id: int = 0) -> None:
     """Envoie un DM si la BAL franchit BAL_LIMIT à la hausse (une seule fois).
-    Remet le flag à false si la BAL repasse sous BAL_LIMIT."""
+    Remet le flag à false si la BAL repasse sous BAL_LIMIT.
+    Les messages sont réservés au serveur principal."""
     uid_str = str(user_id)
+    if guild_id != _MAIN_GUILD_ID:
+        return
     if new_total >= BAL_LIMIT:
-        if await db.get_is_alerted(uid_str):
+        if await db.get_is_alerted(uid_str, guild_id):
             return  # déjà alerté, on ne respamme pas
         try:
             user = await bot.fetch_user(user_id)
@@ -72,13 +75,13 @@ async def notify_bal_limit(bot: discord.Client, user_id: int, new_total: int) ->
             await user.send(msg)
         except Exception:
             pass
-        await db.set_is_alerted(uid_str, True)
+        await db.set_is_alerted(uid_str, True, guild_id)
     else:
-        await db.set_is_alerted(uid_str, False)
+        await db.set_is_alerted(uid_str, False, guild_id)
 
 
-async def load_bal_log(action: str | None = None) -> list:
-    return await db.get_bal_log(action)
+async def load_bal_log(action: str | None = None, guild_id: int = 0) -> list:
+    return await db.get_bal_log(action, guild_id)
 
 
 # ── SELECT : choix d'une activité en cours ───────────────────────────────────

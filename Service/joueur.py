@@ -8,7 +8,7 @@ from discord import app_commands
 
 import db
 from albion_api import fetch_albion_fame, fmt_fame
-from config import ADMIN_ROLE_NAME, RECRUTEUR_ROLE_ID, MEMBRE_ROLE_NAME
+from config import ADMIN_ROLE_NAME, RECRUTEUR_ROLE_ID, MEMBRE_ROLE_NAME, GUILD_ID as _MAIN_GUILD_ID
 from Service.utils import fmt_silver
 
 _PARIS          = ZoneInfo("Europe/Paris")
@@ -43,7 +43,8 @@ class Joueur(commands.Cog):
         if not guild.chunked:
             await guild.chunk()
 
-        profiles = await db.get_all_profiles()
+        guild_id = guild.id
+        profiles = await db.get_all_profiles(guild_id=guild_id)
         now      = datetime.datetime.now(datetime.timezone.utc)
         delai    = datetime.timedelta(days=3)
 
@@ -55,20 +56,20 @@ class Joueur(commands.Cog):
                 # purge_immediate = depuis /recap (supprime sans délai)
                 # sinon règle des 3 jours
                 if purge_immediate or (p["joined_at"] and (now - p["joined_at"]) > delai):
-                    await db.delete_player_profile(p["user_id"])
+                    await db.delete_player_profile(p["user_id"], guild_id=guild_id)
                 continue
 
             if p["ig_name"]:
                 try:
                     fame = await fetch_albion_fame(p["ig_name"])
                     if fame:
-                        await db.update_player_fame(p["user_id"], fame["name"], fame["pve"], fame["pvp"])
+                        await db.update_player_fame(p["user_id"], fame["name"], fame["pve"], fame["pvp"], guild_id=guild_id)
                 except Exception:
                     pass
                 await asyncio.sleep(0.5)
 
         # Recharger après purge
-        profiles = await db.get_all_profiles()
+        profiles = await db.get_all_profiles(guild_id=guild_id)
 
         # ── 2. Récap suivi recrutement ────────────────────────────────────────
         nouveaux  = [p for p in profiles if not p["is_membre"] and p["joined_at"]]
@@ -98,12 +99,12 @@ class Joueur(commands.Cog):
 
         # ── 3. Stats silver depuis lundi ──────────────────────────────────────
         days_since_monday = max(1, now.astimezone(_PARIS).weekday() + 1)
-        stats = await db.get_silver_stats(days_since_monday)
+        stats = await db.get_silver_stats(days_since_monday, guild_id=guild.id)
         payout_normal = sum(r["total_silver"] for r in stats if r["action"] in ("finacti", "paybal"))
         payout_raid   = sum(r["total_silver"] for r in stats if r["action"] in ("finacti_raid_ava", "paybal_raid_ava"))
 
         # ── 4. Membres inactifs depuis 2 semaines ─────────────────────────────
-        inactive_ids = await db.get_inactive_member_ids(14)
+        inactive_ids = await db.get_inactive_member_ids(14, guild_id=guild_id)
         membre_role  = discord.utils.get(guild.roles, name=MEMBRE_ROLE_NAME)
         inactifs     = []
         if membre_role:
@@ -124,7 +125,7 @@ class Joueur(commands.Cog):
     @tasks.loop(time=_RAPPEL_HEURE)
     async def rappel_nouveaux(self):
         channel = self.bot.get_channel(_RAPPEL_SALON)
-        if not channel:
+        if not channel or channel.guild.id != _MAIN_GUILD_ID:
             return
         await self._run_recap(channel.guild, purge_immediate=False)
 
@@ -155,7 +156,7 @@ class Joueur(commands.Cog):
             )
             return
 
-        profile = await db.get_player_profile(str(joueur.id))
+        profile = await db.get_player_profile(str(joueur.id), guild_id=interaction.guild.id)
         if not profile:
             await interaction.response.send_message(
                 f"❌ **{joueur.display_name}** n'a pas de profil enregistré.", ephemeral=True
@@ -163,7 +164,7 @@ class Joueur(commands.Cog):
             return
 
         nouveau_statut = not profile["is_membre"]
-        await db.set_player_is_membre(str(joueur.id), nouveau_statut)
+        await db.set_player_is_membre(str(joueur.id), nouveau_statut, guild_id=interaction.guild.id)
 
         if nouveau_statut:
             await interaction.response.send_message(
@@ -193,7 +194,7 @@ class Joueur(commands.Cog):
             await interaction.followup.send("❌ Rôle Absent introuvable (ID invalide ?).", ephemeral=True)
             return
 
-        bal = await db.get_bal(str(joueur.id))
+        bal = await db.get_bal(str(joueur.id), guild_id=interaction.guild.id)
 
         try:
             await joueur.edit(roles=[absent_role])
@@ -229,7 +230,7 @@ class Joueur(commands.Cog):
             )
             return
 
-        profile = await db.get_player_profile(str(joueur.id))
+        profile = await db.get_player_profile(str(joueur.id), guild_id=interaction.guild.id)
         if not profile:
             await interaction.response.send_message(
                 f"❌ **{joueur.display_name}** n'a pas de profil enregistré.", ephemeral=True
@@ -241,7 +242,7 @@ class Joueur(commands.Cog):
             )
             return
 
-        await db.postpone_player_check(str(joueur.id), days=7)
+        await db.postpone_player_check(str(joueur.id), days=7, guild_id=interaction.guild.id)
         nouvelle_date = profile["joined_at"] + datetime.timedelta(days=7 + 14)
         await interaction.response.send_message(
             f"📅 Le suivi de **{joueur.display_name}** est repoussé d'une semaine — prochain check après le **{nouvelle_date.strftime('%d/%m/%Y')}**.",
@@ -254,7 +255,7 @@ class Joueur(commands.Cog):
     async def info(self, interaction: discord.Interaction, joueur: discord.Member):
         await interaction.response.defer(ephemeral=True)
 
-        profile = await db.get_player_profile(str(joueur.id))
+        profile = await db.get_player_profile(str(joueur.id), guild_id=interaction.guild.id)
 
         acti_count       = profile["acti_count"]       if profile else 0
         ig_name          = profile["ig_name"]           if profile and profile["ig_name"] else None

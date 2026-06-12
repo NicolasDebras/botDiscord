@@ -71,6 +71,7 @@ class RecrutementModal(discord.ui.Modal, title="Fiche de recrutement"):
                 fame["pvp"],
                 self.info.value,
                 is_membre=False,
+                guild_id=interaction.guild.id,
             )
 
         await interaction.followup.send(embed=embed)

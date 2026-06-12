@@ -117,6 +117,45 @@ async def init_db(database_url: str) -> None:
             )
         """)
 
+        # ── Migration guild_id sur bal ────────────────────────────────────────
+        await conn.execute(
+            "ALTER TABLE bal ADD COLUMN IF NOT EXISTS guild_id BIGINT NOT NULL DEFAULT 0"
+        )
+        # Backfill : données existantes → serveur principal
+        from config import GUILD_ID as _GUILD_ID
+        await conn.execute(f"UPDATE bal SET guild_id = {_GUILD_ID} WHERE guild_id = 0")
+
+        # Recréer la PK en composite si elle est encore simple
+        pk_cols = await conn.fetch("""
+            SELECT column_name FROM information_schema.key_column_usage
+            WHERE table_name = 'bal' AND constraint_name = 'bal_pkey'
+            ORDER BY ordinal_position
+        """)
+        if [r['column_name'] for r in pk_cols] == ['user_id']:
+            await conn.execute("ALTER TABLE bal DROP CONSTRAINT bal_pkey")
+            await conn.execute("ALTER TABLE bal ADD PRIMARY KEY (user_id, guild_id)")
+
+        # ── Migration guild_id sur bal_log ────────────────────────────────────
+        await conn.execute(
+            "ALTER TABLE bal_log ADD COLUMN IF NOT EXISTS guild_id BIGINT NOT NULL DEFAULT 0"
+        )
+        await conn.execute(f"UPDATE bal_log SET guild_id = {_GUILD_ID} WHERE guild_id = 0")
+
+        # ── Migration guild_id sur player_profiles ────────────────────────────
+        await conn.execute(
+            "ALTER TABLE player_profiles ADD COLUMN IF NOT EXISTS guild_id BIGINT NOT NULL DEFAULT 0"
+        )
+        await conn.execute(f"UPDATE player_profiles SET guild_id = {_GUILD_ID} WHERE guild_id = 0")
+
+        pk_cols_pp = await conn.fetch("""
+            SELECT column_name FROM information_schema.key_column_usage
+            WHERE table_name = 'player_profiles' AND constraint_name = 'player_profiles_pkey'
+            ORDER BY ordinal_position
+        """)
+        if [r['column_name'] for r in pk_cols_pp] == ['user_id']:
+            await conn.execute("ALTER TABLE player_profiles DROP CONSTRAINT player_profiles_pkey")
+            await conn.execute("ALTER TABLE player_profiles ADD PRIMARY KEY (user_id, guild_id)")
+
 
 # ── ACTIVITIES ────────────────────────────────────────────────────────────────
 
@@ -193,70 +232,73 @@ async def delete_activity(msg_id: int) -> None:
 
 # ── BAL ───────────────────────────────────────────────────────────────────────
 
-async def get_all_bal() -> dict:
+async def get_all_bal(guild_id: int = 0) -> dict:
     async with _pool.acquire() as conn:
-        rows = await conn.fetch("SELECT user_id, amount FROM bal")
+        rows = await conn.fetch("SELECT user_id, amount FROM bal WHERE guild_id = $1", guild_id)
     return {row["user_id"]: row["amount"] for row in rows}
 
 
-async def get_bal(user_id: str) -> int:
+async def get_bal(user_id: str, guild_id: int = 0) -> int:
     async with _pool.acquire() as conn:
-        row = await conn.fetchrow("SELECT amount FROM bal WHERE user_id = $1", user_id)
+        row = await conn.fetchrow(
+            "SELECT amount FROM bal WHERE user_id = $1 AND guild_id = $2", user_id, guild_id
+        )
     return row["amount"] if row else 0
 
 
-async def increment_bal(user_id: str, delta: int) -> int:
+async def increment_bal(user_id: str, delta: int, guild_id: int = 0) -> int:
     """Incrémente (ou décrémente si delta < 0) le solde et retourne le nouveau total."""
     async with _pool.acquire() as conn:
         row = await conn.fetchrow("""
-            INSERT INTO bal (user_id, amount) VALUES ($1, $2)
-            ON CONFLICT (user_id) DO UPDATE SET amount = bal.amount + EXCLUDED.amount
+            INSERT INTO bal (user_id, guild_id, amount) VALUES ($1, $2, $3)
+            ON CONFLICT (user_id, guild_id) DO UPDATE SET amount = bal.amount + EXCLUDED.amount
             RETURNING amount
-        """, user_id, delta)
+        """, user_id, guild_id, delta)
     return row["amount"]
 
 
-async def increment_bal_batch(deltas: dict[str, int]) -> dict[str, int]:
+async def increment_bal_batch(deltas: dict[str, int], guild_id: int = 0) -> dict[str, int]:
     """Incrémente plusieurs soldes en une seule transaction. Retourne {user_id: new_total}."""
     async with _pool.acquire() as conn:
         async with conn.transaction():
             results = {}
             for user_id, delta in deltas.items():
                 row = await conn.fetchrow("""
-                    INSERT INTO bal (user_id, amount) VALUES ($1, $2)
-                    ON CONFLICT (user_id) DO UPDATE SET amount = bal.amount + EXCLUDED.amount
+                    INSERT INTO bal (user_id, guild_id, amount) VALUES ($1, $2, $3)
+                    ON CONFLICT (user_id, guild_id) DO UPDATE SET amount = bal.amount + EXCLUDED.amount
                     RETURNING amount
-                """, user_id, delta)
+                """, user_id, guild_id, delta)
                 results[user_id] = row["amount"]
     return results
 
 
-async def set_bal(user_id: str, amount: int) -> None:
+async def set_bal(user_id: str, amount: int, guild_id: int = 0) -> None:
     async with _pool.acquire() as conn:
         await conn.execute("""
-            INSERT INTO bal (user_id, amount) VALUES ($1, $2)
-            ON CONFLICT (user_id) DO UPDATE SET amount = EXCLUDED.amount
-        """, user_id, amount)
+            INSERT INTO bal (user_id, guild_id, amount) VALUES ($1, $2, $3)
+            ON CONFLICT (user_id, guild_id) DO UPDATE SET amount = EXCLUDED.amount
+        """, user_id, guild_id, amount)
 
 
 # ── BAL LOG ───────────────────────────────────────────────────────────────────
 
-async def append_bal_log(action: str, by: str, entries: list, template: str = "") -> None:
+async def append_bal_log(action: str, by: str, entries: list, template: str = "", guild_id: int = 0) -> None:
     ts           = datetime.now(timezone.utc)
     entries_json = json.dumps(entries, ensure_ascii=False)
     async with _pool.acquire() as conn:
         await conn.execute(
-            "INSERT INTO bal_log (ts, action, by_user, entries, template) VALUES ($1, $2, $3, $4::jsonb, $5)",
-            ts, action, by, entries_json, template,
+            "INSERT INTO bal_log (ts, action, by_user, entries, template, guild_id) VALUES ($1, $2, $3, $4::jsonb, $5, $6)",
+            ts, action, by, entries_json, template, guild_id,
         )
         await conn.execute(
             "DELETE FROM bal_log WHERE ts < NOW() - INTERVAL '6 months'"
         )
 
 
-async def get_silver_stats(days: int = 7) -> list:
+async def get_silver_stats(days: int = 7, guild_id: int = 0) -> list:
     """Retourne le silver distribué (deltas positifs) par type d'action sur les N derniers jours.
-    Pour finacti et paybal, distingue les calls RAID AVA des autres."""
+    Pour finacti et paybal, distingue les calls RAID AVA des autres.
+    Toutes les fins d'activité non-RAID AVA sont regroupées en une seule ligne."""
     async with _pool.acquire() as conn:
         rows = await conn.fetch("""
             SELECT
@@ -265,7 +307,6 @@ async def get_silver_stats(days: int = 7) -> list:
                         THEN action || '_raid_ava'
                     ELSE action
                 END                                            AS action_key,
-                template,
                 COUNT(DISTINCT id)                             AS nb_actions,
                 SUM((elem->>'delta')::bigint)                  AS total_silver,
                 COUNT(DISTINCT elem->>'uid')                   AS nb_joueurs
@@ -273,13 +314,13 @@ async def get_silver_stats(days: int = 7) -> list:
                  jsonb_array_elements(entries) AS elem
             WHERE ts >= NOW() - ($1 * INTERVAL '1 day')
               AND (elem->>'delta')::bigint > 0
-            GROUP BY action_key, template
+              AND guild_id = $2
+            GROUP BY action_key
             ORDER BY total_silver DESC
-        """, days)
+        """, days, guild_id)
     return [
         {
             "action":       r["action_key"],
-            "template":     r["template"],
             "nb_actions":   r["nb_actions"],
             "total_silver": r["total_silver"],
             "nb_joueurs":   r["nb_joueurs"],
@@ -288,16 +329,17 @@ async def get_silver_stats(days: int = 7) -> list:
     ]
 
 
-async def get_bal_log(action: str | None = None) -> list:
+async def get_bal_log(action: str | None = None, guild_id: int = 0) -> list:
     async with _pool.acquire() as conn:
         if action:
             rows = await conn.fetch(
-                "SELECT ts, action, by_user, entries FROM bal_log WHERE action = $1 ORDER BY id DESC LIMIT 1000",
-                action,
+                "SELECT ts, action, by_user, entries FROM bal_log WHERE action = $1 AND guild_id = $2 ORDER BY id DESC LIMIT 1000",
+                action, guild_id,
             )
         else:
             rows = await conn.fetch(
-                "SELECT ts, action, by_user, entries FROM bal_log ORDER BY id DESC LIMIT 1000"
+                "SELECT ts, action, by_user, entries FROM bal_log WHERE guild_id = $1 ORDER BY id DESC LIMIT 1000",
+                guild_id,
             )
     return [
         {
@@ -341,18 +383,20 @@ async def get_image_overrides() -> dict:
     return {row["key"][4:]: row["value"] for row in rows}
 
 
-async def get_is_alerted(user_id: str) -> bool:
+async def get_is_alerted(user_id: str, guild_id: int = 0) -> bool:
     async with _pool.acquire() as conn:
-        row = await conn.fetchrow("SELECT is_alerted FROM bal WHERE user_id = $1", user_id)
+        row = await conn.fetchrow(
+            "SELECT is_alerted FROM bal WHERE user_id = $1 AND guild_id = $2", user_id, guild_id
+        )
     return row["is_alerted"] if row else False
 
 
-async def set_is_alerted(user_id: str, value: bool) -> None:
+async def set_is_alerted(user_id: str, value: bool, guild_id: int = 0) -> None:
     async with _pool.acquire() as conn:
         await conn.execute("""
-            INSERT INTO bal (user_id, amount, is_alerted) VALUES ($1, 0, $2)
-            ON CONFLICT (user_id) DO UPDATE SET is_alerted = EXCLUDED.is_alerted
-        """, user_id, value)
+            INSERT INTO bal (user_id, guild_id, amount, is_alerted) VALUES ($1, $2, 0, $3)
+            ON CONFLICT (user_id, guild_id) DO UPDATE SET is_alerted = EXCLUDED.is_alerted
+        """, user_id, guild_id, value)
 
 
 async def set_image_override(template_name: str, url: str) -> None:
@@ -384,11 +428,22 @@ async def set_setting(key: str, value: str) -> None:
         """, key, value)
 
 
+async def get_bal_rate(guild_id: int) -> int:
+    val = await get_setting(f"bal_rate:{guild_id}", str(DEFAULT_BAL_RATE))
+    return int(val)
+
+
+async def set_bal_rate(guild_id: int, rate: int) -> None:
+    await set_setting(f"bal_rate:{guild_id}", str(rate))
+
+
 # ── PLAYER PROFILES ───────────────────────────────────────────────────────────
 
-async def get_player_profile(user_id: str) -> dict | None:
+async def get_player_profile(user_id: str, guild_id: int = 0) -> dict | None:
     async with _pool.acquire() as conn:
-        row = await conn.fetchrow("SELECT * FROM player_profiles WHERE user_id = $1", user_id)
+        row = await conn.fetchrow(
+            "SELECT * FROM player_profiles WHERE user_id = $1 AND guild_id = $2", user_id, guild_id
+        )
     if not row:
         return None
     return {
@@ -406,23 +461,23 @@ async def get_player_profile(user_id: str) -> dict | None:
     }
 
 
-async def save_player_profile(user_id: str, ig_name: str, initial_pve: int, initial_pvp: int, recruitment_info: str = "", is_membre: bool = False) -> None:
+async def save_player_profile(user_id: str, ig_name: str, initial_pve: int, initial_pvp: int, recruitment_info: str = "", is_membre: bool = False, guild_id: int = 0) -> None:
     joined_at = datetime.now(timezone.utc)
     async with _pool.acquire() as conn:
         await conn.execute("""
-            INSERT INTO player_profiles (user_id, ig_name, initial_pve_fame, initial_pvp_fame, joined_at, recruitment_info, is_membre)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
-            ON CONFLICT (user_id) DO UPDATE SET
+            INSERT INTO player_profiles (user_id, guild_id, ig_name, initial_pve_fame, initial_pvp_fame, joined_at, recruitment_info, is_membre)
+            VALUES ($1, $8, $2, $3, $4, $5, $6, $7)
+            ON CONFLICT (user_id, guild_id) DO UPDATE SET
                 ig_name          = EXCLUDED.ig_name,
                 initial_pve_fame = EXCLUDED.initial_pve_fame,
                 initial_pvp_fame = EXCLUDED.initial_pvp_fame,
                 joined_at        = EXCLUDED.joined_at,
                 recruitment_info = EXCLUDED.recruitment_info,
                 is_membre        = EXCLUDED.is_membre
-        """, user_id, ig_name, initial_pve, initial_pvp, joined_at, recruitment_info, is_membre)
+        """, user_id, ig_name, initial_pve, initial_pvp, joined_at, recruitment_info, is_membre, guild_id)
 
 
-async def get_pending_new_players(min_days: int = 14) -> list[dict]:
+async def get_pending_new_players(min_days: int = 14, guild_id: int = 0) -> list[dict]:
     """Nouveaux joueurs (is_membre=FALSE) présents depuis plus de min_days jours."""
     async with _pool.acquire() as conn:
         rows = await conn.fetch("""
@@ -430,56 +485,60 @@ async def get_pending_new_players(min_days: int = 14) -> list[dict]:
             WHERE is_membre = FALSE
               AND joined_at IS NOT NULL
               AND joined_at <= NOW() - ($1 * INTERVAL '1 day')
+              AND guild_id = $2
             ORDER BY joined_at ASC
-        """, min_days)
+        """, min_days, guild_id)
     return [{"user_id": r["user_id"], "ig_name": r["ig_name"], "joined_at": r["joined_at"]} for r in rows]
 
 
-async def get_all_profiles() -> list[dict]:
+async def get_all_profiles(guild_id: int = 0) -> list[dict]:
     """Retourne tous les profils recrutés."""
     async with _pool.acquire() as conn:
-        rows = await conn.fetch("SELECT user_id, ig_name, joined_at, is_membre FROM player_profiles")
+        rows = await conn.fetch(
+            "SELECT user_id, ig_name, joined_at, is_membre FROM player_profiles WHERE guild_id = $1",
+            guild_id,
+        )
     return [{"user_id": r["user_id"], "ig_name": r["ig_name"], "joined_at": r["joined_at"], "is_membre": r["is_membre"]} for r in rows]
 
 
-async def set_player_is_membre(user_id: str, value: bool) -> None:
+async def set_player_is_membre(user_id: str, value: bool, guild_id: int = 0) -> None:
     async with _pool.acquire() as conn:
         await conn.execute(
-            "UPDATE player_profiles SET is_membre = $2 WHERE user_id = $1",
-            user_id, value,
+            "UPDATE player_profiles SET is_membre = $2 WHERE user_id = $1 AND guild_id = $3",
+            user_id, value, guild_id,
         )
 
 
-async def update_player_igname(user_id: str, ig_name: str) -> None:
+async def update_player_igname(user_id: str, ig_name: str, guild_id: int = 0) -> None:
     async with _pool.acquire() as conn:
         await conn.execute(
-            "UPDATE player_profiles SET ig_name = $2 WHERE user_id = $1",
-            user_id, ig_name,
+            "UPDATE player_profiles SET ig_name = $2 WHERE user_id = $1 AND guild_id = $3",
+            user_id, ig_name, guild_id,
         )
 
 
-async def update_player_fame(user_id: str, ig_name: str, pve: int, pvp: int) -> None:
+async def update_player_fame(user_id: str, ig_name: str, pve: int, pvp: int, guild_id: int = 0) -> None:
     updated_at = datetime.now(timezone.utc)
     async with _pool.acquire() as conn:
         await conn.execute("""
             UPDATE player_profiles
             SET ig_name = $2, current_pve_fame = $3, current_pvp_fame = $4, fame_updated_at = $5
-            WHERE user_id = $1
-        """, user_id, ig_name, pve, pvp, updated_at)
+            WHERE user_id = $1 AND guild_id = $6
+        """, user_id, ig_name, pve, pvp, updated_at, guild_id)
 
 
-async def postpone_player_check(user_id: str, days: int = 7) -> None:
+async def postpone_player_check(user_id: str, days: int = 7, guild_id: int = 0) -> None:
     """Repousse le suivi d'un joueur de `days` jours en décalant joined_at."""
     async with _pool.acquire() as conn:
         await conn.execute(
-            "UPDATE player_profiles SET joined_at = joined_at + ($2 * INTERVAL '1 day') WHERE user_id = $1",
-            user_id, days,
+            "UPDATE player_profiles SET joined_at = joined_at + ($2 * INTERVAL '1 day') WHERE user_id = $1 AND guild_id = $3",
+            user_id, days, guild_id,
         )
 
 
-async def delete_player_profile(user_id: str) -> None:
+async def delete_player_profile(user_id: str, guild_id: int = 0) -> None:
     async with _pool.acquire() as conn:
-        await conn.execute("DELETE FROM player_profiles WHERE user_id = $1", user_id)
+        await conn.execute("DELETE FROM player_profiles WHERE user_id = $1 AND guild_id = $2", user_id, guild_id)
 
 
 async def save_recruitment_ticket(user_id: str, thread_id: int) -> None:
@@ -503,26 +562,26 @@ async def delete_recruitment_ticket(user_id: str) -> None:
         await conn.execute("DELETE FROM recruitment_tickets WHERE user_id = $1", user_id)
 
 
-async def increment_acti_count(user_ids: list[str]) -> None:
+async def increment_acti_count(user_ids: list[str], guild_id: int = 0) -> None:
     now = datetime.now(timezone.utc)
     async with _pool.acquire() as conn:
         async with conn.transaction():
             for user_id in user_ids:
                 await conn.execute("""
-                    INSERT INTO player_profiles (user_id, acti_count, last_acti_at)
-                    VALUES ($1, 1, $2)
-                    ON CONFLICT (user_id) DO UPDATE
+                    INSERT INTO player_profiles (user_id, guild_id, acti_count, last_acti_at)
+                    VALUES ($1, $3, 1, $2)
+                    ON CONFLICT (user_id, guild_id) DO UPDATE
                         SET acti_count   = player_profiles.acti_count + 1,
                             last_acti_at = $2
-                """, user_id, now)
+                """, user_id, now, guild_id)
 
 
-async def get_inactive_member_ids(days: int) -> set[str]:
+async def get_inactive_member_ids(days: int, guild_id: int = 0) -> set[str]:
     """Retourne les user_ids n'ayant pas participé à une activité depuis N jours."""
     async with _pool.acquire() as conn:
         rows = await conn.fetch("""
             SELECT user_id FROM player_profiles
-            WHERE last_acti_at IS NULL
-               OR last_acti_at < NOW() - ($1 * INTERVAL '1 day')
-        """, days)
+            WHERE guild_id = $2
+              AND (last_acti_at IS NULL OR last_acti_at < NOW() - ($1 * INTERVAL '1 day'))
+        """, days, guild_id)
     return {r["user_id"] for r in rows}

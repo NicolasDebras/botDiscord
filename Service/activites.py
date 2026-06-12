@@ -694,7 +694,7 @@ class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
         await interaction.response.defer()
 
         data     = self.data
-        settings = await load_settings()
+        settings = await load_settings(guild_id=interaction.guild.id)
         rate     = self.template_tax if self.template_tax is not None else settings.get("bal_rate", 85)
 
         part_guilde   = (total - carte_cost) * rate // 100
@@ -723,12 +723,12 @@ class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
             key = str(entry[0])
             deltas[key] = deltas.get(key, 0) + scoot_amount
 
-        new_totals = await db.increment_bal_batch(deltas)
+        new_totals = await db.increment_bal_batch(deltas, guild_id=interaction.guild.id)
 
         # Compter la présence de tous les participants
         all_ids = list({str(entry[0]) for members in data["slots"].values() for entry in members})
         if all_ids:
-            await db.increment_acti_count(all_ids)
+            await db.increment_acti_count(all_ids, guild_id=interaction.guild.id)
 
         log_entries = []
         for uid, name, role, mult in paying:
@@ -739,9 +739,9 @@ class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
             key = str(uid)
             log_entries.append({"uid": key, "name": name, "delta": scoot_amount, "total": new_totals[key]})
 
-        await append_bal_log("finacti", interaction.user.display_name, log_entries, template=data.get("template", ""))
+        await append_bal_log("finacti", interaction.user.display_name, log_entries, template=data.get("template", ""), guild_id=interaction.guild.id)
         await asyncio.gather(*[
-            notify_bal_limit(interaction.client, int(uid), total)
+            notify_bal_limit(interaction.client, int(uid), total, guild_id=interaction.guild.id)
             for uid, total in new_totals.items()
         ])
 
@@ -920,7 +920,7 @@ class FinActiButton(discord.ui.Button):
 
         all_ids = list({str(entry[0]) for members in data["slots"].values() for entry in members})
         if all_ids:
-            await db.increment_acti_count(all_ids)
+            await db.increment_acti_count(all_ids, guild_id=interaction.guild.id)
 
         await remove_activity(self.activity_id)
         try:

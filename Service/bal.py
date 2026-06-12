@@ -6,7 +6,7 @@ from discord.ext import commands
 from discord import app_commands
 
 import db
-from config import ADMIN_ROLE_NAME, MEMBRE_ROLE_NAME
+from config import ADMIN_ROLE_NAME, MEMBRE_ROLE_NAME, GUILD_ID as _MAIN_GUILD_ID
 from Service.activites import activities
 from Service.utils import is_admin, is_membre, ActivitySelect, append_bal_log, load_bal_log, notify_bal_limit, fmt_silver
 
@@ -51,11 +51,11 @@ class Bal(commands.Cog):
         await interaction.response.defer(ephemeral=True)
 
         key       = str(joueur.id)
-        new_total = await db.increment_bal(key, montant)
+        new_total = await db.increment_bal(key, montant, guild_id=interaction.guild.id)
         await append_bal_log("addbal", interaction.user.display_name, [
             {"uid": key, "name": joueur.display_name, "delta": montant, "total": new_total}
-        ])
-        await notify_bal_limit(interaction.client, joueur.id, new_total)
+        ], guild_id=interaction.guild.id)
+        await notify_bal_limit(interaction.client, joueur.id, new_total, guild_id=interaction.guild.id)
 
         await interaction.followup.send(
             f"✅ **{joueur.display_name}** : +{fmt_silver(montant)} silver  (total : **{fmt_silver(new_total)} silver**)",
@@ -74,15 +74,15 @@ class Bal(commands.Cog):
         await interaction.response.defer(ephemeral=True)
 
         key    = str(joueur.id)
-        ancien = await db.get_bal(key)
+        ancien = await db.get_bal(key, guild_id=interaction.guild.id)
         reel   = min(montant, ancien)   # plancher à 0
         new_total = ancien - reel
-        await db.set_bal(key, new_total)
+        await db.set_bal(key, new_total, guild_id=interaction.guild.id)
 
         await append_bal_log("retirebal", interaction.user.display_name, [
             {"uid": key, "name": joueur.display_name, "delta": -reel, "total": new_total}
-        ])
-        await notify_bal_limit(interaction.client, joueur.id, new_total)
+        ], guild_id=interaction.guild.id)
+        await notify_bal_limit(interaction.client, joueur.id, new_total, guild_id=interaction.guild.id)
 
         await interaction.followup.send(
             f"✅ **{joueur.display_name}** : -{fmt_silver(reel)} silver  (total : **{fmt_silver(new_total)} silver**)",
@@ -100,9 +100,14 @@ class Bal(commands.Cog):
             )
             return
         await interaction.response.defer(ephemeral=True)
-        solde     = await db.get_bal(str(interaction.user.id))
+        solde     = await db.get_bal(str(interaction.user.id), guild_id=interaction.guild.id)
         name      = interaction.user.display_name.lower()
         solde_fmt = fmt_silver(solde)
+
+        # ── Serveurs tiers : réponse simple sans messages personnalisés ──────
+        if interaction.guild.id != _MAIN_GUILD_ID:
+            await interaction.followup.send(f"💰 Ton solde BAL : **{solde_fmt} silver**", ephemeral=True)
+            return
 
         # ── Easter eggs joueurs ───────────────────────────────────────────
         easter_eggs = {
@@ -121,18 +126,18 @@ class Bal(commands.Cog):
                 f"📜 **{solde_fmt} silver**. T'as parlé. Les anciens se souviennent. Les jeunes s'en foutent. C'est l'ordre des choses.",
             ]),
             "arcwolf": random.choice([
-                f"💅 **{solde_fmt} silver**. Les riches vérifient quand même, on sait jamais.",
-                f"💰 **{solde_fmt} silver**. Tu regardes ça comme si c'était de la monnaie de poche. Pour toi c'est probablement le cas.",
-                f"🐺 **{solde_fmt} silver**. Toujours au top, toujours classe. T'es la star de la guilde et tu le sais.",
-                f"👛 **{solde_fmt} silver**. T'as vérifié juste pour t'assurer que t'es toujours la plus riche. Spoiler : probablement oui.",
-                f"💎 **{solde_fmt} silver**. Le reste de la guilde farm pour atteindre ton niveau. Toi, tu farm par habitude.",
+                f"🏆 **{solde_fmt} silver**. La légende est partie. Mais son record ? Toujours là. Inégalé. Intouchable. *Arc was here.*",
+                f"👑 **{solde_fmt} silver**. Arc a quitté la guilde. La guilde a quand même survécu. Personne n'a compris pourquoi.",
+                f"🌌 **{solde_fmt} silver**. Elle est partie sans prévenir. Les plus riches font toujours ça — ils ont pas besoin d'au revoir.",
+                f"🐺 **{solde_fmt} silver**. Arc a quitté la guilde. Les classements ont perdu leur sens. Pourquoi farmer si elle ne sera jamais là pour regarder ?",
+                f"💎 **{solde_fmt} silver**. La reine est partie. Le trône est vide. Personne n'ose s'y asseoir.",
             ]),
             "g3": random.choice([
-                f"😤 **{solde_fmt} silver**. Au moins ta BAL elle répond, contrairement aux DPS de ton dernier raid.",
-                f"📢 **{solde_fmt} silver**. *'LES DPS ILS BOUGENT PAS, ILS FARM PAS, ILS...'* — Toi, en permanence.",
-                f"🤬 **{solde_fmt} silver**. T'as vérifié ta BAL entre deux plaintes sur les DPS. La constance, respect.",
-                f"⚔️ **{solde_fmt} silver**. Les DPS vont encore t'entendre ce soir, c'est sûr.",
-                f"🎙️ **{solde_fmt} silver**. T'as la BAL, t'as la voix, t'as les plaintes. Le package complet.",
+                f"🎙️ **{solde_fmt} silver**. G3 a quitté la guilde. Les DPS ont poussé un soupir de soulagement. Puis ils ont arrêté de bouger. Certaines choses ne changent pas.",
+                f"📢 **{solde_fmt} silver**. La voix s'est tue. Plus personne pour gueuler sur les DPS. Étrangement, c'est plus calme. Étrangement, c'est moins bien.",
+                f"⚔️ **{solde_fmt} silver**. G3 est parti mais son héritage demeure : chaque DPS qui ne bouge pas porte en lui un morceau de sa rage. C'est beau.",
+                f"🤬 **{solde_fmt} silver**. Il est parti en gueulant probablement. La légende dit qu'on l'entend encore les soirs de RAID AVA.",
+                f"🏅 **{solde_fmt} silver**. G3 a quitté la guilde. Les DPS ont enfin pu se détendre. Personne n'a farmé depuis. Coïncidence ?",
             ]),
         }
         egg = next((v for k, v in easter_eggs.items() if k in name), None)
@@ -151,7 +156,7 @@ class Bal(commands.Cog):
                 f"😂 {s}. Bro t'as même pas participé une seule fois ? Sérieusement ?",
                 f"🦗 {s}. On entend les grillons dans ton portefeuille.",
                 f"💀 {s}. Financièrement décédé. Repose en paix.",
-                f"🙈 {s}. G3 a raison sur les DPS, et toi t'as même pas la BAL pour lui répondre.",
+                f"🙈 {s}. G3 avait raison sur les DPS — et toi t'as même pas la BAL pour prétendre le contredire. Son héritage perdure.",
                 f"🫙 {s}. Même le coffre de guilde est plus riche que toi. C'est triste vraiment.",
                 f"👻 {s}. T'es un fantôme dans les raids ET dans la BAL. Double performance.",
             ])
@@ -174,7 +179,7 @@ class Bal(commands.Cog):
                 f"📦 {s}. Du potentiel. Enfoui très très profond.",
                 f"🤏 {s}. Un peu. Vraiment un peu.",
                 f"🧱 {s}. Solide comme un mur. Un mur en carton.",
-                f"😑 {s}. G3 te demanderait pas de jouer DPS avec une BAL pareille. Soyons honnêtes.",
+                f"😑 {s}. G3, de là où il est parti, ne te demanderait toujours pas de jouer DPS avec une BAL pareille.",
                 f"🐢 {s}. T'avances. Lentement. Très lentement. Mais t'avances.",
             ])
         elif solde < 7 * M:
@@ -196,8 +201,8 @@ class Bal(commands.Cog):
                 f"👀 {s}. Tiens tiens. Quelqu'un qui bosse. Rare.",
                 f"😏 {s}. Pas mal du tout. T'es clairement là quand ça compte.",
                 f"🔥 {s}. T'es dans les bons élèves. Enfin un peu.",
-                f"💡 {s}. Respectable. Pas au niveau d'Arc évidemment, mais respectable.",
-                f"🎖️ {s}. T'as de la gueule. Même G3 ne peut pas se plaindre de toi. Enfin, il va quand même le faire.",
+                f"💡 {s}. Respectable. Pas au niveau de la légende Arc, certes, mais qui peut l'être ?",
+                f"🎖️ {s}. T'as de la gueule. Même G3, de mémoire de guilde, aurait pas pu se plaindre.",
             ])
         elif solde < 15 * M:
             msg = random.choice([
@@ -206,8 +211,8 @@ class Bal(commands.Cog):
                 f"🏅 {s}. Au-dessus de la moyenne. Tu te la pètes un peu mais c'est mérité.",
                 f"😎 {s}. Classe. Vraiment classe.",
                 f"💼 {s}. Professionnel. On apprécie.",
-                f"💰 {s}. Solide. Pense à faire un don à Beban...",
-                f"🦅 {s}. T'as travaillé dur. Même G3 ne peut pas se plaindre. Même si il va essayer.",
+                f"🌕 {s}. L'épopée du gold a besoin de gens comme toi. Continue.",
+                f"🦅 {s}. T'as travaillé dur. La légende G3 elle-même n'aurait pas trouvé à redire.",
                 f"🏹 {s}. Naej serait fier... s'il se souvenait de ton nom.",
             ])
         elif solde < 20 * M:
@@ -217,18 +222,20 @@ class Bal(commands.Cog):
                 f"👑 {s}. La guilde t'aime. Vraiment.",
                 f"🤑 {s}. Riche. Genre vraiment riche pour un pixel.",
                 f"🦁 {s}. Tu rugis, la bourse tremble.",
-                f"💎 {s}. Élite. Arc commence à te regarder d'un autre œil.",
+                f"🌕 {s}. La route vers le gold passe par des gens comme toi. Les autres peuvent te remercier.",
+                f"💎 {s}. Élite. Arc, depuis son départ légendaire, sourit sûrement en voyant ça.",
                 f"🎖️ {s}. Impressionnant. Même Naej a lâché son café en voyant ça.",
                 f"🌟 {s}. T'as pas de vie mais t'as une BAL. C'est un choix de vie valable.",
             ])
         elif solde < 30 * M:
             msg = random.choice([
-                f"💎 {s}. T'as dépassé les 20M. Arc a vérifié sa propre BAL par réflexe.",
-                f"🤯 {s}. On pensait que seul Arc avait autant. T'as du talent ou pas de vie — dans les deux cas, respect.",
+                f"💎 {s}. T'as dépassé les 20M. Arc, de là où elle est partie, a sûrement vérifié par réflexe.",
+                f"🤯 {s}. On pensait que seul Arc avait autant de son vivant dans la guilde. T'as du talent ou pas de vie — respect dans les deux cas.",
                 f"🦈 {s}. T'es un prédateur financier maintenant. La guilde te regarde autrement.",
-                f"🏦 {s}. Les 30 millions dans le viseur. Arc vient de recalculer son avance.",
+                f"🏦 {s}. Les 30 millions dans le viseur. Le fantôme d'Arc recalcule son avance.",
                 f"👁️ {s}. Les gens commencent à chuchoter ton nom dans les raids. C'est du respect ou de la jalousie.",
-                f"🧲 {s}. Richissime. G3 va arrêter de râler sur toi pour râler sur les autres.",
+                f"🌕 {s}. La guilde a atteint le gold. T'y as mis ta peau. L'Histoire retient les noms. Le tien est dedans.",
+                f"🧲 {s}. Richissime. La légende G3, même partie, t'aurait fait un signe de tête.",
                 f"💰 {s}. T'es dans le top tier. Même Lilium122 te regarde de travers.",
             ])
         elif solde < 50 * M:
@@ -238,31 +245,34 @@ class Bal(commands.Cog):
                 f"🤖 {s}. T'es un bot ? Personne farm autant normalement.",
                 f"😱 {s}. On est impressionné et inquiet à la fois.",
                 f"🏦 {s}. À ce stade t'es toi-même une institution financière.",
-                f"🔱 {s}. Arc t'a envoyé un message privé pour te demander tes secrets. Elle nie.",
+                f"🌕 {s}. L'épopée du gold ? T'en as été l'un des piliers silencieux. Les chiffres ne mentent pas.",
+                f"🔱 {s}. On a transmis les chiffres à Arc, en hommage. Pas de réponse. Probablement choquée.",
                 f"💫 {s}. Légendaire. Même Naej arrête de parler de l'ancien temps pour parler de toi.",
                 f"🌙 {s}. T'as plus besoin de travailler. Enfin si, t'es dans un jeu, mais tu vois l'idée.",
             ])
         elif solde < 75 * M:
             msg = random.choice([
                 f"🌟 {s}. 75 millions dans le radar. T'as officiellement plus de silver que de sens commun.",
-                f"👑 {s}. Arc a vérifié ta BAL, s'est sentie pauvre, et est allée farmer. Tu lui as rendu service.",
+                f"👑 {s}. Arc a quitté la guilde. Tu es désormais l'héritier du trône. Porte-le bien.",
                 f"🚁 {s}. À ce niveau de richesse t'arrives en hélico aux raids. C'est légitime.",
                 f"🦋 {s}. Transformation complète. De simple membre à pilier financier de la guilde.",
                 f"⚡ {s}. T'es devenu une légende urbaine. Les recrues racontent des histoires sur toi.",
+                f"🌕 {s}. La guilde a atteint le gold. L'épopée a duré des semaines, des nuits, des raids. T'en faisais partie. C'est gravé.",
                 f"🌌 {s}. Naej t'a félicité. C'est sa façon de dire qu'il est jaloux mais digne.",
-                f"🏆 {s}. G3 a arrêté de râler sur les DPS pour râler sur toi. Prends ça comme un honneur.",
-                f"💼 {s}. Arc a organisé une réunion pour comprendre comment t'as fait. Elle a pris des notes.",
+                f"🏆 {s}. G3 est parti mais son héritage te juge. Tu passes le test.",
+                f"💼 {s}. Arc avait un record. Tu es en train de l'écraser. Elle le saurait si elle était encore là.",
             ])
         elif solde < 100 * M:
             msg = random.choice([
                 f"🌌 {s}. Presque 100 millions. T'as plus besoin de jouer, t'es la guilde maintenant.",
                 f"😵 {s}. On sait même pas quoi dire. T'as sacrifié QUOI pour farm autant ?",
                 f"👽 {s}. T'es pas humain. On a pas vérifié, mais on se pose la question.",
-                f"💼 {s}. Arc a organisé un séminaire 'comment atteindre ce niveau'. Elle sait pas non plus.",
+                f"🌕 {s}. On raconte l'histoire de la guilde qui a atteint le gold. Ton nom y apparaît plusieurs fois. C'est mérité.",
+                f"💼 {s}. Arc a quitté la guilde sans laisser son record. Tu es en train de le battre. Silence.",
                 f"🔮 {s}. Lilium122 a essayé de faire croire que c'était grâce à lui. On lui a dit de se taire.",
                 f"📜 {s}. Naej a sorti ses lunettes pour bien lire le chiffre. Il a dit 'de mon temps on farmait pas autant'. Classique.",
-                f"⭐ {s}. G3 râle toujours sur les DPS mais il te parle avec respect maintenant. C'est dire.",
-                f"🎯 {s}. T'as presque atteint le mythe. Arc est ton seule rival. Elle le sait. Toi aussi.",
+                f"⭐ {s}. G3 est parti mais son ombre te regarde. Elle acquiesce. Le silence des légendes vaut tous les discours.",
+                f"🎯 {s}. T'as presque atteint l'olympe. Le trône d'Arc est vacant. Il t'attend.",
             ])
         else:
             msg = random.choice([
@@ -271,9 +281,10 @@ class Bal(commands.Cog):
                 f"🥇 {s}. Historique. Quelqu'un devrait écrire un livre.",
                 f"😵 {s}. On sait même pas quoi dire. Chapeau l'artiste.",
                 f"⚡ {s}. À ce niveau c'est plus du farming, c'est de l'art.",
-                f"🏛️ {s}. 100 MILLIONS. Arc a revérifié sa BAL. Naej a dit 'c'était mieux de mon temps'. G3 râle. Lilium122 revendique la paternité de ton succès. La guilde est en feu.",
+                f"🌕 {s}. Cent millions. La guilde a atteint le gold. L'épopée est finie. Toi, tu continues encore. Pourquoi ? Parce que tu PEUX.",
+                f"🏛️ {s}. 100 MILLIONS. Arc est partie, G3 est parti, mais leurs esprits se regardent dans la même direction : toi. La guilde s'incline.",
                 f"🌠 {s}. T'as atteint la transcendance financière. La guilde ne peut plus rien pour toi. Tu ES la guilde.",
-                f"🎯 {s}. Cent millions. Arc pleure. G3 est muet pour une fois. Naej fait semblant de s'en foutre. Lilium122 se prend en photo à côté de toi. Tu gagnes.",
+                f"🎯 {s}. Cent millions. Les légendes sont parties. Toi tu es resté. Et t'as tout pris. L'épopée du gold, c'était pas la fin — c'était ton début.",
             ])
 
         await interaction.followup.send(msg, ephemeral=True)
@@ -287,7 +298,7 @@ class Bal(commands.Cog):
         if not await self.check_admin(interaction):
             return
         await interaction.response.defer(ephemeral=True)
-        solde = await db.get_bal(str(joueur.id))
+        solde = await db.get_bal(str(joueur.id), guild_id=interaction.guild.id)
         await interaction.followup.send(
             f"💰 Solde BAL de **{joueur.display_name}** : **{fmt_silver(solde)} silver**",
             ephemeral=True,
@@ -304,7 +315,7 @@ class Bal(commands.Cog):
             )
             return
         await interaction.response.defer()
-        bal = await db.get_all_bal()
+        bal = await db.get_all_bal(guild_id=interaction.guild.id)
         if not bal:
             await interaction.followup.send("ℹ️ Aucune donnée BAL pour le moment.")
             return
@@ -374,15 +385,15 @@ class Bal(commands.Cog):
 
             await inter.response.defer()
             deltas      = {str(uid): montant for uid, _ in participants}
-            new_totals  = await db.increment_bal_batch(deltas)
+            new_totals  = await db.increment_bal_batch(deltas, guild_id=inter.guild.id)
             log_entries = [
                 {"uid": str(uid), "name": name, "delta": montant, "total": new_totals[str(uid)]}
                 for uid, name in participants
             ]
 
-            await append_bal_log("paybal", by, log_entries, template=data.get("template", ""))
+            await append_bal_log("paybal", by, log_entries, template=data.get("template", ""), guild_id=inter.guild.id)
             await asyncio.gather(*[
-                notify_bal_limit(interaction.client, uid, new_totals[str(uid)])
+                notify_bal_limit(interaction.client, uid, new_totals[str(uid)], guild_id=inter.guild.id)
                 for uid, _ in participants
             ])
 
@@ -428,7 +439,7 @@ class Bal(commands.Cog):
         sender_key   = str(interaction.user.id)
         receiver_key = str(joueur.id)
 
-        solde_sender = await db.get_bal(sender_key)
+        solde_sender = await db.get_bal(sender_key, guild_id=interaction.guild.id)
         if solde_sender < montant:
             await interaction.followup.send(
                 f"❌ Solde insuffisant. Tu as **{solde_sender:,} silver** de BAL, tu veux en transférer **{montant:,}**."
@@ -436,17 +447,17 @@ class Bal(commands.Cog):
             )
             return
 
-        old_receiver = await db.get_bal(receiver_key)
-        new_sender   = await db.increment_bal(sender_key, -montant)
-        new_receiver = await db.increment_bal(receiver_key, montant)
+        old_receiver = await db.get_bal(receiver_key, guild_id=interaction.guild.id)
+        new_sender   = await db.increment_bal(sender_key, -montant, guild_id=interaction.guild.id)
+        new_receiver = await db.increment_bal(receiver_key, montant, guild_id=interaction.guild.id)
 
         await append_bal_log("transferbal", interaction.user.display_name, [
             {"uid": sender_key,   "name": interaction.user.display_name, "delta": -montant,  "total": new_sender},
             {"uid": receiver_key, "name": joueur.display_name,           "delta":  montant,  "total": new_receiver},
-        ])
+        ], guild_id=interaction.guild.id)
 
-        await notify_bal_limit(interaction.client, interaction.user.id, new_sender)
-        await notify_bal_limit(interaction.client, joueur.id, new_receiver)
+        await notify_bal_limit(interaction.client, interaction.user.id, new_sender, guild_id=interaction.guild.id)
+        await notify_bal_limit(interaction.client, joueur.id, new_receiver, guild_id=interaction.guild.id)
 
         try:
             await joueur.send(
@@ -490,7 +501,7 @@ class Bal(commands.Cog):
 
         await interaction.response.defer(ephemeral=True)
 
-        log = await load_bal_log(action=action)
+        log = await load_bal_log(action=action, guild_id=interaction.guild.id)
         if not log:
             await interaction.followup.send("ℹ️ Aucune action BAL enregistrée.", ephemeral=True)
             return
@@ -560,7 +571,7 @@ class Bal(commands.Cog):
 
         await interaction.response.defer(ephemeral=True)
 
-        rows = await db.get_silver_stats(jours)
+        rows = await db.get_silver_stats(jours, guild_id=interaction.guild.id)
 
         if not rows:
             await interaction.followup.send(f"ℹ️ Aucune distribution BAL sur les {jours} derniers jours.", ephemeral=True)

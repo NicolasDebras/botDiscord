@@ -19,7 +19,9 @@ CALLER_ROLE_NAME   = "Caller"
 RECRUTEUR_ROLE_ID  = 1473779038106685568
 
 # ── GUILD ID (sync instantanée des slash commands) ────────────────────────────
-GUILD_ID = int(os.environ["DISCORD_GUILD_ID"])
+GUILD_ID              = int(os.environ["DISCORD_GUILD_ID"])
+RECRUTEMENT_GUILD_ID  = 1479604079754743970
+GUILD_ID_3            = int(os.environ["DISCORD_GUILD_ID_3"]) if os.environ.get("DISCORD_GUILD_ID_3") else None
  
 # ── RÔLES avec emojis ────────────────────────────────────────────────────────
 ROLES: dict[str, str] = {
