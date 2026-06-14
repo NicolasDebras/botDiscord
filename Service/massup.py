@@ -124,7 +124,7 @@ class MassUp(commands.Cog):
             await inter.response.send_message(intro + body)
 
         view = discord.ui.View(timeout=60)
-        view.add_item(ActivitySelect(on_select, "📢 Quelle activité convoquer ?"))
+        view.add_item(ActivitySelect(on_select, "📢 Quelle activité convoquer ?", guild_id=interaction.guild.id))
         await interaction.response.send_message(
             "Choisis l'activité à convoquer :", view=view, ephemeral=True
         )

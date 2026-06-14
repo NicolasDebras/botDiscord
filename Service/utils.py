@@ -86,14 +86,16 @@ async def load_bal_log(action: str | None = None, guild_id: int = 0) -> list:
 
 # ── SELECT : choix d'une activité en cours ───────────────────────────────────
 class ActivitySelect(discord.ui.Select):
-    """Liste déroulante qui affiche les activités en cours."""
+    """Liste déroulante qui affiche les activités en cours, filtrées par guild si guild_id fourni."""
 
-    def __init__(self, callback_fn, placeholder: str = "🗡️ Choisis une activité..."):
+    def __init__(self, callback_fn, placeholder: str = "🗡️ Choisis une activité...", guild_id: int = 0):
         from Service.activites import activities   # import tardif
 
         self._callback_fn = callback_fn
         options = []
         for msg_id, data in activities.items():
+            if guild_id and data.get("guild_id", 0) not in (0, guild_id):
+                continue
             label = data.get("thread_name") or data["template"] or "Sans template"
             desc  = f"Par {data['creator']} • {sum(len(v) for v in data['slots'].values())}/{data['max_players']} joueurs"
             options.append(discord.SelectOption(label=label[:100], description=desc[:100], value=str(msg_id)))

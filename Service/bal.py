@@ -407,7 +407,7 @@ class Bal(commands.Cog):
             await inter.followup.send(embed=embed, delete_after=300)
 
         view = discord.ui.View(timeout=60)
-        view.add_item(ActivitySelect(on_select, "💰 Quelle activité payer ?"))
+        view.add_item(ActivitySelect(on_select, "💰 Quelle activité payer ?", guild_id=interaction.guild.id))
         await interaction.response.send_message(
             f"Choisis l'activité pour distribuer **{montant} BAL** par joueur :",
             view=view, ephemeral=True,

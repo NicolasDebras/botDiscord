@@ -218,7 +218,7 @@ class Admin(commands.Cog):
             )
 
         view = discord.ui.View(timeout=60)
-        view.add_item(ActivitySelect(on_select, "🗡️ De quelle activité le retirer ?"))
+        view.add_item(ActivitySelect(on_select, "🗡️ De quelle activité le retirer ?", guild_id=interaction.guild.id))
         await interaction.response.send_message(
             f"Choisis l'activité dont retirer **{target_name}** :", view=view, ephemeral=True
         )
@@ -330,7 +330,7 @@ class Admin(commands.Cog):
             )
 
         view = discord.ui.View(timeout=60)
-        view.add_item(ActivitySelect(on_select, "🗡️ Dans quelle activité l'ajouter ?"))
+        view.add_item(ActivitySelect(on_select, "🗡️ Dans quelle activité l'ajouter ?", guild_id=interaction.guild.id))
         await interaction.response.send_message(
             f"Choisis l'activité où ajouter **{target_name}** en **{chosen_role}** :",
             view=view, ephemeral=True,

@@ -84,6 +84,11 @@ async def init_db(database_url: str) -> None:
             await conn.execute(
                 f"ALTER TABLE activities ADD COLUMN IF NOT EXISTS {col} TEXT NOT NULL DEFAULT {default}"
             )
+        from config import GUILD_ID as _GUILD_ID_ACT
+        await conn.execute(
+            "ALTER TABLE activities ADD COLUMN IF NOT EXISTS guild_id BIGINT NOT NULL DEFAULT 0"
+        )
+        await conn.execute(f"UPDATE activities SET guild_id = {_GUILD_ID_ACT} WHERE guild_id = 0")
         await conn.execute(
             "ALTER TABLE bal ADD COLUMN IF NOT EXISTS is_alerted BOOLEAN NOT NULL DEFAULT FALSE"
         )
@@ -187,6 +192,7 @@ async def load_activities() -> dict:
             "custom_description": row["custom_description"],
             "slots":              slots,
             "channel_id":         row["channel_id"],
+            "guild_id":           row["guild_id"],
             "waitlist":           waitlist,
         }
     return result
@@ -205,11 +211,12 @@ async def save_activity(msg_id: int, data: dict) -> None:
     async with _pool.acquire() as conn:
         await conn.execute("""
             INSERT INTO activities
-                (message_id, channel_id, creator, template, max_players, bal, created_at, slots, waitlist,
+                (message_id, channel_id, guild_id, creator, template, max_players, bal, created_at, slots, waitlist,
                  depart, tier, custom_description)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, $10, $11, $12)
+            VALUES ($1, $2, $13, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, $10, $11, $12)
             ON CONFLICT (message_id) DO UPDATE SET
                 channel_id          = EXCLUDED.channel_id,
+                guild_id            = EXCLUDED.guild_id,
                 creator             = EXCLUDED.creator,
                 template            = EXCLUDED.template,
                 max_players         = EXCLUDED.max_players,
@@ -222,7 +229,8 @@ async def save_activity(msg_id: int, data: dict) -> None:
                 custom_description  = EXCLUDED.custom_description
         """, msg_id, data["channel_id"], data["creator"], data["template"],
              data["max_players"], data["bal"], created_at, slots_json, waitlist_json,
-             data.get("depart", "Libre"), data.get("tier", ""), data.get("custom_description", ""))
+             data.get("depart", "Libre"), data.get("tier", ""), data.get("custom_description", ""),
+             data.get("guild_id", 0))
 
 
 async def delete_activity(msg_id: int) -> None:

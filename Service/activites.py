@@ -1193,6 +1193,7 @@ class Activites(commands.Cog):
             "custom_description": "",
             "slots":              slots,
             "channel_id":         interaction.channel_id,
+            "guild_id":           interaction.guild.id,
             "waitlist":           [],
         }
 
