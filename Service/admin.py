@@ -4,7 +4,7 @@ from discord.ext import commands
 from discord import app_commands
 
 import db
-from config import ADMIN_ROLE_NAME, GM_ROLE_NAME, ROLES, DEFAULT_BAL_RATE, DEFAULT_TEMPLATES, GUILD_ID as _MAIN_GUILD_ID
+from config import ADMIN_ROLE_NAME, GM_ROLE_NAME, ROLES, DEFAULT_BAL_RATE, DEFAULT_TEMPLATES
 from Service.activites import (
     activities, build_embed, build_view, get_pf1, get_pf2,
     load_all_templates, save_activities, refresh_templates_cache, refresh_image_overrides,
@@ -153,7 +153,6 @@ class Admin(commands.Cog):
     # =========================================================================
     # /kickacti  — virer un joueur d'une activité
     # =========================================================================
-    @app_commands.guilds(discord.Object(id=_MAIN_GUILD_ID))
     @app_commands.command(name="kickacti", description="Retirer un joueur d'une activité (organisateur ou Officier)")
     @app_commands.describe(joueur="Le joueur à retirer de l'activité")
     async def kickacti(self, interaction: discord.Interaction, joueur: discord.Member):
@@ -227,7 +226,6 @@ class Admin(commands.Cog):
     # =========================================================================
     # /addacti  — ajouter un joueur dans une activité (ou changer de rôle)
     # =========================================================================
-    @app_commands.guilds(discord.Object(id=_MAIN_GUILD_ID))
     @app_commands.command(name="addacti", description="[ADMIN] Ajouter un joueur à une activité (ou changer son rôle)")
     @app_commands.describe(joueur="Le joueur à ajouter", role="Le rôle à lui attribuer")
     @app_commands.autocomplete(role=role_autocomplete)
