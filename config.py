@@ -139,6 +139,7 @@ DEFAULT_TEMPLATES: dict[str, dict] = {
     "small Naeeeeej": {
         "description": "Compo small scale — 30 joueurs (PF1 + PF2)",
         "type_acti":   "PVP",
+        "free_pick":   True,
         "image":       "",
         "pf_1": {
             "CALLER":                      1,

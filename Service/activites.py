@@ -187,30 +187,43 @@ def build_embed(data: dict) -> discord.Embed:
 
         # ── Format PVP avec specs : sous-groupes par arme ─────────────────
         if type_acti == "PVP" and role_spec and not tdata.get("no_spec"):
-            weapon_groups = _parse_weapon_slots(role_spec)
-            lines = []
-            matched_uids: set[int] = set()
+            # Mode compact (free_pick) : hint sur une ligne + joueur par ligne
+            if tdata.get("free_pick"):
+                lines = [f"*{role_spec}*"]
+                for entry in members:
+                    uid    = entry[0]
+                    spec   = entry[2] if len(entry) > 2 else ""
+                    weapon = _player_weapon(spec) if spec else ""
+                    level  = re.search(r"\((\d+)\)", spec) if spec else None
+                    if weapon:
+                        lines.append(f"{weapon} — <@{uid}>{f' — {level.group(1)}' if level else ''}")
+                    else:
+                        lines.append(f"<@{uid}>")
+                value = "\n".join(lines) if members else f"*{role_spec}*\n*Personne*"
+            else:
+                weapon_groups = _parse_weapon_slots(role_spec)
+                lines = []
+                matched_uids: set[int] = set()
 
-            for display, clean_name, n_slots in weapon_groups:
-                lines.append(f"**{display}**")
-                matched = [e for e in members if _player_weapon(e[2]) == clean_name]
-                for entry in matched:
-                    uid   = entry[0]
-                    level = re.search(r"\((\d+)\)", entry[2])
-                    lines.append(f"　-<@{uid}>{f'  ({level.group(1)})' if level else ''}")
-                    matched_uids.add(uid)
-                if n_slots is not None:
-                    for _ in range(max(0, n_slots - len(matched))):
-                        lines.append("　-—")
+                for display, clean_name, n_slots in weapon_groups:
+                    lines.append(f"**{display}**")
+                    matched = [e for e in members if _player_weapon(e[2]) == clean_name]
+                    for entry in matched:
+                        uid   = entry[0]
+                        level = re.search(r"\((\d+)\)", entry[2])
+                        lines.append(f"　-<@{uid}>{f'  ({level.group(1)})' if level else ''}")
+                        matched_uids.add(uid)
+                    if n_slots is not None:
+                        for _ in range(max(0, n_slots - len(matched))):
+                            lines.append("　-—")
 
-            # Joueurs sans arme reconnue (ajout admin sans spec, etc.)
-            for entry in members:
-                if entry[0] not in matched_uids:
-                    uid  = entry[0]
-                    spec = entry[2] if len(entry) > 2 else ""
-                    lines.append(f"<@{uid}>{f'  —  {spec}' if spec else ''}")
+                for entry in members:
+                    if entry[0] not in matched_uids:
+                        uid  = entry[0]
+                        spec = entry[2] if len(entry) > 2 else ""
+                        lines.append(f"<@{uid}>{f'  —  {spec}' if spec else ''}")
 
-            value = "\n".join(lines) if lines else "*Personne*"
+                value = "\n".join(lines) if lines else "*Personne*"
 
         # ── Format PVE / sans spec : liste simple ────────────────────────
         else:
@@ -417,6 +430,43 @@ class FreeWeaponModal(discord.ui.Modal):
         await _register_player(interaction, self.activity_id, self.chosen_role, self.weapon_input.value.strip())
 
 
+# ── MODAL ARME + SPÉ (free_pick — une ligne par joueur dans l'embed) ─────────
+class WeaponAndSpecModal(discord.ui.Modal):
+    def __init__(self, activity_id: int, chosen_role: str, hint: str):
+        super().__init__(title=f"⚔️ {chosen_role}"[:45])
+        self.activity_id = activity_id
+        self.chosen_role = chosen_role
+
+        self.weapon_input = discord.ui.TextInput(
+            label="Quelle arme joues-tu ?",
+            placeholder=hint[:100],
+            required=True,
+            max_length=50,
+        )
+        self.level_input = discord.ui.TextInput(
+            label="Niveau de spécialisation (1 — 1000)",
+            placeholder="Ex : 750",
+            required=True,
+            max_length=4,
+        )
+        self.add_item(self.weapon_input)
+        self.add_item(self.level_input)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            level = int(self.level_input.value.strip())
+            if not (1 <= level <= 1000):
+                raise ValueError()
+        except ValueError:
+            await interaction.response.send_message(
+                "❌ Le niveau doit être un entier entre **1** et **1000**.", ephemeral=True
+            )
+            return
+        await interaction.response.defer(ephemeral=True)
+        spec = f"{self.weapon_input.value.strip()} ({level})"
+        await _register_player(interaction, self.activity_id, self.chosen_role, spec)
+
+
 # ── SELECT ARME (PVP uniquement) ─────────────────────────────────────────────
 class WeaponSelect(discord.ui.Select):
     def __init__(self, activity_id: int, chosen_role: str, weapons_list: list[str],
@@ -528,6 +578,11 @@ class RoleSelect(discord.ui.Select):
             hint_spec = get_specs(tdata).get(chosen_role, "")
 
         if type_acti == "PVP" and hint_spec and not tdata.get("no_spec"):
+            if tdata.get("free_pick"):
+                await interaction.response.send_modal(
+                    WeaponAndSpecModal(self.activity_id, chosen_role, hint_spec)
+                )
+                return
             weapons_list     = [w.strip() for w in hint_spec.split("·") if w.strip()]
             current_members  = data["slots"].get(chosen_role, [])
             if weapons_list:
