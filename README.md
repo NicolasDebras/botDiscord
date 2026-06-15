@@ -207,6 +207,7 @@ LiliumBot/
 | RAID AVA BN | PVE | MAIN TANK ×1, MAIN HEAL ×1, OFF TANK ×1, COBRA ×1, IRON ×1, SC ×1, HURLEGIVRE ×1, FAUX ×3, SCOUT ×1, LEACHER PVP ×1 — inscription via `/addacti` uniquement, LEACHER PVP reçoit 0 BAL |
 | STATIK | PVE | TANK ×2, HEAL ×2, SUPPORT ×1, DPS ×5 |
 | HeavyMelee | PVP (sans spé) | TANK ×4, SUPPORT ×4, HEAL ×4, DPS ×7 — armes affichées à titre indicatif, inscription directe sans saisie de spé |
+| small Naeeeeej | PVP (sans spé) | PF1 : Caller ×1, 2nd Repack ×1, Tank Def ×2, Tank Off ×2, Support Def ×2, Support Off ×2, Heal ×3, Heal Supp ×1, Dps ×5, Finisher ×1 · PF2 : Tank Def ×1, Tank Off ×1, Support Def ×1, Support Off ×1, Heal ×1, Heal Supp ×1, Dps ×4 — inscription directe sans saisie de spé |
 
 Les templates par défaut sont définis dans `config.py` et ne peuvent pas être modifiés via les commandes. Les templates custom sont stockés en base de données.
 
