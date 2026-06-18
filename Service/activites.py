@@ -164,6 +164,11 @@ def build_embed(data: dict) -> discord.Embed:
     pf2_keys      = [f"PF2:{r}" for r in pf2.keys()]
     roles_to_show = _sort_roles(pf1_keys + pf2_keys)
 
+    pf1_has_any_full = pf1 and any(
+        len(slots.get(role, [])) >= pf1.get(role, 0)
+        for role in pf1 if pf1.get(role, 0) > 0
+    )
+
     pf2_header_done = False
     for role_key in roles_to_show:
         is_pf2    = role_key.startswith("PF2:")
@@ -173,7 +178,11 @@ def build_embed(data: dict) -> discord.Embed:
 
         if is_pf2:
             if not pf2_header_done:
-                embed.add_field(name="─────────────────────────\n🔶  PF2", value="\u200b", inline=False)
+                if pf1_has_any_full:
+                    pf2_label = "─────────────────────────\n🔶  PF2"
+                else:
+                    pf2_label = "─────────────────────────\n🔒  PF2  —  disponible quand un rôle PF1 est complet"
+                embed.add_field(name=pf2_label, value="\u200b", inline=False)
                 pf2_header_done = True
             max_r     = pf2.get(role_name, "∞")
             role_spec = specs_pf2.get(role_name, "")
@@ -335,8 +344,8 @@ async def _register_player(
             await _reply(interaction, f"⛔ Plus de place en **{label}** ({max_role} max).", ephemeral=True)
             return
 
-        # ── Vérifier la sous-limite d'arme ───────────────────────────────────
-        if spec and tdata.get("type_acti") == "PVP":
+        # ── Vérifier la sous-limite d'arme (ignoré en mode free_pick) ──────────
+        if spec and tdata.get("type_acti") == "PVP" and not tdata.get("free_pick"):
             hint_spec = (
                 tdata.get("weapon_pf2", tdata.get("specs_pf2", {})).get(role_name, "")
                 if chosen_role.startswith("PF2:") else
@@ -524,10 +533,18 @@ class RoleSelect(discord.ui.Select):
         pf1           = get_pf1(tdata) if tdata else {}
         pf2           = get_pf2(tdata) if tdata else {}
 
+        pf1_has_any_full = pf1 and any(
+            len(slots.get(role, [])) >= pf1.get(role, 0)
+            for role in pf1 if pf1.get(role, 0) > 0
+        )
+
         options = []
         for role_key in roles:
             is_pf2    = role_key.startswith("PF2:")
             role_name = role_key[4:] if is_pf2 else role_key
+            # PF2 masquée tant qu'aucun rôle PF1 n'est complet
+            if is_pf2 and not pf1_has_any_full:
+                continue
             # Masquer le rôle s'il est plein
             max_r = pf2.get(role_name) if is_pf2 else (pf1.get(role_key) if pf1 else None)
             if max_r is not None and len(slots.get(role_key, [])) >= max_r:
