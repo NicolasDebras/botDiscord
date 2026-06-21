@@ -671,6 +671,65 @@ class LeaveButton(discord.ui.Button):
         await interaction.followup.send("👋 Tu t'es retiré de l'activité.", ephemeral=True)
 
 
+# ── BOUTON FILL ───────────────────────────────────────────────────────────────
+class FillButton(discord.ui.Button):
+    def __init__(self, activity_id: int):
+        super().__init__(
+            label="Fill", emoji="🔀",
+            style=discord.ButtonStyle.primary,
+            custom_id=f"fill_{activity_id}",
+        )
+        self.activity_id = activity_id
+
+    async def callback(self, interaction: discord.Interaction):
+        if not is_membre(interaction.user):
+            await interaction.response.send_message(
+                f"⛔ Tu dois avoir le rôle **{MEMBRE_ROLE_NAME}** pour t'inscrire.", ephemeral=True
+            )
+            return
+
+        data = activities.get(self.activity_id)
+        if not data:
+            await interaction.response.send_message("❌ Activité introuvable.", ephemeral=True)
+            return
+
+        user_id = interaction.user.id
+        slots   = data["slots"]
+
+        already_in = any(entry[0] == user_id for members in slots.values() for entry in members)
+        if already_in:
+            await interaction.response.send_message("ℹ️ Tu es déjà inscrit à cette activité.", ephemeral=True)
+            return
+
+        # Si l'activité est pleine, _register_player gère la liste d'attente
+        total = sum(len(v) for v in slots.values())
+        if total >= data["max_players"]:
+            await interaction.response.defer(ephemeral=True)
+            all_tpl  = load_all_templates()
+            tdata    = all_tpl.get(data.get("template"), {})
+            pf1      = get_pf1(tdata)
+            fallback = next(iter(pf1), "Fill")
+            await _register_player(interaction, self.activity_id, fallback, "")
+            return
+
+        # Trouver le premier rôle PF1 avec de la place
+        all_tpl = load_all_templates()
+        tdata   = all_tpl.get(data.get("template"), {})
+        pf1     = get_pf1(tdata)
+
+        chosen_role = None
+        for role, max_count in pf1.items():
+            if len(slots.get(role, [])) < max_count:
+                chosen_role = role
+                break
+
+        if not chosen_role:
+            chosen_role = next(iter(pf1), "Fill")
+
+        await interaction.response.defer(ephemeral=True)
+        await _register_player(interaction, self.activity_id, chosen_role, "")
+
+
 # ── MODAL FIN D'ACTIVITÉ ─────────────────────────────────────────────────────
 class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
     recettes = discord.ui.TextInput(
@@ -1109,6 +1168,8 @@ class ActivityView(discord.ui.View):
         if not tdata.get("no_register"):
             self.add_item(RoleSelect(activity_id, roles_to_show))
             self.add_item(LeaveButton(activity_id))
+            if not tdata.get("has_waitlist"):
+                self.add_item(FillButton(activity_id))
         if tdata.get("has_waitlist"):
             self.add_item(WaitlistButton(activity_id))
         self.add_item(EditActiButton(activity_id))
