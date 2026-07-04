@@ -824,109 +824,117 @@ class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
         # Defer pour éviter le timeout Discord pendant les appels DB
         await interaction.response.defer()
 
-        data     = self.data
-        settings = await load_settings(guild_id=interaction.guild.id)
-        rate     = self.template_tax if self.template_tax is not None else settings.get("bal_rate", 85)
-
-        part_guilde   = (total - carte_cost) * rate // 100
-        distributable = part_guilde + sac_pieces
-
-        scoot_members = data["slots"].get("SCOOT", [])
-        nb_scoot      = len(scoot_members)
-        scoot_total   = scoot_amount * nb_scoot
-        remaining     = distributable - scoot_total
-
-        # Liste des membres payés avec leur multiplicateur (uid, name, role, mult)
-        paying = [
-            (entry[0], entry[1], role, float(self.role_multipliers.get(role, 1.0)))
-            for role, members in data["slots"].items()
-            for entry in members
-            if role != "SCOOT" and role not in self.zero_pay_roles
-        ]
-        total_weight = sum(m[3] for m in paying)
-        part_base    = int(remaining / total_weight) if total_weight > 0 else 0
-
-        # Créditer les BAL via DB (batch)
-        deltas: dict[str, int] = {}
-        for uid, name, role, mult in paying:
-            deltas[str(uid)] = deltas.get(str(uid), 0) + int(part_base * mult)
-        for entry in scoot_members:
-            key = str(entry[0])
-            deltas[key] = deltas.get(key, 0) + scoot_amount
-
-        new_totals = await db.increment_bal_batch(deltas, guild_id=interaction.guild.id)
-
-        # Compter la présence de tous les participants
-        all_ids = list({str(entry[0]) for members in data["slots"].values() for entry in members})
-        if all_ids:
-            await db.increment_acti_count(all_ids, guild_id=interaction.guild.id)
-
-        log_entries = []
-        for uid, name, role, mult in paying:
-            key = str(uid)
-            log_entries.append({"uid": key, "name": name, "delta": int(part_base * mult), "total": new_totals[key]})
-        for entry in scoot_members:
-            uid, name = entry[0], entry[1]
-            key = str(uid)
-            log_entries.append({"uid": key, "name": name, "delta": scoot_amount, "total": new_totals[key]})
-
-        await append_bal_log("finacti", interaction.user.display_name, log_entries, template=data.get("template", ""), guild_id=interaction.guild.id)
-        await asyncio.gather(*[
-            notify_bal_limit(interaction.client, int(uid), total, guild_id=interaction.guild.id)
-            for uid, total in new_totals.items()
-        ])
-
-        # Supprimer l'activité (mémoire + DB)
-        await remove_activity(self.activity_id)
-
-        fin_embed       = build_embed(data)
-        fin_embed.title = f"🏁 FIN  ·  {fin_embed.title}"
         try:
-            channel = interaction.client.get_channel(data["channel_id"])
-            msg     = await channel.fetch_message(self.activity_id)
-            await msg.edit(embed=fin_embed, view=discord.ui.View())
-        except Exception:
-            pass
+            data     = self.data
+            settings = await load_settings(guild_id=interaction.guild.id)
+            rate     = self.template_tax if self.template_tax is not None else settings.get("bal_rate", 85)
 
-        # ── Grouper les membres par multiplicateur pour le récap ─────────────
-        normal_members = [(m[0], m[1]) for m in paying if m[3] == 1.0]
-        bonus_groups: dict[tuple, list] = {}
-        for uid, name, role, mult in paying:
-            if mult != 1.0:
-                key_g = (role, mult)
-                bonus_groups.setdefault(key_g, []).append((uid, name))
+            part_guilde   = (total - carte_cost) * rate // 100
+            distributable = part_guilde + sac_pieces
 
-        nb_normal  = len(normal_members)
-        part_indiv = part_base  # mult=1.0
+            scoot_members = data["slots"].get("SCOOT", [])
+            nb_scoot      = len(scoot_members)
+            scoot_total   = scoot_amount * nb_scoot
+            remaining     = distributable - scoot_total
 
-        label_cout = "Carte + réparations" if self.is_pve else "Réparations"
-        summary = (
-            f"✅ **Activité clôturée !**\n\n"
-            f"💰 Recettes VM : **{fmt_silver(total)} silver**\n"
-        )
-        if carte_cost:
-            summary += f"🗺️ {label_cout} : **-{fmt_silver(carte_cost)} silver**\n"
-        summary += f"🏦 Part guilde ({rate} %) : **{fmt_silver(part_guilde)} silver**\n"
-        if sac_pieces:
-            summary += f"🎒 Pièces : **+{fmt_silver(sac_pieces)} silver** → distributable : **{fmt_silver(distributable)} silver**\n"
-        if self.has_scoot:
-            summary += f"🏃 Scoot ({nb_scoot} joueur(s)) : **{fmt_silver(scoot_amount)} silver/joueur**\n"
-        for (role, mult), members in bonus_groups.items():
-            emoji  = ROLES.get(role, "🔹")
-            pay_r  = int(part_base * mult)
-            summary += f"{emoji} {role} (×{mult}) : **{fmt_silver(pay_r)} silver/joueur** ({len(members)} joueur(s))\n"
-        if self.has_scoot:
-            summary += (
-                f"👥 Reste ({nb_normal} joueur(s)) : **{fmt_silver(part_indiv)} silver/joueur**\n"
-                f"📊 BAL crédités — Scoot : **+{fmt_silver(scoot_amount)}** · Reste : **+{fmt_silver(part_indiv)}**"
+            # Liste des membres payés avec leur multiplicateur (uid, name, role, mult)
+            paying = [
+                (entry[0], entry[1], role, float(self.role_multipliers.get(role, 1.0)))
+                for role, members in data["slots"].items()
+                for entry in members
+                if role != "SCOOT" and role not in self.zero_pay_roles
+            ]
+            total_weight = sum(m[3] for m in paying)
+            part_base    = int(remaining / total_weight) if total_weight > 0 else 0
+
+            # Créditer les BAL via DB (batch)
+            deltas: dict[str, int] = {}
+            for uid, name, role, mult in paying:
+                deltas[str(uid)] = deltas.get(str(uid), 0) + int(part_base * mult)
+            for entry in scoot_members:
+                key = str(entry[0])
+                deltas[key] = deltas.get(key, 0) + scoot_amount
+
+            new_totals = await db.increment_bal_batch(deltas, guild_id=interaction.guild.id)
+
+            # Compter la présence de tous les participants
+            all_ids = list({str(entry[0]) for members in data["slots"].values() for entry in members})
+            if all_ids:
+                await db.increment_acti_count(all_ids, guild_id=interaction.guild.id)
+
+            log_entries = []
+            for uid, name, role, mult in paying:
+                key = str(uid)
+                log_entries.append({"uid": key, "name": name, "delta": int(part_base * mult), "total": new_totals[key]})
+            for entry in scoot_members:
+                uid, name = entry[0], entry[1]
+                key = str(uid)
+                log_entries.append({"uid": key, "name": name, "delta": scoot_amount, "total": new_totals[key]})
+
+            await append_bal_log("finacti", interaction.user.display_name, log_entries, template=data.get("template", ""), guild_id=interaction.guild.id)
+            await asyncio.gather(*[
+                notify_bal_limit(interaction.client, int(uid), total, guild_id=interaction.guild.id)
+                for uid, total in new_totals.items()
+            ])
+
+            # Supprimer l'activité (mémoire + DB)
+            await remove_activity(self.activity_id)
+
+            fin_embed       = build_embed(data)
+            fin_embed.title = f"🏁 FIN  ·  {fin_embed.title}"
+            try:
+                channel = interaction.client.get_channel(data["channel_id"])
+                msg     = await channel.fetch_message(self.activity_id)
+                await msg.edit(embed=fin_embed, view=discord.ui.View())
+            except Exception:
+                pass
+
+            # ── Grouper les membres par multiplicateur pour le récap ─────────────
+            normal_members = [(m[0], m[1]) for m in paying if m[3] == 1.0]
+            bonus_groups: dict[tuple, list] = {}
+            for uid, name, role, mult in paying:
+                if mult != 1.0:
+                    key_g = (role, mult)
+                    bonus_groups.setdefault(key_g, []).append((uid, name))
+
+            nb_normal  = len(normal_members)
+            part_indiv = part_base  # mult=1.0
+
+            label_cout = "Carte + réparations" if self.is_pve else "Réparations"
+            summary = (
+                f"✅ **Activité clôturée !**\n\n"
+                f"💰 Recettes VM : **{fmt_silver(total)} silver**\n"
             )
-        else:
-            summary += (
-                f"👥 Participants : **{nb_normal}**\n"
-                f"💵 Part individuelle : **{fmt_silver(part_indiv)} silver**\n"
-                f"📊 BAL crédités : **+{fmt_silver(part_indiv)} BAL / joueur**"
+            if carte_cost:
+                summary += f"🗺️ {label_cout} : **-{fmt_silver(carte_cost)} silver**\n"
+            summary += f"🏦 Part guilde ({rate} %) : **{fmt_silver(part_guilde)} silver**\n"
+            if sac_pieces:
+                summary += f"🎒 Pièces : **+{fmt_silver(sac_pieces)} silver** → distributable : **{fmt_silver(distributable)} silver**\n"
+            if self.has_scoot:
+                summary += f"🏃 Scoot ({nb_scoot} joueur(s)) : **{fmt_silver(scoot_amount)} silver/joueur**\n"
+            for (role, mult), members in bonus_groups.items():
+                emoji  = ROLES.get(role, "🔹")
+                pay_r  = int(part_base * mult)
+                summary += f"{emoji} {role} (×{mult}) : **{fmt_silver(pay_r)} silver/joueur** ({len(members)} joueur(s))\n"
+            if self.has_scoot:
+                summary += (
+                    f"👥 Reste ({nb_normal} joueur(s)) : **{fmt_silver(part_indiv)} silver/joueur**\n"
+                    f"📊 BAL crédités — Scoot : **+{fmt_silver(scoot_amount)}** · Reste : **+{fmt_silver(part_indiv)}**"
+                )
+            else:
+                summary += (
+                    f"👥 Participants : **{nb_normal}**\n"
+                    f"💵 Part individuelle : **{fmt_silver(part_indiv)} silver**\n"
+                    f"📊 BAL crédités : **+{fmt_silver(part_indiv)} BAL / joueur**"
+                )
+            await interaction.followup.send(summary)
+
+        except Exception as e:
+            import traceback
+            print(f"[FinActiModal] {traceback.format_exc()}")
+            await interaction.followup.send(
+                f"❌ **Erreur FinActi** : `{type(e).__name__}: {e}`", ephemeral=True
             )
-        await interaction.followup.send(summary)
 
 
 # ── MODAL MODIFICATION D'ACTIVITÉ ────────────────────────────────────────────
@@ -1039,29 +1047,45 @@ class FinActiButton(discord.ui.Button):
                 await interaction.response.send_modal(FinActiModal(self.activity_id, data))
                 return
         except Exception as e:
-            print(f"[FinActiButton] Erreur : {type(e).__name__}: {e}")
-            if not interaction.response.is_done():
-                await interaction.response.send_message(f"❌ Erreur : `{e}`", ephemeral=True)
+            import traceback
+            tb = traceback.format_exc()
+            print(f"[FinActiButton] {tb}")
+            msg = f"❌ **Erreur FinActi** : `{type(e).__name__}: {e}`"
+            try:
+                if not interaction.response.is_done():
+                    await interaction.response.send_message(msg, ephemeral=True)
+                else:
+                    await interaction.followup.send(msg, ephemeral=True)
+            except Exception:
+                pass
             return
 
         # Activité Libre → clôture directe
         await interaction.response.defer(ephemeral=True)
-        fin_embed       = build_embed(data)
-        fin_embed.title = f"🏁 FIN  ·  {fin_embed.title}"
-
-        all_ids = list({str(entry[0]) for members in data["slots"].values() for entry in members})
-        if all_ids:
-            await db.increment_acti_count(all_ids, guild_id=interaction.guild.id)
-
-        await remove_activity(self.activity_id)
         try:
-            channel = interaction.client.get_channel(data["channel_id"])
-            msg     = await channel.fetch_message(self.activity_id)
-            await msg.edit(embed=fin_embed, view=discord.ui.View())
-        except Exception:
-            pass
+            fin_embed       = build_embed(data)
+            fin_embed.title = f"🏁 FIN  ·  {fin_embed.title}"
 
-        await interaction.followup.send("✅ Activité clôturée !", ephemeral=True)
+            all_ids = list({str(entry[0]) for members in data["slots"].values() for entry in members})
+            if all_ids:
+                await db.increment_acti_count(all_ids, guild_id=interaction.guild.id)
+
+            await remove_activity(self.activity_id)
+            try:
+                channel = interaction.client.get_channel(data["channel_id"])
+                msg     = await channel.fetch_message(self.activity_id)
+                await msg.edit(embed=fin_embed, view=discord.ui.View())
+            except Exception:
+                pass
+
+            await interaction.followup.send("✅ Activité clôturée !", ephemeral=True)
+
+        except Exception as e:
+            import traceback
+            print(f"[FinActiButton/libre] {traceback.format_exc()}")
+            await interaction.followup.send(
+                f"❌ **Erreur FinActi** : `{type(e).__name__}: {e}`", ephemeral=True
+            )
 
 
 # ── BOUTON ANNULER ───────────────────────────────────────────────────────────
