@@ -1231,7 +1231,10 @@ class Activites(commands.Cog):
                 await save_activities(only=msg_id)
 
             # Enregistrer la vue pour que les boutons/selects fonctionnent sans re-edit
-            self.bot.add_view(build_view(msg_id))
+            try:
+                self.bot.add_view(build_view(msg_id))
+            except Exception as e:
+                print(f"[on_ready] Erreur add_view {msg_id}: {type(e).__name__}: {e}")
             try:
                 if channel:
                     msg = await channel.fetch_message(msg_id)
