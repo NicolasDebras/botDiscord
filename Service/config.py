@@ -107,7 +107,8 @@ class EditHubModal(discord.ui.Modal, title="Modifier le hub vocal"):
 
 class MessageModal(discord.ui.Modal, title="Message"):
     message = discord.ui.TextInput(
-        label="Message ({mention} {pseudo} {serveur} {membercount})",
+        label="Message",
+        placeholder="Placeholders : {mention} {pseudo} {serveur} {membercount}",
         style=discord.TextStyle.paragraph,
         required=True,
         max_length=1000,
