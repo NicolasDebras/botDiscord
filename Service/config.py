@@ -75,6 +75,15 @@ async def _recap_embed(guild: discord.Guild) -> discord.Embed:
     return embed
 
 
+async def _validated_role_embed(guild: discord.Guild) -> discord.Embed:
+    cfg = await db.get_recruitment_config(guild.id)
+    role_id = cfg["validated_role_id"] if cfg else None
+    embed = discord.Embed(title="✅ Rôle après validation de candidature", color=0x3498DB)
+    embed.description = f"<@&{role_id}>" if role_id else "Non configuré."
+    embed.set_footer(text="Attribué automatiquement quand le staff clique sur ✅ Valider (Staff) dans un salon de candidature.")
+    return embed
+
+
 # ── MODALS ────────────────────────────────────────────────────────────────────
 
 class HubDetailsModal(discord.ui.Modal, title="Configurer le hub vocal"):
@@ -338,6 +347,30 @@ class RecapConfigView(discord.ui.View):
         await interaction.response.edit_message(embed=_main_embed(), view=MainConfigView())
 
 
+# ── VUE : RÔLE APRÈS VALIDATION DE CANDIDATURE ─────────────────────────────────
+
+class ValidatedRoleView(discord.ui.View):
+    def __init__(self, guild_id: int):
+        super().__init__(timeout=180)
+        self.guild_id = guild_id
+
+    @discord.ui.select(cls=discord.ui.RoleSelect, placeholder="Choisis le rôle attribué à la validation")
+    async def role_select(self, interaction: discord.Interaction, select: discord.ui.RoleSelect):
+        await db.set_recruitment_validated_role(self.guild_id, select.values[0].id)
+        await interaction.response.send_message(
+            f"✅ Rôle de validation : {select.values[0].mention}", ephemeral=True
+        )
+
+    @discord.ui.button(label="🔕 Désactiver", style=discord.ButtonStyle.danger, row=1)
+    async def disable(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await db.set_recruitment_validated_role(self.guild_id, None)
+        await interaction.response.send_message("🔕 Rôle de validation désactivé.", ephemeral=True)
+
+    @discord.ui.button(label="⬅️ Retour", style=discord.ButtonStyle.gray, row=1)
+    async def back(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.edit_message(embed=_main_embed(), view=MainConfigView())
+
+
 # ── VUE PRINCIPALE ─────────────────────────────────────────────────────────────
 
 class MainConfigSelect(discord.ui.Select):
@@ -353,6 +386,8 @@ class MainConfigSelect(discord.ui.Select):
                                   description="Rôle attribué automatiquement à l'arrivée"),
             discord.SelectOption(label="Salon de récap (22h)", value="recap", emoji="📋",
                                   description="Salon du récap recrutement automatique"),
+            discord.SelectOption(label="Rôle après validation candidature", value="role_validation", emoji="✅",
+                                  description="Rôle attribué quand le staff valide une candidature"),
         ]
         super().__init__(placeholder="Choisis une section à configurer...", options=options)
 
@@ -371,9 +406,12 @@ class MainConfigSelect(discord.ui.Select):
         elif value == "role_defaut":
             embed = _default_role_embed(interaction.guild)
             await interaction.response.edit_message(embed=embed, view=DefaultRoleView(interaction.guild.id))
-        else:
+        elif value == "recap":
             embed = await _recap_embed(interaction.guild)
             await interaction.response.edit_message(embed=embed, view=RecapConfigView(interaction.guild.id))
+        else:
+            embed = await _validated_role_embed(interaction.guild)
+            await interaction.response.edit_message(embed=embed, view=ValidatedRoleView(interaction.guild.id))
 
 
 class MainConfigView(discord.ui.View):

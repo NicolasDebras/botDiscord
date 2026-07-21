@@ -138,7 +138,7 @@ Système de candidature en libre-service, **configurable indépendamment sur cha
 2. Un candidat clique sur **📋 Déposer ma candidature** → répond à un questionnaire (pseudo IG, découverte, disponibilités, contenu recherché, attentes)
 3. Le bot recherche automatiquement la **fame PvE/PvP** du pseudo via l'API Albion Online, renomme le candidat sur Discord avec son pseudo in-game, et enregistre son profil (baseline fame) — l'équivalent de `/recrutement` se fait donc automatiquement, sans ressaisie du pseudo
 4. Le bot crée un **salon privé** dédié à cette candidature (visible uniquement par le candidat, le rôle recrutement et le rôle **Officier**) avec un bouton **✅ Valider (Staff)**
-5. Un membre du staff (rôle recrutement ou Officier) clique sur **✅ Valider (Staff)** → le salon se ferme automatiquement (suppression après quelques secondes)
+5. Un membre du staff (rôle recrutement ou Officier) clique sur **✅ Valider (Staff)** → le rôle configuré via `/config` → ✅ Rôle après validation candidature est attribué au candidat, puis le salon se ferme automatiquement (suppression après quelques secondes)
 
 > Chaque serveur a sa propre configuration (salon, rôles, catégorie) — un serveur sans configuration ne propose pas la fonctionnalité tant que `/setup-recrutement` n'a pas été exécuté.
 
@@ -150,7 +150,7 @@ Système de candidature en libre-service, **configurable indépendamment sur cha
 |---|---|---|
 | `/config` | Officier | Panneau interactif pour configurer le serveur |
 
-`/config` ouvre un panneau éphémère (visible seulement par toi) avec un menu déroulant vers 5 sections :
+`/config` ouvre un panneau éphémère (visible seulement par toi) avec un menu déroulant vers 6 sections :
 
 **🔊 Salons vocaux temporaires**
 - **➕ Ajouter un hub** — choisis un salon vocal existant qui servira de déclencheur, une catégorie optionnelle pour les salons créés, puis renseigne le nom (`{pseudo}` = pseudo du créateur) et la limite de places
@@ -173,6 +173,10 @@ Système de candidature en libre-service, **configurable indépendamment sur cha
 **📋 Salon de récap (22h)**
 - Choisis le salon où sera posté le récap recrutement automatique de 22h (voir plus bas)
 - Bouton **🔕 Désactiver** pour couper le récap sur ce serveur
+
+**✅ Rôle après validation candidature**
+- Choisis le rôle attribué automatiquement au candidat quand le staff clique sur **✅ Valider (Staff)** (voir Candidature externe)
+- Bouton **🔕 Désactiver** pour couper l'attribution automatique
 
 > Toute la configuration (`/config`, `/setup-recrutement`, `/setrate`, templates custom…) est isolée par serveur (`guild_id`).
 

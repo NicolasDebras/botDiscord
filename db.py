@@ -216,6 +216,9 @@ async def init_db(database_url: str) -> None:
                 candidat_role_id     BIGINT
             )
         """)
+        await conn.execute(
+            "ALTER TABLE recruitment_config ADD COLUMN IF NOT EXISTS validated_role_id BIGINT"
+        )
 
         # ── Salons vocaux temporaires ──────────────────────────────────────────
         await conn.execute("""
@@ -695,6 +698,12 @@ async def delete_recruitment_ticket_by_channel(channel_id: int) -> None:
         await conn.execute("DELETE FROM recruitment_tickets WHERE thread_id = $1", channel_id)
 
 
+async def get_recruitment_ticket_user(channel_id: int) -> str | None:
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT user_id FROM recruitment_tickets WHERE thread_id = $1", channel_id)
+    return row["user_id"] if row else None
+
+
 # ── CONFIG RECRUTEMENT PAR SERVEUR ─────────────────────────────────────────────
 
 async def get_recruitment_config(guild_id: int) -> dict | None:
@@ -707,7 +716,17 @@ async def get_recruitment_config(guild_id: int) -> dict | None:
         "category_id":         row["category_id"],
         "recruitment_role_id": row["recruitment_role_id"],
         "candidat_role_id":    row["candidat_role_id"],
+        "validated_role_id":   row["validated_role_id"],
     }
+
+
+async def set_recruitment_validated_role(guild_id: int, role_id: int | None) -> None:
+    async with _pool.acquire() as conn:
+        await conn.execute("""
+            INSERT INTO recruitment_config (guild_id, validated_role_id)
+            VALUES ($1, $2)
+            ON CONFLICT (guild_id) DO UPDATE SET validated_role_id = EXCLUDED.validated_role_id
+        """, guild_id, role_id)
 
 
 async def set_recruitment_config(

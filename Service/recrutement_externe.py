@@ -209,6 +209,23 @@ class ValidateCandidatureView(discord.ui.View):
             )
             return
 
+        candidat_id = await db.get_recruitment_ticket_user(interaction.channel.id)
+        candidat     = interaction.guild.get_member(int(candidat_id)) if candidat_id else None
+        cfg          = await db.get_recruitment_config(interaction.guild.id)
+
+        if candidat and cfg and cfg["validated_role_id"]:
+            role = interaction.guild.get_role(cfg["validated_role_id"])
+            if not role:
+                print(f"[recrutement] Rôle de validation introuvable (ID {cfg['validated_role_id']}) sur {interaction.guild.name}.")
+            else:
+                try:
+                    await candidat.add_roles(role, reason="Candidature validée")
+                except discord.Forbidden:
+                    print(
+                        f"[recrutement] ⛔ Impossible d'attribuer le rôle {role.name} à {candidat} sur {interaction.guild.name} — "
+                        f"vérifie que le rôle du bot est bien AU-DESSUS de {role.name} dans la liste des rôles."
+                    )
+
         await interaction.response.send_message(
             f"✅ Candidature validée par {interaction.user.mention} — ce salon va être fermé."
         )
