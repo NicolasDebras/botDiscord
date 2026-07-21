@@ -212,19 +212,43 @@ class ValidateCandidatureView(discord.ui.View):
         candidat_id = await db.get_recruitment_ticket_user(interaction.channel.id)
         candidat     = interaction.guild.get_member(int(candidat_id)) if candidat_id else None
         cfg          = await db.get_recruitment_config(interaction.guild.id)
+        mcfg         = await db.get_member_events_config(interaction.guild.id)
 
-        if candidat and cfg and cfg["validated_role_id"]:
-            role = interaction.guild.get_role(cfg["validated_role_id"])
-            if not role:
-                print(f"[recrutement] Rôle de validation introuvable (ID {cfg['validated_role_id']}) sur {interaction.guild.name}.")
-            else:
+        if candidat:
+            # ── Retirer les rôles "en cours" (candidat / rôle par défaut) ──────
+            roles_a_retirer = []
+            if cfg and cfg["candidat_role_id"]:
+                r = interaction.guild.get_role(cfg["candidat_role_id"])
+                if r and r in candidat.roles:
+                    roles_a_retirer.append(r)
+            if mcfg and mcfg["default_role_id"]:
+                r = interaction.guild.get_role(mcfg["default_role_id"])
+                if r and r in candidat.roles and r not in roles_a_retirer:
+                    roles_a_retirer.append(r)
+
+            if roles_a_retirer:
                 try:
-                    await candidat.add_roles(role, reason="Candidature validée")
+                    await candidat.remove_roles(*roles_a_retirer, reason="Candidature validée")
                 except discord.Forbidden:
+                    noms = ", ".join(r.name for r in roles_a_retirer)
                     print(
-                        f"[recrutement] ⛔ Impossible d'attribuer le rôle {role.name} à {candidat} sur {interaction.guild.name} — "
-                        f"vérifie que le rôle du bot est bien AU-DESSUS de {role.name} dans la liste des rôles."
+                        f"[recrutement] ⛔ Impossible de retirer les rôles ({noms}) à {candidat} sur {interaction.guild.name} — "
+                        f"vérifie que le rôle du bot est bien AU-DESSUS de ces rôles dans la liste des rôles."
                     )
+
+            # ── Attribuer le rôle de validation ─────────────────────────────────
+            if cfg and cfg["validated_role_id"]:
+                role = interaction.guild.get_role(cfg["validated_role_id"])
+                if not role:
+                    print(f"[recrutement] Rôle de validation introuvable (ID {cfg['validated_role_id']}) sur {interaction.guild.name}.")
+                else:
+                    try:
+                        await candidat.add_roles(role, reason="Candidature validée")
+                    except discord.Forbidden:
+                        print(
+                            f"[recrutement] ⛔ Impossible d'attribuer le rôle {role.name} à {candidat} sur {interaction.guild.name} — "
+                            f"vérifie que le rôle du bot est bien AU-DESSUS de {role.name} dans la liste des rôles."
+                        )
 
         await interaction.response.send_message(
             f"✅ Candidature validée par {interaction.user.mention} — ce salon va être fermé."
@@ -252,11 +276,16 @@ class RecrutementExterne(commands.Cog):
         if not cfg or not cfg["candidat_role_id"]:
             return
         candidat_role = member.guild.get_role(cfg["candidat_role_id"])
-        if candidat_role:
-            try:
-                await member.add_roles(candidat_role)
-            except discord.Forbidden:
-                pass
+        if not candidat_role:
+            print(f"[recrutement] Rôle candidat introuvable (ID {cfg['candidat_role_id']}) sur {member.guild.name}.")
+            return
+        try:
+            await member.add_roles(candidat_role)
+        except discord.Forbidden:
+            print(
+                f"[recrutement] ⛔ Impossible d'attribuer le rôle {candidat_role.name} à {member} sur {member.guild.name} — "
+                f"vérifie que le rôle du bot est bien AU-DESSUS de {candidat_role.name} dans la liste des rôles."
+            )
 
     @app_commands.command(
         name="setup-recrutement",
