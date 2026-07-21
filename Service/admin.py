@@ -269,7 +269,7 @@ class Admin(commands.Cog):
                 await inter.response.send_message(f"⛔ L'activité est complète ({max_p} max).", ephemeral=True)
                 return
 
-            all_templates = load_all_templates()
+            all_templates = load_all_templates(data.get("guild_id", 0))
             tdata    = all_templates.get(template, {}) if template else {}
             is_pf2   = chosen_role.startswith("PF2:")
             rn       = chosen_role[4:] if is_pf2 else chosen_role
@@ -433,7 +433,7 @@ class Admin(commands.Cog):
         pf1   = {k.upper(): v for k, v in roles_dict.items()}
         await interaction.response.defer(ephemeral=True)
         existing = await db.get_custom_templates()
-        action   = "mis à jour" if nom in existing else "ajouté"
+        action   = "mis à jour" if nom in existing.get(interaction.guild.id, {}) else "ajouté"
         entry = {
             "description": description,
             "type_acti":   type_acti.value,
@@ -445,7 +445,7 @@ class Admin(commands.Cog):
             entry["pf_2"]        = pf2
             entry["weapon_pf2"]  = specs_pf2
 
-        await db.save_custom_template(nom, entry)
+        await db.save_custom_template(nom, entry, guild_id=interaction.guild.id)
         await refresh_templates_cache()
 
         tag      = "🔴 PVP" if type_acti.value == "PVP" else "🟢 PVE"
@@ -482,11 +482,11 @@ class Admin(commands.Cog):
 
         await interaction.response.defer(ephemeral=True)
         custom = await db.get_custom_templates()
-        if nom not in custom:
+        if nom not in custom.get(interaction.guild.id, {}):
             await interaction.followup.send(f"❌ Template **{nom}** introuvable.", ephemeral=True)
             return
 
-        await db.delete_custom_template(nom)
+        await db.delete_custom_template(nom, guild_id=interaction.guild.id)
         await refresh_templates_cache()
         await interaction.followup.send(f"🗑️ Template **{nom}** supprimé.", ephemeral=True)
 
@@ -499,7 +499,7 @@ class Admin(commands.Cog):
         if not await self.check_admin(interaction):
             return
 
-        all_templates = load_all_templates()
+        all_templates = load_all_templates(interaction.guild.id)
         if nom not in all_templates:
             templates_list = ", ".join(f"`{k}`" for k in all_templates)
             await interaction.response.send_message(
@@ -508,7 +508,7 @@ class Admin(commands.Cog):
             return
 
         await interaction.response.defer(ephemeral=True)
-        await db.set_image_override(nom, url)
+        await db.set_image_override(nom, url, guild_id=interaction.guild.id)
         await refresh_image_overrides()
 
         if url:
@@ -533,7 +533,7 @@ class Admin(commands.Cog):
         if not await self.check_admin(interaction):
             return
 
-        all_templates = load_all_templates()
+        all_templates = load_all_templates(interaction.guild.id)
         if nom not in all_templates:
             templates_list = ", ".join(f"`{k}`" for k in all_templates)
             await interaction.response.send_message(
@@ -542,7 +542,7 @@ class Admin(commands.Cog):
             return
 
         await interaction.response.defer(ephemeral=True)
-        await db.set_description_override(nom, description)
+        await db.set_description_override(nom, description, guild_id=interaction.guild.id)
         await refresh_description_overrides()
 
         if description:

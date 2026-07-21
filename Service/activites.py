@@ -12,14 +12,14 @@ from Service.utils import load_settings, append_bal_log, is_membre, is_caller_or
 # ── STOCKAGE EN MÉMOIRE  {message_id: data} ──────────────────────────────────
 activities: dict[int, dict] = {}
 
-# ── CACHE TEMPLATES CUSTOM (rechargé depuis DB à chaque add/del/on_ready) ────
-_templates_cache: dict[str, dict] = {}
+# ── CACHE TEMPLATES CUSTOM par serveur (rechargé depuis DB à chaque add/del/on_ready) ─
+_templates_cache: dict[int, dict[str, dict]] = {}
 
-# ── CACHE IMAGE OVERRIDES (clé settings : img:{template_name}) ───────────────
-_image_overrides: dict[str, str] = {}
+# ── CACHE IMAGE OVERRIDES par serveur (clé settings : img:{guild_id}:{template_name}) ─
+_image_overrides: dict[int, dict[str, str]] = {}
 
-# ── CACHE DESCRIPTION OVERRIDES (clé settings : desc:{template_name}) ────────
-_description_overrides: dict[str, str] = {}
+# ── CACHE DESCRIPTION OVERRIDES par serveur (clé settings : desc:{guild_id}:{template_name}) ─
+_description_overrides: dict[int, dict[str, str]] = {}
 
 
 async def refresh_templates_cache() -> None:
@@ -90,9 +90,13 @@ def _sort_roles(roles: list[str]) -> list[str]:
     return pf1 + pf2 + scoot
 
 
-# ── HELPER : tous les templates (défaut + custom) ────────────────────────────
-def load_all_templates() -> dict[str, dict]:
-    return {**DEFAULT_TEMPLATES, **_templates_cache}
+# ── HELPER : tous les templates visibles sur un serveur (défaut + custom) ────
+def load_all_templates(guild_id: int) -> dict[str, dict]:
+    defaults = {
+        name: tpl for name, tpl in DEFAULT_TEMPLATES.items()
+        if not tpl.get("guild_ids") or guild_id in tpl["guild_ids"]
+    }
+    return {**defaults, **_templates_cache.get(guild_id, {})}
 
 
 def get_pf1(template_data: dict) -> dict[str, int]:
@@ -118,6 +122,7 @@ def build_embed(data: dict) -> discord.Embed:
     created  = data["created_at"]
     depart   = data.get("depart", "")
     tier     = data.get("tier", "")
+    guild_id = data.get("guild_id", 0)
 
     color = DEFAULT_COLOR
     if template:
@@ -126,9 +131,11 @@ def build_embed(data: dict) -> discord.Embed:
                 color = col
                 break
 
-    all_templates = load_all_templates()
+    all_templates = load_all_templates(guild_id)
     tdata         = all_templates.get(template, {})
-    tpl_desc    = _description_overrides.get(template, tdata.get("description", "")) if template else tdata.get("description", "")
+    guild_desc_overrides  = _description_overrides.get(guild_id, {})
+    guild_image_overrides = _image_overrides.get(guild_id, {})
+    tpl_desc    = guild_desc_overrides.get(template, tdata.get("description", "")) if template else tdata.get("description", "")
     custom_desc = data.get("custom_description", "")
     top_info_parts = []
     if depart:
@@ -141,7 +148,7 @@ def build_embed(data: dict) -> discord.Embed:
         full_desc = f"{desc_block}\n\n{top_info}"
     else:
         full_desc = desc_block or top_info or None
-    image_url     = _image_overrides.get(template, tdata.get("image", ""))
+    image_url     = guild_image_overrides.get(template, tdata.get("image", ""))
 
     embed = discord.Embed(
         title=f"🗡️  {template or 'Activité'}  de {creator}",
@@ -309,7 +316,7 @@ async def _register_player(
     total      = sum(len(v) for v in slots.values())
     already_in = any(entry[0] == user_id for members in slots.values() for entry in members)
     if total >= max_p and not already_in:
-        all_templates = load_all_templates()
+        all_templates = load_all_templates(data.get("guild_id", 0))
         has_wl = all_templates.get(template, {}).get("has_waitlist", False) if template else False
         if has_wl:
             waitlist = data.setdefault("waitlist", [])
@@ -333,7 +340,7 @@ async def _register_player(
             await _reply(interaction, f"⛔ L'activité est complète ({max_p} joueurs max).", ephemeral=True)
         return
 
-    all_templates = load_all_templates()
+    all_templates = load_all_templates(data.get("guild_id", 0))
     if template in all_templates:
         tdata     = all_templates[template]
         role_name = chosen_role[4:] if chosen_role.startswith("PF2:") else chosen_role
@@ -528,7 +535,7 @@ class RoleSelect(discord.ui.Select):
         data          = activities.get(activity_id, {})
         slots         = data.get("slots", {})
         template      = data.get("template")
-        all_templates = load_all_templates()
+        all_templates = load_all_templates(data.get("guild_id", 0))
         tdata         = all_templates.get(template, {}) if template else {}
         pf1           = get_pf1(tdata) if tdata else {}
         pf2           = get_pf2(tdata) if tdata else {}
@@ -585,7 +592,7 @@ class RoleSelect(discord.ui.Select):
 
         chosen_role   = self.values[0]
         template      = data.get("template")
-        all_templates = load_all_templates()
+        all_templates = load_all_templates(data.get("guild_id", 0))
         tdata         = all_templates.get(template, {}) if template else {}
         type_acti     = tdata.get("type_acti", "")
 
@@ -705,7 +712,7 @@ class FillButton(discord.ui.Button):
         total = sum(len(v) for v in slots.values())
         if total >= data["max_players"]:
             await interaction.response.defer(ephemeral=True)
-            all_tpl  = load_all_templates()
+            all_tpl  = load_all_templates(data.get("guild_id", 0))
             tdata    = all_tpl.get(data.get("template"), {})
             pf1      = get_pf1(tdata)
             fallback = next(iter(pf1), "Fill")
@@ -713,7 +720,7 @@ class FillButton(discord.ui.Button):
             return
 
         # Trouver le premier rôle PF1 avec de la place
-        all_tpl = load_all_templates()
+        all_tpl = load_all_templates(data.get("guild_id", 0))
         tdata   = all_tpl.get(data.get("template"), {})
         pf1     = get_pf1(tdata)
 
@@ -746,7 +753,7 @@ class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
         self.has_scoot   = bool(data["slots"].get("SCOOT"))
 
         template        = data.get("template")
-        all_tpl         = load_all_templates()
+        all_tpl         = load_all_templates(data.get("guild_id", 0))
         tpl_data        = all_tpl.get(template, {}) if template else {}
         type_acti       = tpl_data.get("type_acti", "")
         self.is_pve          = (type_acti == "PVE")
@@ -1180,7 +1187,7 @@ class ActivityView(discord.ui.View):
         if not data:
             return
 
-        all_templates = load_all_templates()
+        all_templates = load_all_templates(data.get("guild_id", 0))
         template      = data.get("template")
         tdata         = all_templates.get(template, {}) if template else {}
         pf1           = get_pf1(tdata) if tdata else {}
@@ -1203,10 +1210,10 @@ class ActivityView(discord.ui.View):
 
 # ── AUTOCOMPLÉTION : templates disponibles ───────────────────────────────────
 async def template_autocomplete(
-    _interaction: discord.Interaction,
+    interaction: discord.Interaction,
     current: str,
 ) -> list[app_commands.Choice[str]]:
-    all_templates = load_all_templates()
+    all_templates = load_all_templates(interaction.guild.id)
     return [
         app_commands.Choice(name=name, value=name)
         for name in all_templates
@@ -1232,7 +1239,6 @@ class Activites(commands.Cog):
 
         # Enregistrer les vues persistantes + vérifier que les messages existent
         to_delete = []
-        all_templates = {**DEFAULT_TEMPLATES, **_templates_cache}
         for msg_id in list(activities.keys()):
             data = activities[msg_id]
             changed = False
@@ -1244,6 +1250,7 @@ class Activites(commands.Cog):
                 changed = True
 
             # Ajouter les slots manquants si le template a évolué
+            all_templates = load_all_templates(data.get("guild_id", 0))
             tpl = all_templates.get(data.get("template") or "")
             if tpl:
                 for role in list(tpl.get("pf_1", {})) + list(tpl.get("pf_2", {})):
@@ -1314,7 +1321,7 @@ class Activites(commands.Cog):
             template_name = None
             nbplayer      = nbplayer or 100
         else:
-            all_templates = load_all_templates()
+            all_templates = load_all_templates(interaction.guild.id)
             template_name = None
             for key in all_templates:
                 if key.lower() == nametemplate.lower():
@@ -1371,7 +1378,7 @@ class Activites(commands.Cog):
                 f"⛔ Tu dois avoir le rôle **{MEMBRE_ROLE_NAME}** pour utiliser cette commande.", ephemeral=True
             )
             return
-        all_templates = load_all_templates()
+        all_templates = load_all_templates(interaction.guild.id)
         embed = discord.Embed(title="📋 Templates de compositions", color=0x3498DB)
         for name, tdata in all_templates.items():
             pf1         = get_pf1(tdata)

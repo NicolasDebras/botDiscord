@@ -7,10 +7,15 @@ Bot Discord pour la gestion des activités et du système BAL de la guilde.
 
 ## Fonctionnalités
 
+- **Multi-serveur natif** : le bot se synchronise automatiquement sur tous les serveurs où il est installé, sans configuration manuelle
 - Création d'activités de guilde avec inscription par rôle (PF1 + PF2)
 - Sélection d'arme et niveau de spécialisation pour les activités PVP
 - Liste d'attente automatique pour certains templates (ex : RAID AVA)
-- Gestion des templates de compositions (défaut + custom)
+- Gestion des templates de compositions (défaut + custom, scopés par serveur)
+- Système de recrutement externe configurable par serveur (salon privé par candidature)
+- Salons vocaux temporaires (hub → création à la volée, suppression automatique une fois vide)
+- Messages de bienvenue / au revoir configurables par serveur
+- Panneau `/config` unique pour tout configurer (vocaux temporaires, bienvenue, au revoir)
 - Système BAL : paiement, classement, historique des transactions
 - Commandes d'administration (kick, ajout forcé, templates custom, taux de rachat)
 - Persistance **PostgreSQL** via Railway
@@ -37,11 +42,13 @@ Créer un fichier `.env` à la racine :
 
 ```env
 DISCORD_TOKEN=ton_token_discord
-DISCORD_GUILD_ID=ton_guild_id          # Serveur principal (ID : 1466706466051330061)
+DISCORD_GUILD_ID=ton_guild_id          # Serveur principal — utilisé pour les migrations DB (legacy)
 DATABASE_URL=postgresql://user:password@host:5432/dbname
 ```
 
 > Sur **Railway**, `DATABASE_URL` est injecté automatiquement par le plugin PostgreSQL. Pas besoin de le définir manuellement.
+
+> Le bot n'a besoin d'aucune autre configuration pour être multi-serveur : à chaque démarrage, il synchronise ses commandes sur **tous** les serveurs où il est installé (`bot.guilds`). `DISCORD_GUILD_ID` ne sert plus qu'à identifier le serveur principal pour les anciennes données (migrations DB) et certaines fonctionnalités historiques (voir plus bas).
 
 ### Lancement
 
@@ -109,14 +116,52 @@ Une fois l'activité créée :
 | Commande | Accès | Description |
 |---|---|---|
 | `/recrutement @joueur` | Recruteur, Officier | Enregistrer une candidature de recrutement |
+| `/setup-recrutement` | Admin | Configurer et poster le message de candidature sur ce serveur |
 
-La commande ouvre une pop-up avec deux champs :
+La commande `/recrutement` ouvre une pop-up avec deux champs :
 - **Pseudo IG** — pseudo en jeu du candidat (court)
 - **Informations** — classe, stuff, IP, disponibilités, motivation… (paragraphe libre)
 
 Une fois soumise, un embed récapitulatif est posté dans le canal avec la mention Discord du joueur, ainsi que la **fame PvP et PvE** récupérée automatiquement via l'API Albion Online. La fame du moment est enregistrée comme **baseline** pour suivre la progression du joueur.
 
 > Accessible aux membres ayant le rôle **Recruteur** (ID `1473779038106685568`) ou **Officier**.
+
+#### Candidature externe (`/setup-recrutement`)
+
+Système de candidature en libre-service, **configurable indépendamment sur chaque serveur** :
+
+1. Un admin lance `/setup-recrutement` avec :
+   - `salon_regles` — salon où poster le message avec le bouton de candidature
+   - `role_recrutement` — rôle qui aura accès aux salons de candidature créés
+   - `role_candidat` — rôle attribué automatiquement aux nouveaux arrivants
+   - `categorie` *(optionnel)* — catégorie où créer les salons de candidature
+2. Un candidat clique sur **📋 Déposer ma candidature** → répond à un questionnaire (pseudo IG, découverte, disponibilités, contenu recherché, attentes)
+3. Le bot crée un **salon privé** dédié à cette candidature, visible uniquement par le candidat, le rôle recrutement et le rôle **Officier**
+
+> Chaque serveur a sa propre configuration (salon, rôles, catégorie) — un serveur sans configuration ne propose pas la fonctionnalité tant que `/setup-recrutement` n'a pas été exécuté.
+
+---
+
+### Configuration (`/config`)
+
+| Commande | Accès | Description |
+|---|---|---|
+| `/config` | Officier | Panneau interactif pour configurer le serveur |
+
+`/config` ouvre un panneau éphémère (visible seulement par toi) avec un menu déroulant vers 3 sections :
+
+**🔊 Salons vocaux temporaires**
+- **➕ Ajouter un hub** — choisis un salon vocal existant qui servira de déclencheur, une catégorie optionnelle pour les salons créés, puis renseigne le nom (`{pseudo}` = pseudo du créateur) et la limite de places
+- **✏️ Gérer un hub** — modifier le nom/la limite ou supprimer un hub existant
+- Plusieurs hubs possibles par serveur (ex : un hub "Duo", un hub "Squad")
+- Rejoindre un salon hub crée automatiquement un salon vocal temporaire et y déplace le membre ; le créateur reçoit les droits de gestion du salon (renommer, limiter les places, déplacer/expulser) ; le salon est supprimé automatiquement dès qu'il est vide
+
+**👋 Message de bienvenue** / **🚪 Message d'au revoir**
+- Choisis le salon textuel puis renseigne le message dans la pop-up
+- Placeholders disponibles : `{mention}` `{pseudo}` `{nom}` `{serveur}` `{membercount}`
+- Bouton **🔕 Désactiver** pour couper le message sans perdre la config
+
+> Toute la configuration (`/config`, `/setup-recrutement`, `/setrate`, templates custom…) est isolée par serveur (`guild_id`).
 
 ### Profil & suivi joueur
 
@@ -193,7 +238,10 @@ LiliumBot/
     ├── moderation.py   # Surveillance format canal acti-flash
     ├── recrutement.py  # Commande /recrutement (fiche de candidature + baseline fame)
     ├── joueur.py                # /info, /ancien, /reporter, /kick + tâche 22h
-    ├── recrutement_externe.py  # Système de candidature automatique (second serveur)
+    ├── recrutement_externe.py  # Candidature en libre-service (/setup-recrutement, salon privé par candidat)
+    ├── vocal_temp.py            # Salons vocaux temporaires (hubs → création/suppression auto)
+    ├── bienvenue.py             # Messages de bienvenue / au revoir
+    ├── config.py                # Panneau /config (vocaux temp, bienvenue, au revoir)
     └── utils.py                # Helpers partagés (is_admin, ActivitySelect, settings)
 ```
 
@@ -210,7 +258,7 @@ LiliumBot/
 | HeavyMelee | PVP (sans spé) | TANK ×4, SUPPORT ×4, HEAL ×4, DPS ×7 — armes affichées à titre indicatif, inscription directe sans saisie de spé |
 | small Naeeeeej | PVP | PF1 : CALLER ×1, 2ND REPACK ×1, TANK DEF ×2, TANK OFF ×2, SUPPORT DEF ×2, SUPPORT OFF ×2, HEAL ×3, HEAL SUPP ×1, DPS ×5, FINISHER ×1 · PF2 : TANK DEF ×1, TANK OFF ×1, SUPPORT DEF ×1, SUPPORT OFF ×1, HEAL ×1, HEAL SUPP ×1, DPS ×4 — sélection arme + spé |
 
-Les templates par défaut sont définis dans `config.py` et ne peuvent pas être modifiés via les commandes. Les templates custom sont stockés en base de données.
+Les templates par défaut sont définis dans `config.py` et ne peuvent pas être modifiés via les commandes. Un template par défaut peut être restreint à certains serveurs via la clé `"guild_ids": [id, ...]` (absente ou vide = visible sur tous les serveurs). Les templates custom (`/addtemplate`) sont stockés en base de données et **scopés par serveur** : un template custom créé sur un serveur n'est visible que sur celui-ci.
 
 ---
 
@@ -240,9 +288,10 @@ Les templates par défaut sont définis dans `config.py` et ne peuvent pas être
 2. Créer un projet Railway depuis le repo
 3. Ajouter le plugin **PostgreSQL** → les variables `DATABASE_URL` et `PGXXX` sont injectées automatiquement
 4. Ajouter les variables d'environnement `DISCORD_TOKEN` et `DISCORD_GUILD_ID`
-5. Railway build et démarre le bot — les tables sont créées au premier démarrage
+5. Inviter le bot sur autant de serveurs Discord que nécessaire — aucune configuration supplémentaire n'est requise, la synchronisation des commandes se fait automatiquement au démarrage
+6. Railway build et démarre le bot — les tables sont créées au premier démarrage
 
-> Les soldes BAL **et les profils joueurs** sont isolés par serveur (`guild_id`). Chaque serveur a son propre pool BAL, son propre taux de rachat (`/setrate`) et ses propres profils de recrutement. Les données existantes sont migrées automatiquement vers le serveur principal au démarrage.
+> Les soldes BAL, les profils joueurs et les templates custom sont isolés par serveur (`guild_id`). Chaque serveur a son propre pool BAL, son propre taux de rachat (`/setrate`), ses propres profils de recrutement, sa propre configuration de recrutement externe (`/setup-recrutement`) et ses propres templates custom. Les données existantes ont été migrées automatiquement vers le serveur principal (`DISCORD_GUILD_ID`) lors du passage au multi-serveur.
 
 > Les messages personnalisés de `/monbal` et les notifications de limite BAL sont réservés au serveur principal (`DISCORD_GUILD_ID`). La tâche automatique de récap 22h ne tourne que sur le serveur principal.
 

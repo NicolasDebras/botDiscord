@@ -1,14 +1,19 @@
+import re
+
 import discord
 from discord.ext import commands
 from discord import app_commands
 
 import db
-from config import RECRUTEMENT_GUILD_ID
+from config import ADMIN_ROLE_NAME
 
-_RECRUTEMENT_GUILD_ID = RECRUTEMENT_GUILD_ID
-_FORUM_CHANNEL_ID     = 1511837675974561942
-_RULES_CHANNEL_ID     = 1511837232435171430
-_CANDIDAT_ROLE_ID     = 1511832805665931334
+
+def _slugify(text: str) -> str:
+    """Nettoie un nom de salon Discord (minuscules, tirets, sans caractères spéciaux)."""
+    text = text.lower().strip()
+    text = re.sub(r"[^a-z0-9\-\s]", "", text)
+    text = re.sub(r"[\s_]+", "-", text).strip("-")
+    return text[:90] or "candidature"
 
 
 # ── MODAL QUESTIONNAIRE ───────────────────────────────────────────────────────
@@ -49,22 +54,60 @@ class QuestionnaireModal(discord.ui.Modal, title="📋 Questionnaire de candidat
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
 
-        forum = interaction.client.get_channel(_FORUM_CHANNEL_ID)
-        if not isinstance(forum, discord.ForumChannel):
-            await interaction.followup.send("❌ Forum introuvable. Contacte un recruteur.", ephemeral=True)
+        guild = interaction.guild
+        cfg   = await db.get_recruitment_config(guild.id)
+        if not cfg:
+            await interaction.followup.send(
+                "❌ Le recrutement n'est pas configuré sur ce serveur. Contacte un administrateur.",
+                ephemeral=True,
+            )
             return
 
         # Vérifier si un ticket existe déjà
-        existing = await db.get_recruitment_ticket(str(interaction.user.id))
+        existing = await db.get_recruitment_ticket(str(interaction.user.id), guild.id)
         if existing:
-            thread = interaction.client.get_channel(existing)
-            if thread:
+            channel = guild.get_channel(existing)
+            if channel:
                 await interaction.followup.send(
-                    f"⚠️ Tu as déjà une candidature en cours : {thread.mention}", ephemeral=True
+                    f"⚠️ Tu as déjà une candidature en cours : {channel.mention}", ephemeral=True
                 )
                 return
 
-        # Créer le thread dans le forum
+        category = guild.get_channel(cfg["category_id"]) if cfg["category_id"] else None
+        if not isinstance(category, discord.CategoryChannel):
+            category = None
+
+        recruitment_role = guild.get_role(cfg["recruitment_role_id"]) if cfg["recruitment_role_id"] else None
+        officier_role     = discord.utils.get(guild.roles, name=ADMIN_ROLE_NAME)
+
+        overwrites = {
+            guild.default_role: discord.PermissionOverwrite(view_channel=False),
+            interaction.user: discord.PermissionOverwrite(
+                view_channel=True, send_messages=True, read_message_history=True
+            ),
+        }
+        if recruitment_role:
+            overwrites[recruitment_role] = discord.PermissionOverwrite(
+                view_channel=True, send_messages=True, read_message_history=True
+            )
+        if officier_role:
+            overwrites[officier_role] = discord.PermissionOverwrite(
+                view_channel=True, send_messages=True, read_message_history=True
+            )
+
+        try:
+            channel = await guild.create_text_channel(
+                name=_slugify(f"candidature-{self.pseudo_ig.value}"),
+                category=category,
+                overwrites=overwrites,
+                reason=f"Candidature de {interaction.user}",
+            )
+        except discord.Forbidden:
+            await interaction.followup.send(
+                "❌ Le bot n'a pas la permission de créer un salon. Contacte un administrateur.", ephemeral=True
+            )
+            return
+
         embed = discord.Embed(
             title=f"📋 Candidature — {self.pseudo_ig.value}",
             color=0x3498DB,
@@ -77,14 +120,15 @@ class QuestionnaireModal(discord.ui.Modal, title="📋 Questionnaire de candidat
         embed.add_field(name="🏰 Recherche dans une guilde",      value=self.recherche.value,  inline=False)
         embed.set_footer(text=f"Discord : {interaction.user} ({interaction.user.id})")
 
-        thread, _ = await forum.create_thread(
-            name=f"{self.pseudo_ig.value} — Candidature",
-            embed=embed,
-        )
-        await db.save_recruitment_ticket(str(interaction.user.id), thread.id)
+        mentions = interaction.user.mention
+        if recruitment_role:
+            mentions += f" {recruitment_role.mention}"
+
+        await channel.send(content=mentions, embed=embed)
+        await db.save_recruitment_ticket(str(interaction.user.id), channel.id, guild.id)
 
         await interaction.followup.send(
-            f"✅ Ta candidature a bien été envoyée ! Nos recruteurs reviendront vers toi prochainement.",
+            f"✅ Ta candidature a bien été envoyée ! {channel.mention}",
             ephemeral=True,
         )
 
@@ -113,29 +157,45 @@ class RecrutementExterne(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
-        if member.guild.id != _RECRUTEMENT_GUILD_ID:
+        cfg = await db.get_recruitment_config(member.guild.id)
+        if not cfg or not cfg["candidat_role_id"]:
             return
-        candidat_role = member.guild.get_role(_CANDIDAT_ROLE_ID)
+        candidat_role = member.guild.get_role(cfg["candidat_role_id"])
         if candidat_role:
             try:
                 await member.add_roles(candidat_role)
             except discord.Forbidden:
                 pass
 
-    @app_commands.guilds(discord.Object(id=RECRUTEMENT_GUILD_ID))
     @app_commands.command(
         name="setup-recrutement",
-        description="[ADMIN] Poster le message de recrutement dans le canal dédié",
+        description="[ADMIN] Configurer et poster le message de recrutement sur ce serveur",
     )
-    async def setup_recrutement(self, interaction: discord.Interaction):
+    @app_commands.describe(
+        salon_regles     = "Salon où poster le message de candidature",
+        role_recrutement = "Rôle qui aura accès aux salons de candidature créés",
+        role_candidat    = "Rôle attribué automatiquement aux nouveaux arrivants",
+        categorie        = "Catégorie où créer les salons de candidature (optionnel)",
+    )
+    async def setup_recrutement(
+        self,
+        interaction: discord.Interaction,
+        salon_regles: discord.TextChannel,
+        role_recrutement: discord.Role,
+        role_candidat: discord.Role,
+        categorie: discord.CategoryChannel | None = None,
+    ):
         if not interaction.user.guild_permissions.administrator:
             await interaction.response.send_message("⛔ Réservé aux administrateurs.", ephemeral=True)
             return
 
-        channel = self.bot.get_channel(_RULES_CHANNEL_ID)
-        if not channel:
-            await interaction.response.send_message("❌ Canal introuvable.", ephemeral=True)
-            return
+        await db.set_recruitment_config(
+            interaction.guild.id,
+            salon_regles.id,
+            role_recrutement.id,
+            role_candidat.id,
+            categorie.id if categorie else None,
+        )
 
         embed = discord.Embed(
             title="⚔️ Rejoindre la guilde",
@@ -143,13 +203,15 @@ class RecrutementExterne(commands.Cog):
                 "Bienvenue !\n\n"
                 "Pour déposer ta candidature, clique sur le bouton ci-dessous.\n"
                 "Un formulaire s'ouvrira avec quelques questions rapides.\n\n"
-                "Nos recruteurs examineront ta candidature et te contacteront pour la suite."
+                "Un salon privé sera créé pour ta candidature, visible par toi et nos recruteurs."
             ),
             color=0xF1C40F,
         )
 
-        await channel.send(embed=embed, view=RecrutementView())
-        await interaction.response.send_message("✅ Message de recrutement posté.", ephemeral=True)
+        await salon_regles.send(embed=embed, view=RecrutementView())
+        await interaction.response.send_message(
+            f"✅ Recrutement configuré et message posté dans {salon_regles.mention}.", ephemeral=True
+        )
 
 
 async def setup(bot: commands.Bot):

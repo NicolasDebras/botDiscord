@@ -18,11 +18,9 @@ CALLER_ROLE_NAME   = "Caller"
 # Rôle Recruteur (accès à /recrutement)
 RECRUTEUR_ROLE_ID  = 1473779038106685568
 
-# ── GUILD ID (sync instantanée des slash commands) ────────────────────────────
+# ── GUILD ID (serveur principal — historique/legacy, migrations DB) ───────────
 GUILD_ID              = int(os.environ["DISCORD_GUILD_ID"])
-RECRUTEMENT_GUILD_ID  = 1479604079754743970
-GUILD_ID_3            = 1514409248921227326
- 
+
 # ── RÔLES avec emojis ────────────────────────────────────────────────────────
 ROLES: dict[str, str] = {
     "TANK":        "🛡️",
@@ -52,7 +50,9 @@ ROLES: dict[str, str] = {
  
 # ── TEMPLATES PAR DÉFAUT ──────────────────────────────────────────────────────
 # Structure : { nom: { "description": str, "type_acti": "PVP"|"PVE", "image": url|"", "pf_1": {rôle: slots} } }
-# Les templates custom ajoutés via /addtemplate sont dans templates.json
+# "guild_ids": [id, ...] (optionnel) restreint le template à certains serveurs.
+# Absent ou vide = visible sur tous les serveurs où le bot est installé.
+# Les templates custom ajoutés via /addtemplate sont stockés en DB, scopés par serveur.
 DEFAULT_TEMPLATES: dict[str, dict] = {
     "RAID AVA": {
         "description": "Compo beban Raid AVA",

@@ -161,6 +161,91 @@ async def init_db(database_url: str) -> None:
             await conn.execute("ALTER TABLE player_profiles DROP CONSTRAINT player_profiles_pkey")
             await conn.execute("ALTER TABLE player_profiles ADD PRIMARY KEY (user_id, guild_id)")
 
+        # ── Migration guild_id sur custom_templates ───────────────────────────
+        await conn.execute(
+            "ALTER TABLE custom_templates ADD COLUMN IF NOT EXISTS guild_id BIGINT NOT NULL DEFAULT 0"
+        )
+        await conn.execute(f"UPDATE custom_templates SET guild_id = {_GUILD_ID} WHERE guild_id = 0")
+
+        pk_cols_ct = await conn.fetch("""
+            SELECT column_name FROM information_schema.key_column_usage
+            WHERE table_name = 'custom_templates' AND constraint_name = 'custom_templates_pkey'
+            ORDER BY ordinal_position
+        """)
+        if [r['column_name'] for r in pk_cols_ct] == ['name']:
+            await conn.execute("ALTER TABLE custom_templates DROP CONSTRAINT custom_templates_pkey")
+            await conn.execute("ALTER TABLE custom_templates ADD PRIMARY KEY (name, guild_id)")
+
+        # ── Migration guild_id sur recruitment_tickets ────────────────────────
+        await conn.execute(
+            "ALTER TABLE recruitment_tickets ADD COLUMN IF NOT EXISTS guild_id BIGINT NOT NULL DEFAULT 0"
+        )
+        await conn.execute(f"UPDATE recruitment_tickets SET guild_id = {_GUILD_ID} WHERE guild_id = 0")
+
+        pk_cols_rt = await conn.fetch("""
+            SELECT column_name FROM information_schema.key_column_usage
+            WHERE table_name = 'recruitment_tickets' AND constraint_name = 'recruitment_tickets_pkey'
+            ORDER BY ordinal_position
+        """)
+        if [r['column_name'] for r in pk_cols_rt] == ['user_id']:
+            await conn.execute("ALTER TABLE recruitment_tickets DROP CONSTRAINT recruitment_tickets_pkey")
+            await conn.execute("ALTER TABLE recruitment_tickets ADD PRIMARY KEY (user_id, guild_id)")
+
+        # ── Migration ancien format img:{nom}/desc:{nom} → img:{guild_id}:{nom} ──
+        old_overrides = await conn.fetch(
+            "SELECT key, value FROM settings WHERE key LIKE 'img:%' OR key LIKE 'desc:%'"
+        )
+        for row in old_overrides:
+            parts = row["key"].split(":")
+            if len(parts) == 2:  # ancien format, pas encore de guild_id dans la clé
+                prefix, name = parts
+                new_key = f"{prefix}:{_GUILD_ID}:{name}"
+                await conn.execute("""
+                    INSERT INTO settings (key, value) VALUES ($1, $2)
+                    ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+                """, new_key, row["value"])
+                await conn.execute("DELETE FROM settings WHERE key = $1", row["key"])
+
+        # ── Config recrutement par serveur ────────────────────────────────────
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS recruitment_config (
+                guild_id             BIGINT PRIMARY KEY,
+                rules_channel_id     BIGINT,
+                category_id          BIGINT,
+                recruitment_role_id  BIGINT,
+                candidat_role_id     BIGINT
+            )
+        """)
+
+        # ── Salons vocaux temporaires ──────────────────────────────────────────
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS voice_hubs (
+                channel_id     BIGINT PRIMARY KEY,
+                guild_id       BIGINT NOT NULL,
+                category_id    BIGINT,
+                name_template  TEXT   NOT NULL DEFAULT '🔊 {pseudo}',
+                user_limit     INT    NOT NULL DEFAULT 0
+            );
+
+            CREATE TABLE IF NOT EXISTS temp_voice_channels (
+                channel_id  BIGINT PRIMARY KEY,
+                guild_id    BIGINT NOT NULL,
+                owner_id    BIGINT NOT NULL,
+                hub_id      BIGINT NOT NULL
+            );
+        """)
+
+        # ── Messages bienvenue / au revoir par serveur ─────────────────────────
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS member_events_config (
+                guild_id            BIGINT PRIMARY KEY,
+                welcome_channel_id  BIGINT,
+                welcome_message     TEXT,
+                goodbye_channel_id  BIGINT,
+                goodbye_message     TEXT
+            )
+        """)
+
 
 # ── ACTIVITIES ────────────────────────────────────────────────────────────────
 
@@ -368,33 +453,41 @@ async def get_bal_log(action: str | None = None, guild_id: int = 0) -> list:
 
 # ── CUSTOM TEMPLATES ──────────────────────────────────────────────────────────
 
-async def get_custom_templates() -> dict:
+async def get_custom_templates() -> dict[int, dict]:
+    """Retourne {guild_id: {template_name: data}}."""
     async with _pool.acquire() as conn:
-        rows = await conn.fetch("SELECT name, data FROM custom_templates")
-    return {row["name"]: _jloads(row["data"]) for row in rows}
+        rows = await conn.fetch("SELECT name, guild_id, data FROM custom_templates")
+    result: dict[int, dict] = {}
+    for row in rows:
+        result.setdefault(row["guild_id"], {})[row["name"]] = _jloads(row["data"])
+    return result
 
 
-async def save_custom_template(name: str, data: dict) -> None:
+async def save_custom_template(name: str, data: dict, guild_id: int = 0) -> None:
     data_json = json.dumps(data, ensure_ascii=False)
     async with _pool.acquire() as conn:
         await conn.execute("""
-            INSERT INTO custom_templates (name, data) VALUES ($1, $2::jsonb)
-            ON CONFLICT (name) DO UPDATE SET data = EXCLUDED.data
-        """, name, data_json)
+            INSERT INTO custom_templates (name, guild_id, data) VALUES ($1, $2, $3::jsonb)
+            ON CONFLICT (name, guild_id) DO UPDATE SET data = EXCLUDED.data
+        """, name, guild_id, data_json)
 
 
-async def delete_custom_template(name: str) -> None:
+async def delete_custom_template(name: str, guild_id: int = 0) -> None:
     async with _pool.acquire() as conn:
-        await conn.execute("DELETE FROM custom_templates WHERE name = $1", name)
+        await conn.execute("DELETE FROM custom_templates WHERE name = $1 AND guild_id = $2", name, guild_id)
 
 
 # ── SETTINGS ──────────────────────────────────────────────────────────────────
 
-async def get_image_overrides() -> dict:
-    """Retourne toutes les overrides d'image {template_name: url}."""
+async def get_image_overrides() -> dict[int, dict]:
+    """Retourne {guild_id: {template_name: url}}."""
     async with _pool.acquire() as conn:
         rows = await conn.fetch("SELECT key, value FROM settings WHERE key LIKE 'img:%'")
-    return {row["key"][4:]: row["value"] for row in rows}
+    result: dict[int, dict] = {}
+    for row in rows:
+        _, guild_id_str, name = row["key"].split(":", 2)
+        result.setdefault(int(guild_id_str), {})[name] = row["value"]
+    return result
 
 
 async def get_is_alerted(user_id: str, guild_id: int = 0) -> bool:
@@ -413,19 +506,23 @@ async def set_is_alerted(user_id: str, value: bool, guild_id: int = 0) -> None:
         """, user_id, guild_id, value)
 
 
-async def set_image_override(template_name: str, url: str) -> None:
-    await set_setting(f"img:{template_name}", url)
+async def set_image_override(template_name: str, url: str, guild_id: int = 0) -> None:
+    await set_setting(f"img:{guild_id}:{template_name}", url)
 
 
-async def get_description_overrides() -> dict:
-    """Retourne toutes les overrides de description {template_name: description}."""
+async def get_description_overrides() -> dict[int, dict]:
+    """Retourne {guild_id: {template_name: description}}."""
     async with _pool.acquire() as conn:
         rows = await conn.fetch("SELECT key, value FROM settings WHERE key LIKE 'desc:%'")
-    return {row["key"][5:]: row["value"] for row in rows}
+    result: dict[int, dict] = {}
+    for row in rows:
+        _, guild_id_str, name = row["key"].split(":", 2)
+        result.setdefault(int(guild_id_str), {})[name] = row["value"]
+    return result
 
 
-async def set_description_override(template_name: str, desc: str) -> None:
-    await set_setting(f"desc:{template_name}", desc)
+async def set_description_override(template_name: str, desc: str, guild_id: int = 0) -> None:
+    await set_setting(f"desc:{guild_id}:{template_name}", desc)
 
 
 async def get_setting(key: str, default: str = "") -> str:
@@ -555,25 +652,61 @@ async def delete_player_profile(user_id: str, guild_id: int = 0) -> None:
         await conn.execute("DELETE FROM player_profiles WHERE user_id = $1 AND guild_id = $2", user_id, guild_id)
 
 
-async def save_recruitment_ticket(user_id: str, thread_id: int) -> None:
+async def save_recruitment_ticket(user_id: str, channel_id: int, guild_id: int = 0) -> None:
     ts = datetime.now(timezone.utc)
     async with _pool.acquire() as conn:
         await conn.execute("""
-            INSERT INTO recruitment_tickets (user_id, thread_id, created_at)
-            VALUES ($1, $2, $3)
-            ON CONFLICT (user_id) DO UPDATE SET thread_id = EXCLUDED.thread_id, created_at = EXCLUDED.created_at
-        """, user_id, thread_id, ts)
+            INSERT INTO recruitment_tickets (user_id, guild_id, thread_id, created_at)
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT (user_id, guild_id) DO UPDATE SET thread_id = EXCLUDED.thread_id, created_at = EXCLUDED.created_at
+        """, user_id, guild_id, channel_id, ts)
 
 
-async def get_recruitment_ticket(user_id: str) -> int | None:
+async def get_recruitment_ticket(user_id: str, guild_id: int = 0) -> int | None:
     async with _pool.acquire() as conn:
-        row = await conn.fetchrow("SELECT thread_id FROM recruitment_tickets WHERE user_id = $1", user_id)
+        row = await conn.fetchrow(
+            "SELECT thread_id FROM recruitment_tickets WHERE user_id = $1 AND guild_id = $2", user_id, guild_id
+        )
     return row["thread_id"] if row else None
 
 
-async def delete_recruitment_ticket(user_id: str) -> None:
+async def delete_recruitment_ticket(user_id: str, guild_id: int = 0) -> None:
     async with _pool.acquire() as conn:
-        await conn.execute("DELETE FROM recruitment_tickets WHERE user_id = $1", user_id)
+        await conn.execute("DELETE FROM recruitment_tickets WHERE user_id = $1 AND guild_id = $2", user_id, guild_id)
+
+
+# ── CONFIG RECRUTEMENT PAR SERVEUR ─────────────────────────────────────────────
+
+async def get_recruitment_config(guild_id: int) -> dict | None:
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT * FROM recruitment_config WHERE guild_id = $1", guild_id)
+    if not row:
+        return None
+    return {
+        "rules_channel_id":    row["rules_channel_id"],
+        "category_id":         row["category_id"],
+        "recruitment_role_id": row["recruitment_role_id"],
+        "candidat_role_id":    row["candidat_role_id"],
+    }
+
+
+async def set_recruitment_config(
+    guild_id: int,
+    rules_channel_id: int,
+    recruitment_role_id: int,
+    candidat_role_id: int,
+    category_id: int | None = None,
+) -> None:
+    async with _pool.acquire() as conn:
+        await conn.execute("""
+            INSERT INTO recruitment_config (guild_id, rules_channel_id, category_id, recruitment_role_id, candidat_role_id)
+            VALUES ($1, $2, $3, $4, $5)
+            ON CONFLICT (guild_id) DO UPDATE SET
+                rules_channel_id     = EXCLUDED.rules_channel_id,
+                category_id          = EXCLUDED.category_id,
+                recruitment_role_id  = EXCLUDED.recruitment_role_id,
+                candidat_role_id     = EXCLUDED.candidat_role_id
+        """, guild_id, rules_channel_id, category_id, recruitment_role_id, candidat_role_id)
 
 
 async def increment_acti_count(user_ids: list[str], guild_id: int = 0) -> None:
@@ -599,3 +732,137 @@ async def get_inactive_member_ids(days: int, guild_id: int = 0) -> set[str]:
               AND (last_acti_at IS NULL OR last_acti_at < NOW() - ($1 * INTERVAL '1 day'))
         """, days, guild_id)
     return {r["user_id"] for r in rows}
+
+
+# ── SALONS VOCAUX TEMPORAIRES ──────────────────────────────────────────────────
+
+async def get_voice_hubs(guild_id: int) -> list[dict]:
+    async with _pool.acquire() as conn:
+        rows = await conn.fetch("SELECT * FROM voice_hubs WHERE guild_id = $1", guild_id)
+    return [
+        {
+            "channel_id":    r["channel_id"],
+            "guild_id":      r["guild_id"],
+            "category_id":   r["category_id"],
+            "name_template": r["name_template"],
+            "user_limit":    r["user_limit"],
+        }
+        for r in rows
+    ]
+
+
+async def get_all_voice_hubs() -> list[dict]:
+    async with _pool.acquire() as conn:
+        rows = await conn.fetch("SELECT * FROM voice_hubs")
+    return [
+        {
+            "channel_id":    r["channel_id"],
+            "guild_id":      r["guild_id"],
+            "category_id":   r["category_id"],
+            "name_template": r["name_template"],
+            "user_limit":    r["user_limit"],
+        }
+        for r in rows
+    ]
+
+
+async def add_voice_hub(
+    channel_id: int, guild_id: int, category_id: int | None,
+    name_template: str = "🔊 {pseudo}", user_limit: int = 0,
+) -> None:
+    async with _pool.acquire() as conn:
+        await conn.execute("""
+            INSERT INTO voice_hubs (channel_id, guild_id, category_id, name_template, user_limit)
+            VALUES ($1, $2, $3, $4, $5)
+            ON CONFLICT (channel_id) DO UPDATE SET
+                category_id   = EXCLUDED.category_id,
+                name_template = EXCLUDED.name_template,
+                user_limit    = EXCLUDED.user_limit
+        """, channel_id, guild_id, category_id, name_template, user_limit)
+
+
+async def update_voice_hub(channel_id: int, name_template: str, user_limit: int) -> None:
+    async with _pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE voice_hubs SET name_template = $2, user_limit = $3 WHERE channel_id = $1",
+            channel_id, name_template, user_limit,
+        )
+
+
+async def delete_voice_hub(channel_id: int) -> None:
+    async with _pool.acquire() as conn:
+        await conn.execute("DELETE FROM voice_hubs WHERE channel_id = $1", channel_id)
+
+
+async def add_temp_voice_channel(channel_id: int, guild_id: int, owner_id: int, hub_id: int) -> None:
+    async with _pool.acquire() as conn:
+        await conn.execute("""
+            INSERT INTO temp_voice_channels (channel_id, guild_id, owner_id, hub_id)
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT (channel_id) DO NOTHING
+        """, channel_id, guild_id, owner_id, hub_id)
+
+
+async def get_all_temp_voice_channels() -> list[dict]:
+    async with _pool.acquire() as conn:
+        rows = await conn.fetch("SELECT * FROM temp_voice_channels")
+    return [
+        {"channel_id": r["channel_id"], "guild_id": r["guild_id"], "owner_id": r["owner_id"], "hub_id": r["hub_id"]}
+        for r in rows
+    ]
+
+
+async def delete_temp_voice_channel(channel_id: int) -> None:
+    async with _pool.acquire() as conn:
+        await conn.execute("DELETE FROM temp_voice_channels WHERE channel_id = $1", channel_id)
+
+
+# ── MESSAGES BIENVENUE / AU REVOIR ─────────────────────────────────────────────
+
+async def get_member_events_config(guild_id: int) -> dict | None:
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT * FROM member_events_config WHERE guild_id = $1", guild_id)
+    if not row:
+        return None
+    return {
+        "welcome_channel_id": row["welcome_channel_id"],
+        "welcome_message":    row["welcome_message"],
+        "goodbye_channel_id": row["goodbye_channel_id"],
+        "goodbye_message":    row["goodbye_message"],
+    }
+
+
+async def get_all_member_events_configs() -> dict[int, dict]:
+    async with _pool.acquire() as conn:
+        rows = await conn.fetch("SELECT * FROM member_events_config")
+    return {
+        r["guild_id"]: {
+            "welcome_channel_id": r["welcome_channel_id"],
+            "welcome_message":    r["welcome_message"],
+            "goodbye_channel_id": r["goodbye_channel_id"],
+            "goodbye_message":    r["goodbye_message"],
+        }
+        for r in rows
+    }
+
+
+async def set_welcome_config(guild_id: int, channel_id: int | None, message: str | None) -> None:
+    async with _pool.acquire() as conn:
+        await conn.execute("""
+            INSERT INTO member_events_config (guild_id, welcome_channel_id, welcome_message)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (guild_id) DO UPDATE SET
+                welcome_channel_id = EXCLUDED.welcome_channel_id,
+                welcome_message    = EXCLUDED.welcome_message
+        """, guild_id, channel_id, message)
+
+
+async def set_goodbye_config(guild_id: int, channel_id: int | None, message: str | None) -> None:
+    async with _pool.acquire() as conn:
+        await conn.execute("""
+            INSERT INTO member_events_config (guild_id, goodbye_channel_id, goodbye_message)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (guild_id) DO UPDATE SET
+                goodbye_channel_id = EXCLUDED.goodbye_channel_id,
+                goodbye_message    = EXCLUDED.goodbye_message
+        """, guild_id, channel_id, message)
