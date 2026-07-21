@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 
+import db
 from config import ADMIN_ROLE_NAME
 from Service.utils import is_admin
 from Service import vocal_temp, bienvenue
@@ -49,6 +50,25 @@ def _welcome_embed(guild: discord.Guild, kind: str) -> discord.Embed:
     else:
         embed.description = "Non configuré."
     embed.set_footer(text="Placeholders : {mention} {pseudo} {serveur} {membercount}")
+    return embed
+
+
+def _default_role_embed(guild: discord.Guild) -> discord.Embed:
+    cfg = bienvenue._configs.get(guild.id, {})
+    role_id = cfg.get("default_role_id")
+    embed = discord.Embed(title="🎭 Rôle par défaut à l'arrivée", color=0x3498DB)
+    embed.description = f"<@&{role_id}>" if role_id else "Non configuré."
+    return embed
+
+
+async def _recap_embed(guild: discord.Guild) -> discord.Embed:
+    channel_id = await db.get_recap_channel(guild.id)
+    embed = discord.Embed(title="📋 Salon de récap recrutement (22h)", color=0x3498DB)
+    if channel_id:
+        embed.description = f"<#{channel_id}>"
+    else:
+        embed.description = "Non configuré."
+    embed.set_footer(text="Récap automatique chaque soir à 22h (heure de Paris) : suivi recrutement, stats silver, membres inactifs.")
     return embed
 
 
@@ -256,6 +276,55 @@ class WelcomeConfigView(discord.ui.View):
         await interaction.response.edit_message(embed=_main_embed(), view=MainConfigView())
 
 
+# ── VUE : RÔLE PAR DÉFAUT ──────────────────────────────────────────────────────
+
+class DefaultRoleView(discord.ui.View):
+    def __init__(self, guild_id: int):
+        super().__init__(timeout=180)
+        self.guild_id = guild_id
+
+    @discord.ui.select(cls=discord.ui.RoleSelect, placeholder="Choisis le rôle attribué à l'arrivée")
+    async def role_select(self, interaction: discord.Interaction, select: discord.ui.RoleSelect):
+        await bienvenue.set_default_role(self.guild_id, select.values[0].id)
+        await interaction.response.send_message(
+            f"✅ Rôle par défaut : {select.values[0].mention}", ephemeral=True
+        )
+
+    @discord.ui.button(label="🔕 Désactiver", style=discord.ButtonStyle.danger, row=1)
+    async def disable(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await bienvenue.set_default_role(self.guild_id, None)
+        await interaction.response.send_message("🔕 Rôle par défaut désactivé.", ephemeral=True)
+
+    @discord.ui.button(label="⬅️ Retour", style=discord.ButtonStyle.gray, row=1)
+    async def back(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.edit_message(embed=_main_embed(), view=MainConfigView())
+
+
+# ── VUE : SALON DE RÉCAP (22H) ─────────────────────────────────────────────────
+
+class RecapConfigView(discord.ui.View):
+    def __init__(self, guild_id: int):
+        super().__init__(timeout=180)
+        self.guild_id = guild_id
+
+    @discord.ui.select(cls=discord.ui.ChannelSelect, channel_types=[discord.ChannelType.text],
+                        placeholder="Choisis le salon du récap 22h")
+    async def channel_select(self, interaction: discord.Interaction, select: discord.ui.ChannelSelect):
+        await db.set_recap_channel(self.guild_id, select.values[0].id)
+        await interaction.response.send_message(
+            f"✅ Salon de récap configuré sur {select.values[0].mention}.", ephemeral=True
+        )
+
+    @discord.ui.button(label="🔕 Désactiver", style=discord.ButtonStyle.danger, row=1)
+    async def disable(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await db.set_recap_channel(self.guild_id, None)
+        await interaction.response.send_message("🔕 Récap désactivé sur ce serveur.", ephemeral=True)
+
+    @discord.ui.button(label="⬅️ Retour", style=discord.ButtonStyle.gray, row=1)
+    async def back(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.edit_message(embed=_main_embed(), view=MainConfigView())
+
+
 # ── VUE PRINCIPALE ─────────────────────────────────────────────────────────────
 
 class MainConfigSelect(discord.ui.Select):
@@ -267,6 +336,10 @@ class MainConfigSelect(discord.ui.Select):
                                   description="Message envoyé à l'arrivée d'un membre"),
             discord.SelectOption(label="Message d'au revoir", value="aurevoir", emoji="🚪",
                                   description="Message envoyé au départ d'un membre"),
+            discord.SelectOption(label="Rôle par défaut", value="role_defaut", emoji="🎭",
+                                  description="Rôle attribué automatiquement à l'arrivée"),
+            discord.SelectOption(label="Salon de récap (22h)", value="recap", emoji="📋",
+                                  description="Salon du récap recrutement automatique"),
         ]
         super().__init__(placeholder="Choisis une section à configurer...", options=options)
 
@@ -279,9 +352,15 @@ class MainConfigSelect(discord.ui.Select):
         elif value == "bienvenue":
             embed = _welcome_embed(interaction.guild, "welcome")
             await interaction.response.edit_message(embed=embed, view=WelcomeConfigView(interaction.guild.id, "welcome"))
-        else:
+        elif value == "aurevoir":
             embed = _welcome_embed(interaction.guild, "goodbye")
             await interaction.response.edit_message(embed=embed, view=WelcomeConfigView(interaction.guild.id, "goodbye"))
+        elif value == "role_defaut":
+            embed = _default_role_embed(interaction.guild)
+            await interaction.response.edit_message(embed=embed, view=DefaultRoleView(interaction.guild.id))
+        else:
+            embed = await _recap_embed(interaction.guild)
+            await interaction.response.edit_message(embed=embed, view=RecapConfigView(interaction.guild.id))
 
 
 class MainConfigView(discord.ui.View):

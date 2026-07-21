@@ -33,6 +33,11 @@ async def set_goodbye(guild_id: int, channel_id: int | None, message: str | None
     await refresh_cache()
 
 
+async def set_default_role(guild_id: int, role_id: int | None) -> None:
+    await db.set_default_role(guild_id, role_id)
+    await refresh_cache()
+
+
 class Bienvenue(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -45,15 +50,24 @@ class Bienvenue(commands.Cog):
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
         cfg = _configs.get(member.guild.id)
-        if not cfg or not cfg["welcome_channel_id"] or not cfg["welcome_message"]:
+        if not cfg:
             return
-        channel = member.guild.get_channel(cfg["welcome_channel_id"])
-        if not channel:
-            return
-        try:
-            await channel.send(_format(cfg["welcome_message"], member, member.guild))
-        except discord.Forbidden:
-            pass
+
+        if cfg["default_role_id"]:
+            role = member.guild.get_role(cfg["default_role_id"])
+            if role:
+                try:
+                    await member.add_roles(role, reason="Rôle par défaut à l'arrivée")
+                except discord.Forbidden:
+                    pass
+
+        if cfg["welcome_channel_id"] and cfg["welcome_message"]:
+            channel = member.guild.get_channel(cfg["welcome_channel_id"])
+            if channel:
+                try:
+                    await channel.send(_format(cfg["welcome_message"], member, member.guild))
+                except discord.Forbidden:
+                    pass
 
     @commands.Cog.listener()
     async def on_member_remove(self, member: discord.Member):

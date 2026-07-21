@@ -235,7 +235,7 @@ async def init_db(database_url: str) -> None:
             );
         """)
 
-        # ── Messages bienvenue / au revoir par serveur ─────────────────────────
+        # ── Messages bienvenue / au revoir + rôle par défaut par serveur ───────
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS member_events_config (
                 guild_id            BIGINT PRIMARY KEY,
@@ -245,6 +245,9 @@ async def init_db(database_url: str) -> None:
                 goodbye_message     TEXT
             )
         """)
+        await conn.execute(
+            "ALTER TABLE member_events_config ADD COLUMN IF NOT EXISTS default_role_id BIGINT"
+        )
 
 
 # ── ACTIVITIES ────────────────────────────────────────────────────────────────
@@ -548,6 +551,15 @@ async def set_bal_rate(guild_id: int, rate: int) -> None:
     await set_setting(f"bal_rate:{guild_id}", str(rate))
 
 
+async def get_recap_channel(guild_id: int) -> int | None:
+    val = await get_setting(f"recap_channel:{guild_id}", "")
+    return int(val) if val else None
+
+
+async def set_recap_channel(guild_id: int, channel_id: int | None) -> None:
+    await set_setting(f"recap_channel:{guild_id}", str(channel_id) if channel_id else "")
+
+
 # ── PLAYER PROFILES ───────────────────────────────────────────────────────────
 
 async def get_player_profile(user_id: str, guild_id: int = 0) -> dict | None:
@@ -829,6 +841,7 @@ async def get_member_events_config(guild_id: int) -> dict | None:
         "welcome_message":    row["welcome_message"],
         "goodbye_channel_id": row["goodbye_channel_id"],
         "goodbye_message":    row["goodbye_message"],
+        "default_role_id":    row["default_role_id"],
     }
 
 
@@ -841,6 +854,7 @@ async def get_all_member_events_configs() -> dict[int, dict]:
             "welcome_message":    r["welcome_message"],
             "goodbye_channel_id": r["goodbye_channel_id"],
             "goodbye_message":    r["goodbye_message"],
+            "default_role_id":    r["default_role_id"],
         }
         for r in rows
     }
@@ -866,3 +880,12 @@ async def set_goodbye_config(guild_id: int, channel_id: int | None, message: str
                 goodbye_channel_id = EXCLUDED.goodbye_channel_id,
                 goodbye_message    = EXCLUDED.goodbye_message
         """, guild_id, channel_id, message)
+
+
+async def set_default_role(guild_id: int, role_id: int | None) -> None:
+    async with _pool.acquire() as conn:
+        await conn.execute("""
+            INSERT INTO member_events_config (guild_id, default_role_id)
+            VALUES ($1, $2)
+            ON CONFLICT (guild_id) DO UPDATE SET default_role_id = EXCLUDED.default_role_id
+        """, guild_id, role_id)

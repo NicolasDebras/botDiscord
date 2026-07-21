@@ -148,7 +148,7 @@ Système de candidature en libre-service, **configurable indépendamment sur cha
 |---|---|---|
 | `/config` | Officier | Panneau interactif pour configurer le serveur |
 
-`/config` ouvre un panneau éphémère (visible seulement par toi) avec un menu déroulant vers 3 sections :
+`/config` ouvre un panneau éphémère (visible seulement par toi) avec un menu déroulant vers 5 sections :
 
 **🔊 Salons vocaux temporaires**
 - **➕ Ajouter un hub** — choisis un salon vocal existant qui servira de déclencheur, une catégorie optionnelle pour les salons créés, puis renseigne le nom (`{pseudo}` = pseudo du créateur) et la limite de places
@@ -160,6 +160,14 @@ Système de candidature en libre-service, **configurable indépendamment sur cha
 - Choisis le salon textuel puis renseigne le message dans la pop-up
 - Placeholders disponibles : `{mention}` `{pseudo}` `{nom}` `{serveur}` `{membercount}`
 - Bouton **🔕 Désactiver** pour couper le message sans perdre la config
+
+**🎭 Rôle par défaut**
+- Choisis le rôle attribué automatiquement à tout nouveau membre qui rejoint le serveur
+- Bouton **🔕 Désactiver** pour couper l'attribution automatique
+
+**📋 Salon de récap (22h)**
+- Choisis le salon où sera posté le récap recrutement automatique de 22h (voir plus bas)
+- Bouton **🔕 Désactiver** pour couper le récap sur ce serveur
 
 > Toute la configuration (`/config`, `/setup-recrutement`, `/setrate`, templates custom…) est isolée par serveur (`guild_id`).
 
@@ -182,10 +190,12 @@ L'embed `/info` affiche :
 
 > Si le joueur n'a jamais été recruté via le bot, seul le compteur d'activités est disponible.
 
-**Rappel automatique 22h** — chaque soir à **22h** (heure de Paris), le bot :
+**Rappel automatique 22h** — chaque soir à **22h** (heure de Paris), sur **chaque serveur où le bot est installé et où un salon de récap est configuré** (`/config` → 📋 Salon de récap) :
 - Envoie un récap en 3 sections : < 1 semaine / < 2 semaines / à valider via `/ancien` (ping Recruteur)
 - Met à jour les fames via l'API Albion Online
 - Supprime les profils des joueurs qui ont quitté le Discord depuis plus de **3 jours**
+
+> Le serveur principal historique (`DISCORD_GUILD_ID`) garde son ancien salon de récap par défaut tant qu'aucun salon n'a été explicitement configuré via `/config` pour lui. Les autres serveurs doivent configurer leur salon de récap via `/config` pour activer le rappel automatique.
 
 > `/recap` permet de déclencher manuellement la même logique avec purge immédiate des profils des partis (sans attendre le délai de 3 jours).
 
@@ -293,5 +303,5 @@ Les templates par défaut sont définis dans `config.py` et ne peuvent pas être
 
 > Les soldes BAL, les profils joueurs et les templates custom sont isolés par serveur (`guild_id`). Chaque serveur a son propre pool BAL, son propre taux de rachat (`/setrate`), ses propres profils de recrutement, sa propre configuration de recrutement externe (`/setup-recrutement`) et ses propres templates custom. Les données existantes ont été migrées automatiquement vers le serveur principal (`DISCORD_GUILD_ID`) lors du passage au multi-serveur.
 
-> Les messages personnalisés de `/monbal` et les notifications de limite BAL sont réservés au serveur principal (`DISCORD_GUILD_ID`). La tâche automatique de récap 22h ne tourne que sur le serveur principal.
+> Les messages personnalisés de `/monbal` et les notifications de limite BAL sont réservés au serveur principal (`DISCORD_GUILD_ID`). La tâche automatique de récap 22h tourne désormais sur **tous** les serveurs ayant un salon configuré via `/config` (le serveur principal garde son ancien salon par défaut).
 

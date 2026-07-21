@@ -6,6 +6,7 @@ from discord import app_commands
 
 import db
 from config import ADMIN_ROLE_NAME
+from albion_api import fetch_albion_fame, fmt_fame
 
 
 def _slugify(text: str) -> str:
@@ -73,6 +74,18 @@ class QuestionnaireModal(discord.ui.Modal, title="📋 Questionnaire de candidat
                 )
                 return
 
+        fame = None
+        try:
+            fame = await fetch_albion_fame(self.pseudo_ig.value)
+        except Exception:
+            fame = None
+
+        if fame:
+            try:
+                await interaction.user.edit(nick=fame["name"][:32], reason="Candidature — pseudo IG")
+            except discord.Forbidden:
+                pass
+
         category = guild.get_channel(cfg["category_id"]) if cfg["category_id"] else None
         if not isinstance(category, discord.CategoryChannel):
             category = None
@@ -114,6 +127,14 @@ class QuestionnaireModal(discord.ui.Modal, title="📋 Questionnaire de candidat
         )
         embed.set_thumbnail(url=interaction.user.display_avatar.url)
         embed.add_field(name="🎮 Pseudo IG",                      value=self.pseudo_ig.value,  inline=False)
+        if fame:
+            embed.add_field(
+                name="⚔️ Fame Albion",
+                value=f"PvP : **{fmt_fame(fame['pvp'])}**\nPvE : **{fmt_fame(fame['pve'])}**",
+                inline=False,
+            )
+        else:
+            embed.add_field(name="⚔️ Fame Albion", value="*Joueur introuvable sur l'API Albion Online*", inline=False)
         embed.add_field(name="🔍 Comment nous as-tu découvert ?", value=self.decouverte.value, inline=False)
         embed.add_field(name="🕐 Disponibilités",                 value=self.dispo.value,      inline=False)
         embed.add_field(name="⚔️ Contenu favori",                 value=self.contenu.value,    inline=False)
@@ -126,6 +147,17 @@ class QuestionnaireModal(discord.ui.Modal, title="📋 Questionnaire de candidat
 
         await channel.send(content=mentions, embed=embed)
         await db.save_recruitment_ticket(str(interaction.user.id), channel.id, guild.id)
+
+        if fame:
+            await db.save_player_profile(
+                str(interaction.user.id),
+                fame["name"],
+                fame["pve"],
+                fame["pvp"],
+                self.recherche.value,
+                is_membre=False,
+                guild_id=guild.id,
+            )
 
         await interaction.followup.send(
             f"✅ Ta candidature a bien été envoyée ! {channel.mention}",

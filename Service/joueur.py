@@ -35,10 +35,15 @@ class Joueur(commands.Cog):
         self.rappel_nouveaux.cancel()
 
     # ── Logique commune recap ──────────────────────────────────────────────────
-    async def _run_recap(self, guild: discord.Guild, purge_immediate: bool = False) -> None:
-        channel = self.bot.get_channel(_RAPPEL_SALON)
+    async def _run_recap(self, guild: discord.Guild, purge_immediate: bool = False) -> bool:
+        """Retourne False si aucun salon de récap n'est configuré sur ce serveur."""
+        channel_id = await db.get_recap_channel(guild.id)
+        if not channel_id and guild.id == _MAIN_GUILD_ID:
+            channel_id = _RAPPEL_SALON  # ancien serveur : salon historique par défaut
+
+        channel = self.bot.get_channel(channel_id) if channel_id else None
         if not channel:
-            return
+            return False
 
         if not guild.chunked:
             await guild.chunk()
@@ -120,14 +125,16 @@ class Joueur(commands.Cog):
             f"⚔️ RAID AVA : **{fmt_silver(payout_raid)} silver**\n\n"
             f"😴 **Membres sans activité depuis 2 semaines :**\n{inactifs_str}"
         )
+        return True
 
-    # ── Tâche 22h ─────────────────────────────────────────────────────────────
+    # ── Tâche 22h (tous les serveurs où le bot est installé) ───────────────────
     @tasks.loop(time=_RAPPEL_HEURE)
     async def rappel_nouveaux(self):
-        channel = self.bot.get_channel(_RAPPEL_SALON)
-        if not channel or channel.guild.id != _MAIN_GUILD_ID:
-            return
-        await self._run_recap(channel.guild, purge_immediate=False)
+        for guild in self.bot.guilds:
+            try:
+                await self._run_recap(guild, purge_immediate=False)
+            except Exception as e:
+                print(f"[rappel_nouveaux] Erreur sur {guild.name} ({guild.id}): {type(e).__name__}: {e}")
 
     @rappel_nouveaux.before_loop
     async def before_rappel(self):
@@ -143,7 +150,12 @@ class Joueur(commands.Cog):
             return
 
         await interaction.response.defer(ephemeral=True)
-        await self._run_recap(interaction.guild, purge_immediate=True)
+        ok = await self._run_recap(interaction.guild, purge_immediate=True)
+        if not ok:
+            await interaction.followup.send(
+                "❌ Aucun salon de récap configuré sur ce serveur. Utilise `/config` pour en choisir un.", ephemeral=True
+            )
+            return
         await interaction.followup.send("✅ Récap envoyé et base nettoyée.", ephemeral=True)
 
     # ── /ancien @joueur ───────────────────────────────────────────────────────
