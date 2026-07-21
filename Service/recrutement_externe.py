@@ -1,4 +1,5 @@
 import re
+import asyncio
 
 import discord
 from discord.ext import commands
@@ -15,6 +16,18 @@ def _slugify(text: str) -> str:
     text = re.sub(r"[^a-z0-9\-\s]", "", text)
     text = re.sub(r"[\s_]+", "-", text).strip("-")
     return text[:90] or "candidature"
+
+
+async def _is_staff(member: discord.Member) -> bool:
+    if member.guild_permissions.administrator:
+        return True
+    if any(r.name == ADMIN_ROLE_NAME for r in member.roles):
+        return True
+    cfg = await db.get_recruitment_config(member.guild.id)
+    if cfg and cfg["recruitment_role_id"]:
+        if any(r.id == cfg["recruitment_role_id"] for r in member.roles):
+            return True
+    return False
 
 
 # ── MODAL QUESTIONNAIRE ───────────────────────────────────────────────────────
@@ -145,7 +158,7 @@ class QuestionnaireModal(discord.ui.Modal, title="📋 Questionnaire de candidat
         if recruitment_role:
             mentions += f" {recruitment_role.mention}"
 
-        await channel.send(content=mentions, embed=embed)
+        await channel.send(content=mentions, embed=embed, view=ValidateCandidatureView())
         await db.save_recruitment_ticket(str(interaction.user.id), channel.id, guild.id)
 
         if fame:
@@ -179,6 +192,34 @@ class RecrutementView(discord.ui.View):
         await interaction.response.send_modal(QuestionnaireModal())
 
 
+# ── VUE PERSISTANTE : VALIDATION CANDIDATURE (STAFF) ──────────────────────────
+class ValidateCandidatureView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(
+        label="✅ Valider (Staff)",
+        style=discord.ButtonStyle.success,
+        custom_id="recru_validate",
+    )
+    async def validate(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not await _is_staff(interaction.user):
+            await interaction.response.send_message(
+                "⛔ Réservé au staff / rôle recrutement.", ephemeral=True
+            )
+            return
+
+        await interaction.response.send_message(
+            f"✅ Candidature validée par {interaction.user.mention} — ce salon va être fermé."
+        )
+        await db.delete_recruitment_ticket_by_channel(interaction.channel.id)
+        await asyncio.sleep(5)
+        try:
+            await interaction.channel.delete(reason=f"Candidature validée par {interaction.user}")
+        except discord.Forbidden:
+            pass
+
+
 # ── COG ───────────────────────────────────────────────────────────────────────
 class RecrutementExterne(commands.Cog):
     def __init__(self, bot: commands.Bot):
@@ -186,6 +227,7 @@ class RecrutementExterne(commands.Cog):
 
     async def cog_load(self):
         self.bot.add_view(RecrutementView())
+        self.bot.add_view(ValidateCandidatureView())
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):

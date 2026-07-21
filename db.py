@@ -687,6 +687,11 @@ async def delete_recruitment_ticket(user_id: str, guild_id: int = 0) -> None:
         await conn.execute("DELETE FROM recruitment_tickets WHERE user_id = $1 AND guild_id = $2", user_id, guild_id)
 
 
+async def delete_recruitment_ticket_by_channel(channel_id: int) -> None:
+    async with _pool.acquire() as conn:
+        await conn.execute("DELETE FROM recruitment_tickets WHERE thread_id = $1", channel_id)
+
+
 # ── CONFIG RECRUTEMENT PAR SERVEUR ─────────────────────────────────────────────
 
 async def get_recruitment_config(guild_id: int) -> dict | None:
