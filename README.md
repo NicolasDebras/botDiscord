@@ -160,12 +160,15 @@ Système de candidature en libre-service, **configurable indépendamment sur cha
 
 **👋 Message de bienvenue** / **🚪 Message d'au revoir**
 - Choisis le salon textuel puis renseigne le message dans la pop-up
+- Le message de bienvenue accepte aussi une **image/GIF** (URL) affichée dans l'embed
 - Placeholders disponibles : `{mention}` `{pseudo}` `{nom}` `{serveur}` `{membercount}`
+- Envoyé sous forme d'**embed** (avatar du membre, numéro de membre pour la bienvenue)
 - Bouton **🔕 Désactiver** pour couper le message sans perdre la config
 
 **🎭 Rôle par défaut**
 - Choisis le rôle attribué automatiquement à tout nouveau membre qui rejoint le serveur
 - Bouton **🔕 Désactiver** pour couper l'attribution automatique
+- ⚠️ Le rôle du bot doit être placé **au-dessus** du rôle par défaut dans la liste des rôles du serveur, et le bot doit avoir la permission **Gérer les rôles**, sinon l'attribution échoue silencieusement (visible dans les logs du bot)
 
 **📋 Salon de récap (22h)**
 - Choisis le salon où sera posté le récap recrutement automatique de 22h (voir plus bas)

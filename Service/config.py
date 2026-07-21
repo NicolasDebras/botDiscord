@@ -47,6 +47,9 @@ def _welcome_embed(guild: discord.Guild, kind: str) -> discord.Embed:
     if chan_id and msg:
         embed.add_field(name="Salon", value=f"<#{chan_id}>", inline=False)
         embed.add_field(name="Message", value=msg[:1024], inline=False)
+        if kind == "welcome" and cfg.get("welcome_image"):
+            embed.add_field(name="Image / GIF", value=cfg["welcome_image"], inline=False)
+            embed.set_image(url=cfg["welcome_image"])
     else:
         embed.description = "Non configuré."
     embed.set_footer(text="Placeholders : {mention} {pseudo} {serveur} {membercount}")
@@ -136,13 +139,23 @@ class MessageModal(discord.ui.Modal, title="Message"):
 
     def __init__(self, guild_id: int, kind: str, channel_id: int):
         super().__init__()
-        self.guild_id   = guild_id
-        self.kind       = kind
-        self.channel_id = channel_id
+        self.guild_id    = guild_id
+        self.kind        = kind
+        self.channel_id  = channel_id
+        self.image_input = None
+        if kind == "welcome":
+            self.image_input = discord.ui.TextInput(
+                label="Image / GIF (URL, optionnel)",
+                placeholder="https://... (laisse vide pour aucune image)",
+                required=False,
+                max_length=300,
+            )
+            self.add_item(self.image_input)
 
     async def on_submit(self, interaction: discord.Interaction):
         if self.kind == "welcome":
-            await bienvenue.set_welcome(self.guild_id, self.channel_id, self.message.value)
+            image_url = self.image_input.value.strip() if self.image_input and self.image_input.value else None
+            await bienvenue.set_welcome(self.guild_id, self.channel_id, self.message.value, image_url)
         else:
             await bienvenue.set_goodbye(self.guild_id, self.channel_id, self.message.value)
         label = "bienvenue" if self.kind == "welcome" else "au revoir"

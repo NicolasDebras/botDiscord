@@ -248,6 +248,9 @@ async def init_db(database_url: str) -> None:
         await conn.execute(
             "ALTER TABLE member_events_config ADD COLUMN IF NOT EXISTS default_role_id BIGINT"
         )
+        await conn.execute(
+            "ALTER TABLE member_events_config ADD COLUMN IF NOT EXISTS welcome_image TEXT"
+        )
 
 
 # ── ACTIVITIES ────────────────────────────────────────────────────────────────
@@ -844,6 +847,7 @@ async def get_member_events_config(guild_id: int) -> dict | None:
     return {
         "welcome_channel_id": row["welcome_channel_id"],
         "welcome_message":    row["welcome_message"],
+        "welcome_image":      row["welcome_image"],
         "goodbye_channel_id": row["goodbye_channel_id"],
         "goodbye_message":    row["goodbye_message"],
         "default_role_id":    row["default_role_id"],
@@ -857,6 +861,7 @@ async def get_all_member_events_configs() -> dict[int, dict]:
         r["guild_id"]: {
             "welcome_channel_id": r["welcome_channel_id"],
             "welcome_message":    r["welcome_message"],
+            "welcome_image":      r["welcome_image"],
             "goodbye_channel_id": r["goodbye_channel_id"],
             "goodbye_message":    r["goodbye_message"],
             "default_role_id":    r["default_role_id"],
@@ -865,15 +870,16 @@ async def get_all_member_events_configs() -> dict[int, dict]:
     }
 
 
-async def set_welcome_config(guild_id: int, channel_id: int | None, message: str | None) -> None:
+async def set_welcome_config(guild_id: int, channel_id: int | None, message: str | None, image: str | None = None) -> None:
     async with _pool.acquire() as conn:
         await conn.execute("""
-            INSERT INTO member_events_config (guild_id, welcome_channel_id, welcome_message)
-            VALUES ($1, $2, $3)
+            INSERT INTO member_events_config (guild_id, welcome_channel_id, welcome_message, welcome_image)
+            VALUES ($1, $2, $3, $4)
             ON CONFLICT (guild_id) DO UPDATE SET
                 welcome_channel_id = EXCLUDED.welcome_channel_id,
-                welcome_message    = EXCLUDED.welcome_message
-        """, guild_id, channel_id, message)
+                welcome_message    = EXCLUDED.welcome_message,
+                welcome_image      = EXCLUDED.welcome_image
+        """, guild_id, channel_id, message, image)
 
 
 async def set_goodbye_config(guild_id: int, channel_id: int | None, message: str | None) -> None:
