@@ -255,6 +255,16 @@ async def init_db(database_url: str) -> None:
             "ALTER TABLE member_events_config ADD COLUMN IF NOT EXISTS welcome_image TEXT"
         )
 
+        # ── Messages de rôles auto-attribuables (boutons) ───────────────────────
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS self_role_menus (
+                message_id  BIGINT PRIMARY KEY,
+                channel_id  BIGINT NOT NULL,
+                guild_id    BIGINT NOT NULL,
+                roles       JSONB  NOT NULL DEFAULT '[]'
+            )
+        """)
+
 
 # ── ACTIVITIES ────────────────────────────────────────────────────────────────
 
@@ -854,6 +864,40 @@ async def get_all_temp_voice_channels() -> list[dict]:
 async def delete_temp_voice_channel(channel_id: int) -> None:
     async with _pool.acquire() as conn:
         await conn.execute("DELETE FROM temp_voice_channels WHERE channel_id = $1", channel_id)
+
+
+# ── MESSAGES DE RÔLES AUTO-ATTRIBUABLES ────────────────────────────────────────
+
+async def get_self_role_menus(guild_id: int) -> list[dict]:
+    async with _pool.acquire() as conn:
+        rows = await conn.fetch("SELECT * FROM self_role_menus WHERE guild_id = $1", guild_id)
+    return [
+        {"message_id": r["message_id"], "channel_id": r["channel_id"], "guild_id": r["guild_id"], "roles": _jloads(r["roles"])}
+        for r in rows
+    ]
+
+
+async def get_all_self_role_menus() -> list[dict]:
+    async with _pool.acquire() as conn:
+        rows = await conn.fetch("SELECT * FROM self_role_menus")
+    return [
+        {"message_id": r["message_id"], "channel_id": r["channel_id"], "guild_id": r["guild_id"], "roles": _jloads(r["roles"])}
+        for r in rows
+    ]
+
+
+async def add_self_role_menu(message_id: int, channel_id: int, guild_id: int, roles: list[dict]) -> None:
+    async with _pool.acquire() as conn:
+        await conn.execute("""
+            INSERT INTO self_role_menus (message_id, channel_id, guild_id, roles)
+            VALUES ($1, $2, $3, $4::jsonb)
+            ON CONFLICT (message_id) DO UPDATE SET roles = EXCLUDED.roles
+        """, message_id, channel_id, guild_id, json.dumps(roles))
+
+
+async def delete_self_role_menu(message_id: int) -> None:
+    async with _pool.acquire() as conn:
+        await conn.execute("DELETE FROM self_role_menus WHERE message_id = $1", message_id)
 
 
 # ── MESSAGES BIENVENUE / AU REVOIR ─────────────────────────────────────────────

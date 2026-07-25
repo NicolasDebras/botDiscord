@@ -5,7 +5,7 @@ from discord import app_commands
 import db
 from config import ADMIN_ROLE_NAME
 from Service.utils import is_admin
-from Service import vocal_temp, bienvenue
+from Service import vocal_temp, bienvenue, self_roles
 
 
 # ── EMBEDS ────────────────────────────────────────────────────────────────────
@@ -72,6 +72,22 @@ async def _recap_embed(guild: discord.Guild) -> discord.Embed:
     else:
         embed.description = "Non configuré."
     embed.set_footer(text="Récap automatique chaque soir à 22h (heure de Paris) : suivi recrutement, stats silver, membres inactifs.")
+    return embed
+
+
+def _autoroles_embed(guild: discord.Guild) -> discord.Embed:
+    menus = self_roles.list_menus(guild.id)
+    embed = discord.Embed(title="🏷️ Rôles à la carte (boutons)", color=0x3498DB)
+    if not menus:
+        embed.description = "Aucun message de rôles configuré. Clique sur **➕ Créer un message de rôles** pour commencer."
+    else:
+        lines = []
+        for m in menus:
+            link = f"https://discord.com/channels/{guild.id}/{m['channel_id']}/{m['message_id']}"
+            roles_str = ", ".join(f"<@&{r['role_id']}>" for r in m["roles"])
+            lines.append(f"[Message]({link}) dans <#{m['channel_id']}> — {roles_str}")
+        embed.description = "\n".join(lines)
+    embed.set_footer(text="Chaque bouton attribue/retire le rôle correspondant au membre qui clique.")
     return embed
 
 
@@ -170,6 +186,57 @@ class MessageModal(discord.ui.Modal, title="Message"):
         label = "bienvenue" if self.kind == "welcome" else "au revoir"
         await interaction.response.send_message(
             f"✅ Message de {label} configuré sur <#{self.channel_id}>.", ephemeral=True
+        )
+
+
+class AutoRoleTitleModal(discord.ui.Modal, title="Message de rôles"):
+    titre = discord.ui.TextInput(
+        label="Titre",
+        default="🏷️ Choisis tes rôles",
+        required=True,
+        max_length=100,
+    )
+    description = discord.ui.TextInput(
+        label="Description (optionnel)",
+        placeholder="Clique sur un bouton pour t'attribuer ou retirer le rôle correspondant.",
+        style=discord.TextStyle.paragraph,
+        required=False,
+        max_length=800,
+    )
+
+    def __init__(self, guild_id: int, channel_id: int, roles: list[tuple[int, str]]):
+        super().__init__()
+        self.guild_id   = guild_id
+        self.channel_id = channel_id
+        self.roles      = roles  # [(role_id, role_name), ...]
+
+    async def on_submit(self, interaction: discord.Interaction):
+        channel = interaction.guild.get_channel(self.channel_id)
+        if not channel:
+            await interaction.response.send_message("❌ Le salon choisi est introuvable.", ephemeral=True)
+            return
+
+        embed = discord.Embed(
+            title=self.titre.value,
+            description=self.description.value or None,
+            color=0x3498DB,
+        )
+        embed.set_footer(text="Clique sur un bouton pour t'attribuer / retirer le rôle correspondant.")
+
+        try:
+            message = await channel.send(embed=embed)
+        except discord.Forbidden:
+            await interaction.response.send_message(
+                f"⛔ Je n'ai pas la permission d'envoyer de message dans <#{self.channel_id}>.", ephemeral=True
+            )
+            return
+
+        roles_payload = [{"role_id": rid, "label": name} for rid, name in self.roles]
+        await self_roles.create_menu(message.id, self.channel_id, self.guild_id, roles_payload)
+        await message.edit(view=self_roles.build_view(message.id, roles_payload))
+
+        await interaction.response.send_message(
+            f"✅ Message de rôles créé dans <#{self.channel_id}> avec {len(roles_payload)} rôle(s).", ephemeral=True
         )
 
 
@@ -371,6 +438,112 @@ class ValidatedRoleView(discord.ui.View):
         await interaction.response.edit_message(embed=_main_embed(), view=MainConfigView())
 
 
+# ── VUES : RÔLES À LA CARTE (BOUTONS) ───────────────────────────────────────────
+
+class CreateAutoRoleView(discord.ui.View):
+    def __init__(self, guild_id: int):
+        super().__init__(timeout=180)
+        self.guild_id   = guild_id
+        self.channel_id: int | None = None
+        self.roles: list[tuple[int, str]] = []
+
+    @discord.ui.select(cls=discord.ui.ChannelSelect, channel_types=[discord.ChannelType.text],
+                        placeholder="1️⃣ Salon de publication du message")
+    async def channel_select(self, interaction: discord.Interaction, select: discord.ui.ChannelSelect):
+        self.channel_id = select.values[0].id
+        await interaction.response.defer(ephemeral=True)
+
+    @discord.ui.select(cls=discord.ui.RoleSelect, placeholder="2️⃣ Rôles proposés (jusqu'à 25)",
+                        min_values=1, max_values=25)
+    async def role_select(self, interaction: discord.Interaction, select: discord.ui.RoleSelect):
+        self.roles = [(r.id, r.name) for r in select.values]
+        await interaction.response.defer(ephemeral=True)
+
+    @discord.ui.button(label="3️⃣ Valider", style=discord.ButtonStyle.success, row=2)
+    async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not self.channel_id:
+            await interaction.response.send_message("❌ Choisis d'abord un salon.", ephemeral=True)
+            return
+        if not self.roles:
+            await interaction.response.send_message("❌ Choisis au moins un rôle.", ephemeral=True)
+            return
+        await interaction.response.send_modal(
+            AutoRoleTitleModal(self.guild_id, self.channel_id, self.roles)
+        )
+
+
+class ManageAutoRoleSelect(discord.ui.Select):
+    def __init__(self, guild: discord.Guild, menus: list[dict]):
+        self.menus_by_id = {m["message_id"]: m for m in menus}
+        options = [
+            discord.SelectOption(
+                label=(guild.get_channel(m["channel_id"]).name if guild.get_channel(m["channel_id"]) else str(m["channel_id"]))[:100],
+                description=f"{len(m['roles'])} rôle(s)",
+                value=str(m["message_id"]),
+            )
+            for m in menus
+        ]
+        super().__init__(placeholder="Choisis un message à supprimer...", options=options)
+
+    async def callback(self, interaction: discord.Interaction):
+        view: ManageAutoRoleView = self.view
+        view.selected = self.menus_by_id[int(self.values[0])]
+        await interaction.response.defer(ephemeral=True)
+
+
+class ManageAutoRoleView(discord.ui.View):
+    def __init__(self, guild: discord.Guild, menus: list[dict]):
+        super().__init__(timeout=180)
+        self.selected: dict | None = None
+        self.add_item(ManageAutoRoleSelect(guild, menus))
+
+    @discord.ui.button(label="🗑️ Supprimer", style=discord.ButtonStyle.danger, row=1)
+    async def remove(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not self.selected:
+            await interaction.response.send_message("❌ Choisis d'abord un message dans le menu.", ephemeral=True)
+            return
+
+        message_id, channel_id = self.selected["message_id"], self.selected["channel_id"]
+        await self_roles.delete_menu(message_id)
+
+        channel = interaction.guild.get_channel(channel_id)
+        if channel:
+            try:
+                msg = await channel.fetch_message(message_id)
+                await msg.delete()
+            except discord.HTTPException:
+                pass
+
+        await interaction.response.send_message("🗑️ Message de rôles supprimé.", ephemeral=True)
+
+
+class AutoRolesConfigView(discord.ui.View):
+    def __init__(self, guild_id: int):
+        super().__init__(timeout=180)
+        self.guild_id = guild_id
+
+    @discord.ui.button(label="➕ Créer un message de rôles", style=discord.ButtonStyle.success, row=0)
+    async def create(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_message(
+            "Sélectionne le salon de publication puis les rôles à proposer :",
+            view=CreateAutoRoleView(self.guild_id), ephemeral=True,
+        )
+
+    @discord.ui.button(label="🗑️ Supprimer un message", style=discord.ButtonStyle.secondary, row=0)
+    async def manage(self, interaction: discord.Interaction, button: discord.ui.Button):
+        menus = self_roles.list_menus(self.guild_id)
+        if not menus:
+            await interaction.response.send_message("ℹ️ Aucun message de rôles configuré.", ephemeral=True)
+            return
+        await interaction.response.send_message(
+            "Choisis le message de rôles à supprimer :", view=ManageAutoRoleView(interaction.guild, menus), ephemeral=True
+        )
+
+    @discord.ui.button(label="⬅️ Retour", style=discord.ButtonStyle.gray, row=1)
+    async def back(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.edit_message(embed=_main_embed(), view=MainConfigView())
+
+
 # ── VUE PRINCIPALE ─────────────────────────────────────────────────────────────
 
 class MainConfigSelect(discord.ui.Select):
@@ -388,6 +561,8 @@ class MainConfigSelect(discord.ui.Select):
                                   description="Salon du récap recrutement automatique"),
             discord.SelectOption(label="Rôle après validation candidature", value="role_validation", emoji="✅",
                                   description="Rôle attribué quand le staff valide une candidature"),
+            discord.SelectOption(label="Rôles à la carte (boutons)", value="autoroles", emoji="🏷️",
+                                  description="Message avec boutons pour s'attribuer un rôle"),
         ]
         super().__init__(placeholder="Choisis une section à configurer...", options=options)
 
@@ -409,9 +584,12 @@ class MainConfigSelect(discord.ui.Select):
         elif value == "recap":
             embed = await _recap_embed(interaction.guild)
             await interaction.response.edit_message(embed=embed, view=RecapConfigView(interaction.guild.id))
-        else:
+        elif value == "role_validation":
             embed = await _validated_role_embed(interaction.guild)
             await interaction.response.edit_message(embed=embed, view=ValidatedRoleView(interaction.guild.id))
+        else:
+            embed = _autoroles_embed(interaction.guild)
+            await interaction.response.edit_message(embed=embed, view=AutoRolesConfigView(interaction.guild.id))
 
 
 class MainConfigView(discord.ui.View):

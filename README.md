@@ -150,7 +150,7 @@ Système de candidature en libre-service, **configurable indépendamment sur cha
 |---|---|---|
 | `/config` | Officier | Panneau interactif pour configurer le serveur |
 
-`/config` ouvre un panneau éphémère (visible seulement par toi) avec un menu déroulant vers 6 sections :
+`/config` ouvre un panneau éphémère (visible seulement par toi) avec un menu déroulant vers 7 sections :
 
 **🔊 Salons vocaux temporaires**
 - **➕ Ajouter un hub** — choisis un salon vocal existant qui servira de déclencheur, une catégorie optionnelle pour les salons créés, puis renseigne le nom (`{pseudo}` = pseudo du créateur) et la limite de places
@@ -177,6 +177,13 @@ Système de candidature en libre-service, **configurable indépendamment sur cha
 **✅ Rôle après validation candidature**
 - Choisis le rôle attribué automatiquement au candidat quand le staff clique sur **✅ Valider (Staff)** (voir Candidature externe)
 - Bouton **🔕 Désactiver** pour couper l'attribution automatique
+
+**🏷️ Rôles à la carte (boutons)**
+- **➕ Créer un message de rôles** — choisis le salon de publication, puis jusqu'à 25 rôles dans le menu déroulant, puis renseigne un titre et une description (pop-up) pour l'embed
+- Le bot poste un embed avec **un bouton par rôle** ; cliquer sur un bouton **attribue** le rôle s'il ne l'a pas, ou le **retire** s'il l'a déjà (toggle)
+- **🗑️ Supprimer un message** — choisis un message existant dans le menu pour le retirer de la config et supprimer le message Discord
+- Plusieurs messages de rôles possibles par serveur (ex : un pour les jeux, un pour les fuseaux horaires…)
+- Les boutons restent fonctionnels après un redémarrage du bot (vue persistante)
 
 > Toute la configuration (`/config`, `/setup-recrutement`, `/setrate`, templates custom…) est isolée par serveur (`guild_id`).
 
@@ -260,7 +267,8 @@ LiliumBot/
     ├── recrutement_externe.py  # Candidature en libre-service (/setup-recrutement, salon privé par candidat)
     ├── vocal_temp.py            # Salons vocaux temporaires (hubs → création/suppression auto)
     ├── bienvenue.py             # Messages de bienvenue / au revoir
-    ├── config.py                # Panneau /config (vocaux temp, bienvenue, au revoir)
+    ├── self_roles.py            # Rôles auto-attribuables par boutons (self-service)
+    ├── config.py                # Panneau /config (vocaux temp, bienvenue, au revoir, rôles à la carte)
     └── utils.py                # Helpers partagés (is_admin, ActivitySelect, settings)
 ```
 

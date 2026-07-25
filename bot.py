@@ -25,6 +25,7 @@ EXTENSIONS = [
     "Service.recrutement_externe",
     "Service.vocal_temp",
     "Service.bienvenue",
+    "Service.self_roles",
     "Service.config",
 ]
 
