@@ -704,7 +704,8 @@ class Admin(commands.Cog):
                 "  • `bal` — paiement BAL (défaut : true)\n"
                 "  • `depart` — Ville / HO / **Libre** (défaut)\n"
                 "  • `tier` — tier requis (libre, optionnel)\n"
-                "`/templates` — Templates disponibles *(Membre)*\n\n"
+                "`/templates` — Templates disponibles *(Membre)*\n"
+                "`/massup [message]` — Ping tous les inscrits à une activité *(Membre)*\n\n"
                 "**Boutons dans le post d'activité :**\n"
                 "Menu déroulant → s'inscrire dans un rôle\n"
                 "❌ Se retirer — ✏️ Modifier (créateur/Officier)\n"
@@ -725,7 +726,8 @@ class Admin(commands.Cog):
                 "`/paybal montant` — Distribuer aux participants *(Officier)*\n"
                 "`/ballog [page] [joueur]` — Historique transactions *(Officier)*\n"
                 "`/balpartis [vider]` — Joueurs partis avec BAL *(Officier)*\n"
-                "`/totalbal` — Total BAL dues *(Officier/GM)*"
+                "`/totalbal` — Total BAL dues *(Officier/GM)*\n"
+                "`/statbal [jours]` — Silver distribué sur une période *(Officier)*"
             ),
             inline=False,
         )
@@ -740,6 +742,7 @@ class Admin(commands.Cog):
                 "`/setimage nom [url]` — Modifier l'image d'un template *(Officier)*\n"
                 "`/setdescription nom [description]` — Modifier la description d'un template *(Officier)*\n"
                 "`/setrate taux` — Taux de rachat guilde *(GM)*\n"
+                "`/config` — Configurer le serveur (vocaux temp, bienvenue, au revoir) *(Officier)*\n"
                 "`/helpliliumbot` — Cette aide *(Tous)*"
             ),
             inline=False,
@@ -752,7 +755,8 @@ class Admin(commands.Cog):
                 "`/info @joueur` — Profil, fame Albion, activités *(Tous)*\n"
                 "`/ancien @joueur` — Basculer statut Nouveau ↔ Membre *(Recruteur)*\n"
                 "`/reporter @joueur` — Repousser le suivi d'une semaine *(Recruteur)*\n"
-                "`/kick @joueur` — Passer un joueur en AFK (retire tous les rôles) *(GM)*"
+                "`/recap` — Relancer manuellement le récap recrutement *(Recruteur)*\n"
+                "`/kick @joueur` — Passer un joueur en AFK (retire tous les rôles) *(Recruteur)*"
             ),
             inline=False,
         )
