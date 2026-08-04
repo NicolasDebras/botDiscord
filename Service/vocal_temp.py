@@ -73,11 +73,12 @@ class VocalTemp(commands.Cog):
 
             name = hub["name_template"].replace("{pseudo}", member.display_name)[:100]
 
-            overwrites = {
-                member: discord.PermissionOverwrite(
-                    manage_channels=True, move_members=True, mute_members=True, deafen_members=True,
-                ),
-            }
+            # Reprend les permissions de la catégorie (rôles autorisés/refusés)
+            # puis ajoute les droits de gestion du créateur par-dessus.
+            overwrites = dict(category.overwrites) if isinstance(category, discord.CategoryChannel) else {}
+            member_overwrite = overwrites.get(member, discord.PermissionOverwrite())
+            member_overwrite.update(manage_channels=True, move_members=True, mute_members=True, deafen_members=True)
+            overwrites[member] = member_overwrite
 
             try:
                 channel = await member.guild.create_voice_channel(
