@@ -159,6 +159,25 @@ class QuestionnaireModal(discord.ui.Modal, title="📋 Questionnaire de candidat
             mentions += f" {recruitment_role.mention}"
 
         await channel.send(content=mentions, embed=embed, view=ValidateCandidatureView())
+
+        if fame:
+            demande = (
+                f"{interaction.user.mention} pour accélérer la validation, peux-tu nous envoyer :\n"
+                f"• une capture d'écran de ton **écran d'accueil** (sélection de personnage)\n"
+                f"• une capture de tes **stats** (fame PvP/PvE, équipement)\n\n"
+                f"Merci ! 🙏"
+            )
+        else:
+            demande = (
+                f"{interaction.user.mention} on n'a pas réussi à retrouver **{self.pseudo_ig.value}** "
+                f"sur l'API Albion Online.\n"
+                f"Vérifie l'orthographe exacte de ton pseudo (majuscules/minuscules comprises) puis "
+                f"utilise `/register` pour l'enregistrer.\n\n"
+                f"Merci aussi de nous envoyer une capture d'écran de ton **écran d'accueil** et une "
+                f"capture de tes **stats**."
+            )
+        await channel.send(demande)
+
         await db.save_recruitment_ticket(str(interaction.user.id), channel.id, guild.id)
 
         if fame:
@@ -331,6 +350,60 @@ class RecrutementExterne(commands.Cog):
         await salon_regles.send(embed=embed, view=RecrutementView())
         await interaction.response.send_message(
             f"✅ Recrutement configuré et message posté dans {salon_regles.mention}.", ephemeral=True
+        )
+
+    # =========================================================================
+    # /register  — enregistrer / corriger son pseudo IG si l'API ne l'a pas trouvé
+    # =========================================================================
+    @app_commands.command(name="register", description="Enregistrer ou corriger ton pseudo in-game Albion Online")
+    @app_commands.describe(pseudo="Ton pseudo exact dans Albion Online (sensible à la casse)")
+    async def register(self, interaction: discord.Interaction, pseudo: str):
+        await interaction.response.defer(ephemeral=True)
+
+        existing = await db.get_player_profile(str(interaction.user.id), guild_id=interaction.guild.id)
+        if existing:
+            await interaction.followup.send(
+                f"⚠️ Tu es déjà enregistré en tant que **{existing['ig_name']}**.\n"
+                f"Contacte le staff (rôle recrutement) si tu dois corriger ton pseudo.",
+                ephemeral=True,
+            )
+            return
+
+        try:
+            fame = await fetch_albion_fame(pseudo)
+        except Exception:
+            fame = None
+
+        if not fame:
+            await interaction.followup.send(
+                f"❌ Joueur **{pseudo}** introuvable sur l'API Albion Online.\n"
+                f"Vérifie l'orthographe exacte (majuscules/minuscules comprises) et réessaie avec `/register`.",
+                ephemeral=True,
+            )
+            return
+
+        try:
+            await interaction.user.edit(nick=fame["name"][:32], reason="Pseudo IG enregistré via /register")
+        except discord.Forbidden:
+            pass
+
+        await db.save_player_profile(
+            str(interaction.user.id), fame["name"], fame["pve"], fame["pvp"],
+            is_membre=False, guild_id=interaction.guild.id,
+        )
+
+        ticket_channel_id = await db.get_recruitment_ticket(str(interaction.user.id), interaction.guild.id)
+        if ticket_channel_id:
+            channel = interaction.guild.get_channel(ticket_channel_id)
+            if channel:
+                await channel.send(
+                    f"✅ {interaction.user.mention} a enregistré son pseudo via `/register` : **{fame['name']}**\n"
+                    f"PvP : {fmt_fame(fame['pvp'])} · PvE : {fmt_fame(fame['pve'])}"
+                )
+
+        await interaction.followup.send(
+            f"✅ Pseudo enregistré : **{fame['name']}**\nPvP : {fmt_fame(fame['pvp'])} · PvE : {fmt_fame(fame['pve'])}",
+            ephemeral=True,
         )
 
 

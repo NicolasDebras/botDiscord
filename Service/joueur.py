@@ -119,11 +119,42 @@ class Joueur(commands.Cog):
 
         inactifs_str = "\n".join(f"• {m.mention}" for m in inactifs) if inactifs else "*Aucun*"
 
+        # ── 5. Classement fame gagnée depuis le recrutement ────────────────────
+        def _fame_gain(p) -> int | None:
+            if not p["ig_name"] or p["current_pve_fame"] is None or p["current_pvp_fame"] is None:
+                return None
+            pve_gain = max(0, p["current_pve_fame"] - (p["initial_pve_fame"] or 0))
+            pvp_gain = max(0, p["current_pvp_fame"] - (p["initial_pvp_fame"] or 0))
+            return pve_gain + pvp_gain
+
+        classement = sorted(
+            (
+                (guild.get_member(int(p["user_id"])), p, _fame_gain(p))
+                for p in profiles
+            ),
+            key=lambda t: t[2] if t[2] is not None else -1,
+            reverse=True,
+        )
+        classement = [(m, p, g) for m, p, g in classement if m is not None and g is not None]
+
+        def fmt_classement(entries) -> str:
+            if not entries:
+                return "*Aucune donnée*"
+            return "\n".join(
+                f"{i}. {m.mention} (**{p['ig_name']}**) — +{fmt_fame(g)} fame"
+                for i, (m, p, g) in enumerate(entries, start=1)
+            )
+
+        top_plus  = classement[:3]
+        top_moins = list(reversed(classement[-3:])) if classement else []
+
         await channel.send(
             f"📊 **Stats de la semaine (depuis lundi)**\n\n"
             f"💰 Payout hors RAID AVA : **{fmt_silver(payout_normal)} silver**\n"
             f"⚔️ RAID AVA : **{fmt_silver(payout_raid)} silver**\n\n"
-            f"😴 **Membres sans activité depuis 2 semaines :**\n{inactifs_str}"
+            f"😴 **Membres sans activité depuis 2 semaines :**\n{inactifs_str}\n\n"
+            f"🏆 **Top 3 fame (depuis le recrutement) :**\n{fmt_classement(top_plus)}\n\n"
+            f"🐌 **Flop 3 fame (depuis le recrutement) :**\n{fmt_classement(top_moins)}"
         )
         return True
 

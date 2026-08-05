@@ -117,6 +117,7 @@ Une fois l'activité créée :
 |---|---|---|
 | `/recrutement @joueur` | Recruteur, Officier | Enregistrer une candidature de recrutement |
 | `/setup-recrutement` | Admin | Configurer et poster le message de candidature sur ce serveur |
+| `/register pseudo` | Tous | Enregistrer son pseudo IG quand l'API Albion Online ne l'a pas trouvé automatiquement |
 
 La commande `/recrutement` ouvre une pop-up avec deux champs :
 - **Pseudo IG** — pseudo en jeu du candidat (court)
@@ -137,8 +138,10 @@ Système de candidature en libre-service, **configurable indépendamment sur cha
    - `categorie` *(optionnel)* — catégorie où créer les salons de candidature
 2. Un candidat clique sur **📋 Déposer ma candidature** → répond à un questionnaire (pseudo IG, découverte, disponibilités, contenu recherché, attentes)
 3. Le bot recherche automatiquement la **fame PvE/PvP** du pseudo via l'API Albion Online, renomme le candidat sur Discord avec son pseudo in-game, et enregistre son profil (baseline fame) — l'équivalent de `/recrutement` se fait donc automatiquement, sans ressaisie du pseudo
-4. Le bot crée un **salon privé** dédié à cette candidature (visible uniquement par le candidat, le rôle recrutement et le rôle **Officier**) avec un bouton **✅ Valider (Staff)**
+4. Le bot crée un **salon privé** dédié à cette candidature (visible uniquement par le candidat, le rôle recrutement et le rôle **Officier**) avec un bouton **✅ Valider (Staff)**, puis ping le candidat pour lui demander une **capture d'écran de son écran d'accueil** (sélection de personnage) et une **capture de ses stats** — si son pseudo n'a pas été trouvé sur l'API, le message lui indique d'utiliser `/register` pour l'enregistrer manuellement
 5. Un membre du staff (rôle recrutement ou Officier) clique sur **✅ Valider (Staff)** → les rôles "en cours" (rôle candidat, rôle par défaut) sont retirés, le rôle configuré via `/config` → ✅ Rôle après validation candidature est attribué au candidat, puis le salon se ferme automatiquement (suppression après quelques secondes)
+
+`/register pseudo` — si l'API Albion Online n'a pas trouvé le candidat au moment de la candidature (nom introuvable, API indisponible…), il peut enregistrer lui-même son pseudo avec cette commande : le bot recherche la fame, renomme le membre, crée son profil, et prévient le salon de candidature en cours s'il y en a un. **Un profil ne peut être enregistré qu'une seule fois** — si le joueur est déjà enregistré, la commande refuse et invite à contacter le staff pour une correction.
 
 > Chaque serveur a sa propre configuration (salon, rôles, catégorie) — un serveur sans configuration ne propose pas la fonctionnalité tant que `/setup-recrutement` n'a pas été exécuté.
 
@@ -210,6 +213,7 @@ L'embed `/info` affiche :
 - Envoie un récap en 3 sections : < 1 semaine / < 2 semaines / à valider via `/ancien` (ping Recruteur)
 - Met à jour les fames via l'API Albion Online
 - Supprime les profils des joueurs qui ont quitté le Discord depuis plus de **3 jours**
+- Affiche un **🏆 Top 3** et un **🐌 Flop 3** des joueurs ayant gagné le plus / le moins de fame (PvP + PvE cumulée) depuis leur recrutement
 
 > Le serveur principal historique (`DISCORD_GUILD_ID`) garde son ancien salon de récap par défaut tant qu'aucun salon n'a été explicitement configuré via `/config` pour lui. Les autres serveurs doivent configurer leur salon de récap via `/config` pour activer le rappel automatique.
 
