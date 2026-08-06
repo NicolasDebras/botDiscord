@@ -255,6 +255,22 @@ async def init_db(database_url: str) -> None:
             "ALTER TABLE member_events_config ADD COLUMN IF NOT EXISTS welcome_image TEXT"
         )
 
+        # ── Fame hebdomadaire sur player_profiles ────────────────────────────────
+        await conn.execute(
+            "ALTER TABLE player_profiles ADD COLUMN IF NOT EXISTS weekly_pve_fame BIGINT"
+        )
+        await conn.execute(
+            "ALTER TABLE player_profiles ADD COLUMN IF NOT EXISTS weekly_pvp_fame BIGINT"
+        )
+
+        # ── Rôles recap sur recruitment_config ──────────────────────────────────
+        await conn.execute(
+            "ALTER TABLE recruitment_config ADD COLUMN IF NOT EXISTS membre_role_id BIGINT"
+        )
+        await conn.execute(
+            "ALTER TABLE recruitment_config ADD COLUMN IF NOT EXISTS absent_role_id BIGINT"
+        )
+
         # ── Messages de rôles auto-attribuables (boutons) ───────────────────────
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS self_role_menus (
@@ -634,10 +650,28 @@ async def get_all_profiles(guild_id: int = 0) -> list[dict]:
     """Retourne tous les profils recrutés."""
     async with _pool.acquire() as conn:
         rows = await conn.fetch(
-            "SELECT user_id, ig_name, joined_at, is_membre FROM player_profiles WHERE guild_id = $1",
+            """SELECT user_id, ig_name, joined_at, is_membre,
+                      initial_pve_fame, initial_pvp_fame,
+                      current_pve_fame, current_pvp_fame,
+                      weekly_pve_fame, weekly_pvp_fame
+               FROM player_profiles WHERE guild_id = $1""",
             guild_id,
         )
-    return [{"user_id": r["user_id"], "ig_name": r["ig_name"], "joined_at": r["joined_at"], "is_membre": r["is_membre"]} for r in rows]
+    return [
+        {
+            "user_id":          r["user_id"],
+            "ig_name":          r["ig_name"],
+            "joined_at":        r["joined_at"],
+            "is_membre":        r["is_membre"],
+            "initial_pve_fame": r["initial_pve_fame"],
+            "initial_pvp_fame": r["initial_pvp_fame"],
+            "current_pve_fame": r["current_pve_fame"],
+            "current_pvp_fame": r["current_pvp_fame"],
+            "weekly_pve_fame":  r["weekly_pve_fame"],
+            "weekly_pvp_fame":  r["weekly_pvp_fame"],
+        }
+        for r in rows
+    ]
 
 
 async def set_player_is_membre(user_id: str, value: bool, guild_id: int = 0) -> None:
@@ -661,9 +695,21 @@ async def update_player_fame(user_id: str, ig_name: str, pve: int, pvp: int, gui
     async with _pool.acquire() as conn:
         await conn.execute("""
             UPDATE player_profiles
-            SET ig_name = $2, current_pve_fame = $3, current_pvp_fame = $4, fame_updated_at = $5
+            SET ig_name = $2, current_pve_fame = $3, current_pvp_fame = $4, fame_updated_at = $5,
+                weekly_pve_fame = COALESCE(weekly_pve_fame, $3),
+                weekly_pvp_fame = COALESCE(weekly_pvp_fame, $4)
             WHERE user_id = $1 AND guild_id = $6
         """, user_id, ig_name, pve, pvp, updated_at, guild_id)
+
+
+async def reset_weekly_fame_snapshots(guild_id: int) -> None:
+    """Chaque lundi : capture la fame actuelle comme baseline hebdomadaire."""
+    async with _pool.acquire() as conn:
+        await conn.execute("""
+            UPDATE player_profiles
+            SET weekly_pve_fame = current_pve_fame, weekly_pvp_fame = current_pvp_fame
+            WHERE guild_id = $1 AND current_pve_fame IS NOT NULL AND current_pvp_fame IS NOT NULL
+        """, guild_id)
 
 
 async def postpone_player_check(user_id: str, days: int = 7, guild_id: int = 0) -> None:
@@ -727,7 +773,22 @@ async def get_recruitment_config(guild_id: int) -> dict | None:
         "recruitment_role_id": row["recruitment_role_id"],
         "candidat_role_id":    row["candidat_role_id"],
         "validated_role_id":   row["validated_role_id"],
+        "membre_role_id":      row["membre_role_id"],
+        "absent_role_id":      row["absent_role_id"],
     }
+
+
+async def set_recap_role(guild_id: int, field: str, role_id: int | None) -> None:
+    """Met à jour un rôle du récap (recruitment_role_id, membre_role_id, absent_role_id)."""
+    allowed = {"recruitment_role_id", "membre_role_id", "absent_role_id"}
+    if field not in allowed:
+        raise ValueError(f"Champ inconnu : {field}")
+    async with _pool.acquire() as conn:
+        await conn.execute(f"""
+            INSERT INTO recruitment_config (guild_id, {field})
+            VALUES ($1, $2)
+            ON CONFLICT (guild_id) DO UPDATE SET {field} = EXCLUDED.{field}
+        """, guild_id, role_id)
 
 
 async def set_recruitment_validated_role(guild_id: int, role_id: int | None) -> None:

@@ -66,12 +66,17 @@ def _default_role_embed(guild: discord.Guild) -> discord.Embed:
 
 async def _recap_embed(guild: discord.Guild) -> discord.Embed:
     channel_id = await db.get_recap_channel(guild.id)
-    embed = discord.Embed(title="📋 Salon de récap recrutement (22h)", color=0x3498DB)
-    if channel_id:
-        embed.description = f"<#{channel_id}>"
-    else:
-        embed.description = "Non configuré."
-    embed.set_footer(text="Récap automatique chaque soir à 22h (heure de Paris) : suivi recrutement, stats silver, membres inactifs.")
+    cfg        = await db.get_recruitment_config(guild.id)
+    embed = discord.Embed(title="📋 Récap recrutement (22h)", color=0x3498DB)
+    salon = f"<#{channel_id}>" if channel_id else "*Non configuré*"
+    recru = f"<@&{cfg['recruitment_role_id']}>" if cfg and cfg.get("recruitment_role_id") else "*Non configuré*"
+    membre = f"<@&{cfg['membre_role_id']}>" if cfg and cfg.get("membre_role_id") else "*Non configuré*"
+    absent = f"<@&{cfg['absent_role_id']}>" if cfg and cfg.get("absent_role_id") else "*Non configuré*"
+    embed.add_field(name="Salon", value=salon, inline=False)
+    embed.add_field(name="Rôle Recruteur (ping)", value=recru, inline=True)
+    embed.add_field(name="Rôle Membre (inactifs)", value=membre, inline=True)
+    embed.add_field(name="Rôle Absent (/kick)", value=absent, inline=True)
+    embed.set_footer(text="Récap automatique chaque soir à 22h (heure de Paris) : suivi recrutement, stats silver, membres inactifs, top/flop fame.")
     return embed
 
 
@@ -391,25 +396,62 @@ class DefaultRoleView(discord.ui.View):
 
 # ── VUE : SALON DE RÉCAP (22H) ─────────────────────────────────────────────────
 
+class RecapRolesView(discord.ui.View):
+    def __init__(self, guild_id: int):
+        super().__init__(timeout=180)
+        self.guild_id = guild_id
+
+    @discord.ui.select(cls=discord.ui.RoleSelect, placeholder="🎙️ Rôle Recruteur (ping dans le récap)", row=0)
+    async def recruteur_select(self, interaction: discord.Interaction, select: discord.ui.RoleSelect):
+        await db.set_recap_role(self.guild_id, "recruitment_role_id", select.values[0].id)
+        await interaction.response.send_message(f"✅ Rôle Recruteur (ping) : {select.values[0].mention}", ephemeral=True)
+
+    @discord.ui.select(cls=discord.ui.RoleSelect, placeholder="👥 Rôle Membre (détection inactifs)", row=1)
+    async def membre_select(self, interaction: discord.Interaction, select: discord.ui.RoleSelect):
+        await db.set_recap_role(self.guild_id, "membre_role_id", select.values[0].id)
+        await interaction.response.send_message(f"✅ Rôle Membre (inactifs) : {select.values[0].mention}", ephemeral=True)
+
+    @discord.ui.select(cls=discord.ui.RoleSelect, placeholder="🔴 Rôle Absent (/kick)", row=2)
+    async def absent_select(self, interaction: discord.Interaction, select: discord.ui.RoleSelect):
+        await db.set_recap_role(self.guild_id, "absent_role_id", select.values[0].id)
+        await interaction.response.send_message(f"✅ Rôle Absent (/kick) : {select.values[0].mention}", ephemeral=True)
+
+    @discord.ui.button(label="⬅️ Retour", style=discord.ButtonStyle.gray, row=3)
+    async def back(self, interaction: discord.Interaction, button: discord.ui.Button):
+        embed = await _recap_embed(interaction.guild)
+        await interaction.response.edit_message(embed=embed, view=RecapConfigView(self.guild_id))
+
+
 class RecapConfigView(discord.ui.View):
     def __init__(self, guild_id: int):
         super().__init__(timeout=180)
         self.guild_id = guild_id
 
     @discord.ui.select(cls=discord.ui.ChannelSelect, channel_types=[discord.ChannelType.text],
-                        placeholder="Choisis le salon du récap 22h")
+                        placeholder="Choisis le salon du récap 22h", row=0)
     async def channel_select(self, interaction: discord.Interaction, select: discord.ui.ChannelSelect):
         await db.set_recap_channel(self.guild_id, select.values[0].id)
         await interaction.response.send_message(
             f"✅ Salon de récap configuré sur {select.values[0].mention}.", ephemeral=True
         )
 
-    @discord.ui.button(label="🔕 Désactiver", style=discord.ButtonStyle.danger, row=1)
+    @discord.ui.button(label="🎭 Configurer les rôles", style=discord.ButtonStyle.primary, row=1)
+    async def roles_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.edit_message(
+            embed=discord.Embed(
+                title="🎭 Rôles du récap 22h",
+                description="Sélectionne chaque rôle dans le menu correspondant.",
+                color=0x3498DB,
+            ),
+            view=RecapRolesView(self.guild_id),
+        )
+
+    @discord.ui.button(label="🔕 Désactiver", style=discord.ButtonStyle.danger, row=2)
     async def disable(self, interaction: discord.Interaction, button: discord.ui.Button):
         await db.set_recap_channel(self.guild_id, None)
         await interaction.response.send_message("🔕 Récap désactivé sur ce serveur.", ephemeral=True)
 
-    @discord.ui.button(label="⬅️ Retour", style=discord.ButtonStyle.gray, row=1)
+    @discord.ui.button(label="⬅️ Retour", style=discord.ButtonStyle.gray, row=2)
     async def back(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.edit_message(embed=_main_embed(), view=MainConfigView())
 

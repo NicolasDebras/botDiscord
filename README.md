@@ -173,8 +173,12 @@ Système de candidature en libre-service, **configurable indépendamment sur cha
 - Bouton **🔕 Désactiver** pour couper l'attribution automatique
 - ⚠️ Le rôle du bot doit être placé **au-dessus** du rôle par défaut dans la liste des rôles du serveur, et le bot doit avoir la permission **Gérer les rôles**, sinon l'attribution échoue silencieusement (visible dans les logs du bot)
 
-**📋 Salon de récap (22h)**
+**📋 Récap recrutement (22h)**
 - Choisis le salon où sera posté le récap recrutement automatique de 22h (voir plus bas)
+- **🎭 Configurer les rôles** — 3 rôles à sélectionner :
+  - **Rôle Recruteur** — pingé dans le récap de suivi recrutement
+  - **Rôle Membre** — utilisé pour détecter les membres inactifs (sans activité depuis 2 semaines)
+  - **Rôle Absent** — attribué au joueur lors d'un `/kick` (remplace la valeur hardcodée)
 - Bouton **🔕 Désactiver** pour couper le récap sur ce serveur
 
 **✅ Rôle après validation candidature**

@@ -76,6 +76,13 @@ class Joueur(commands.Cog):
         # Recharger après purge
         profiles = await db.get_all_profiles(guild_id=guild_id)
 
+        # ── 1b. Reset hebdo (lundi) ───────────────────────────────────────────
+        rec_cfg      = await db.get_recruitment_config(guild_id)
+        now_paris    = now.astimezone(_PARIS)
+        if now_paris.weekday() == 0:  # Lundi
+            await db.reset_weekly_fame_snapshots(guild_id)
+            profiles = await db.get_all_profiles(guild_id=guild_id)
+
         # ── 2. Récap suivi recrutement ────────────────────────────────────────
         nouveaux  = [p for p in profiles if not p["is_membre"] and p["joined_at"]]
 
@@ -93,7 +100,8 @@ class Joueur(commands.Cog):
         def fmt_section(players) -> str:
             return "\n".join(fmt_joueur(p) for p in players) if players else "*Aucun*"
 
-        ping = f"<@&{RECRUTEUR_ROLE_ID}>"
+        recruteur_role_id = (rec_cfg["recruitment_role_id"] if rec_cfg else None) or RECRUTEUR_ROLE_ID
+        ping = f"<@&{recruteur_role_id}>"
         await channel.send(
             f"{ping}\n"
             f"📋 **Récap suivi recrutement**\n\n"
@@ -103,15 +111,19 @@ class Joueur(commands.Cog):
         )
 
         # ── 3. Stats silver depuis lundi ──────────────────────────────────────
-        days_since_monday = max(1, now.astimezone(_PARIS).weekday() + 1)
+        days_since_monday = max(1, now_paris.weekday() + 1)
         stats = await db.get_silver_stats(days_since_monday, guild_id=guild.id)
         payout_normal = sum(r["total_silver"] for r in stats if r["action"] in ("finacti", "paybal"))
         payout_raid   = sum(r["total_silver"] for r in stats if r["action"] in ("finacti_raid_ava", "paybal_raid_ava"))
 
         # ── 4. Membres inactifs depuis 2 semaines ─────────────────────────────
         inactive_ids = await db.get_inactive_member_ids(14, guild_id=guild_id)
-        membre_role  = discord.utils.get(guild.roles, name=MEMBRE_ROLE_NAME)
-        inactifs     = []
+        membre_role_id = rec_cfg["membre_role_id"] if rec_cfg else None
+        if membre_role_id:
+            membre_role = guild.get_role(membre_role_id)
+        else:
+            membre_role = discord.utils.get(guild.roles, name=MEMBRE_ROLE_NAME)
+        inactifs = []
         if membre_role:
             for m in membre_role.members:
                 if str(m.id) in inactive_ids:
@@ -119,17 +131,18 @@ class Joueur(commands.Cog):
 
         inactifs_str = "\n".join(f"• {m.mention}" for m in inactifs) if inactifs else "*Aucun*"
 
-        # ── 5. Classement fame gagnée depuis le recrutement ────────────────────
-        def _fame_gain(p) -> int | None:
-            if not p["ig_name"] or p["current_pve_fame"] is None or p["current_pvp_fame"] is None:
-                return None
-            pve_gain = max(0, p["current_pve_fame"] - (p["initial_pve_fame"] or 0))
-            pvp_gain = max(0, p["current_pvp_fame"] - (p["initial_pvp_fame"] or 0))
+        # ── 5. Classement fame gagnée cette semaine ───────────────────────────
+        def _weekly_fame_gain(p) -> int | None:
+            if not p["ig_name"]: return None
+            if p["current_pve_fame"] is None or p["current_pvp_fame"] is None: return None
+            if p["weekly_pve_fame"] is None or p["weekly_pvp_fame"] is None: return None
+            pve_gain = max(0, p["current_pve_fame"] - p["weekly_pve_fame"])
+            pvp_gain = max(0, p["current_pvp_fame"] - p["weekly_pvp_fame"])
             return pve_gain + pvp_gain
 
         classement = sorted(
             (
-                (guild.get_member(int(p["user_id"])), p, _fame_gain(p))
+                (guild.get_member(int(p["user_id"])), p, _weekly_fame_gain(p))
                 for p in profiles
             ),
             key=lambda t: t[2] if t[2] is not None else -1,
@@ -153,8 +166,8 @@ class Joueur(commands.Cog):
             f"💰 Payout hors RAID AVA : **{fmt_silver(payout_normal)} silver**\n"
             f"⚔️ RAID AVA : **{fmt_silver(payout_raid)} silver**\n\n"
             f"😴 **Membres sans activité depuis 2 semaines :**\n{inactifs_str}\n\n"
-            f"🏆 **Top 3 fame (depuis le recrutement) :**\n{fmt_classement(top_plus)}\n\n"
-            f"🐌 **Flop 3 fame (depuis le recrutement) :**\n{fmt_classement(top_moins)}"
+            f"🏆 **Top 3 fame (cette semaine) :**\n{fmt_classement(top_plus)}\n\n"
+            f"🐌 **Flop 3 fame (cette semaine) :**\n{fmt_classement(top_moins)}"
         )
         return True
 
@@ -232,9 +245,11 @@ class Joueur(commands.Cog):
 
         await interaction.response.defer(ephemeral=True)
 
-        absent_role = interaction.guild.get_role(_ABSENT_ROLE_ID)
+        cfg = await db.get_recruitment_config(interaction.guild.id)
+        absent_role_id = (cfg["absent_role_id"] if cfg else None) or _ABSENT_ROLE_ID
+        absent_role = interaction.guild.get_role(absent_role_id)
         if not absent_role:
-            await interaction.followup.send("❌ Rôle Absent introuvable (ID invalide ?).", ephemeral=True)
+            await interaction.followup.send("❌ Rôle Absent introuvable. Configure-le via `/config` → Récap recrutement.", ephemeral=True)
             return
 
         bal = await db.get_bal(str(joueur.id), guild_id=interaction.guild.id)
