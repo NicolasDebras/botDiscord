@@ -280,13 +280,17 @@ async def init_db(database_url: str) -> None:
                 user_name     TEXT        NOT NULL,
                 arme          TEXT        NOT NULL,
                 started_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                duree_jours   INT         NOT NULL,
+                jours_ecoules INT         NOT NULL DEFAULT 0,
                 caution       BIGINT      NOT NULL DEFAULT 0,
                 price_per_day BIGINT      NOT NULL DEFAULT 100000,
                 is_closed     BOOLEAN     NOT NULL DEFAULT FALSE,
                 closed_at     TIMESTAMPTZ
             )
         """)
+        # migration si table existait avec l'ancienne colonne duree_jours
+        await conn.execute(
+            "ALTER TABLE locations ADD COLUMN IF NOT EXISTS jours_ecoules INT NOT NULL DEFAULT 0"
+        )
 
         # ── Messages de rôles auto-attribuables (boutons) ───────────────────────
         await conn.execute("""
@@ -1045,14 +1049,29 @@ async def set_default_role(guild_id: int, role_id: int | None) -> None:
 
 # ── LOCATIONS ─────────────────────────────────────────────────────────────────
 
-async def create_location(guild_id: int, user_id: str, user_name: str, arme: str, duree_jours: int, caution: int = 0) -> int:
+async def create_location(guild_id: int, user_id: str, user_name: str, arme: str, caution: int = 0) -> int:
     async with _pool.acquire() as conn:
         row = await conn.fetchrow("""
-            INSERT INTO locations (guild_id, user_id, user_name, arme, duree_jours, caution)
-            VALUES ($1, $2, $3, $4, $5, $6)
+            INSERT INTO locations (guild_id, user_id, user_name, arme, caution)
+            VALUES ($1, $2, $3, $4, $5)
             RETURNING id
-        """, guild_id, user_id, user_name, arme, duree_jours, caution)
+        """, guild_id, user_id, user_name, arme, caution)
     return row["id"]
+
+
+async def increment_active_locations() -> int:
+    """Incrémente jours_ecoules pour toutes les locations actives sauf celles créées aujourd'hui (Paris).
+    Retourne le nombre de locations incrémentées."""
+    async with _pool.acquire() as conn:
+        result = await conn.execute("""
+            UPDATE locations
+            SET jours_ecoules = jours_ecoules + 1
+            WHERE is_closed = FALSE
+              AND (started_at AT TIME ZONE 'Europe/Paris')::date
+                  < (NOW() AT TIME ZONE 'Europe/Paris')::date
+        """)
+    # asyncpg retourne "UPDATE N"
+    return int(result.split()[-1])
 
 
 async def get_active_locations(guild_id: int) -> list[dict]:

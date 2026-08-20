@@ -233,12 +233,14 @@ L'embed `/info` affiche :
 | `/recaplocation` | Officier | Voir toutes les locations actives avec décompte et montant dû |
 | `/closelocation id` | Officier | Clôturer une location et afficher le montant final |
 
-**Tarif :** 100 000 silver / jour (calculé à la seconde près).
+**Tarif :** 100 000 silver / jour.
+
+Le compteur s'incrémente **chaque soir à 22h** — le jour de création ne compte pas.
 
 Chaque location affiche :
 - Le joueur locataire et l'arme
-- Le temps restant (ou le dépassement si la durée est dépassée)
-- Le montant dû à l'instant T
+- La date de début
+- Le nombre de jours comptés et le montant dû
 - La caution versée (si renseignée)
 
 Un `id` unique est attribué à chaque location — visible dans `/recaplocation` — à passer à `/closelocation` pour la clôturer.
