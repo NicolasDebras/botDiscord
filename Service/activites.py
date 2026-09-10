@@ -254,6 +254,11 @@ def build_embed(data: dict) -> discord.Embed:
 
         embed.add_field(name=field_name[:256], value=value[:1024], inline=False)
 
+    fill_members = slots.get("Fill", [])
+    if fill_members:
+        fill_value = "\n".join(f"<@{entry[0]}>" for entry in fill_members)
+        embed.add_field(name=f"🔀 Fill  [{len(fill_members)}]", value=fill_value[:1024], inline=False)
+
     payout_line    = "💰 BAL" if bal else "🆓 Libre"
     total_inscrits = sum(len(v) for v in slots.values())
     embed.add_field(
@@ -708,33 +713,8 @@ class FillButton(discord.ui.Button):
             await interaction.response.send_message("ℹ️ Tu es déjà inscrit à cette activité.", ephemeral=True)
             return
 
-        # Si l'activité est pleine, _register_player gère la liste d'attente
-        total = sum(len(v) for v in slots.values())
-        if total >= data["max_players"]:
-            await interaction.response.defer(ephemeral=True)
-            all_tpl  = load_all_templates(data.get("guild_id", 0))
-            tdata    = all_tpl.get(data.get("template"), {})
-            pf1      = get_pf1(tdata)
-            fallback = next(iter(pf1), "Fill")
-            await _register_player(interaction, self.activity_id, fallback, "")
-            return
-
-        # Trouver le premier rôle PF1 avec de la place
-        all_tpl = load_all_templates(data.get("guild_id", 0))
-        tdata   = all_tpl.get(data.get("template"), {})
-        pf1     = get_pf1(tdata)
-
-        chosen_role = None
-        for role, max_count in pf1.items():
-            if len(slots.get(role, [])) < max_count:
-                chosen_role = role
-                break
-
-        if not chosen_role:
-            chosen_role = next(iter(pf1), "Fill")
-
         await interaction.response.defer(ephemeral=True)
-        await _register_player(interaction, self.activity_id, chosen_role, "")
+        await _register_player(interaction, self.activity_id, "Fill", "")
 
 
 # ── MODAL FIN D'ACTIVITÉ ─────────────────────────────────────────────────────

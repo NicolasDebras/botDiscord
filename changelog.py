@@ -7,9 +7,18 @@ Pour annoncer une nouvelle fonctionnalité : incrémenter VERSION et ajouter
 une entrée en tête de CHANGELOG (ordre du plus récent au plus ancien).
 """
 
-VERSION = "2026.09.10"
+VERSION = "2026.09.10.1"
 
 CHANGELOG: list[dict] = [
+    {
+        "version": "2026.09.10.1",
+        "title": "🔀 Fix du bouton Fill",
+        "items": [
+            "Le bouton **Fill** sur les activités inscrit maintenant dans un rôle **Fill** dédié, "
+            "affiché comme les autres rôles dans l'embed — avant, il inscrivait silencieusement "
+            "dans un vrai rôle du template (DPS, TANK…) sans que ça apparaisse.",
+        ],
+    },
     {
         "version": "2026.09.10",
         "title": "📢 Annonces de mises à jour",

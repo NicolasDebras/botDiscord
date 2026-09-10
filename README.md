@@ -82,7 +82,7 @@ Une fois l'activité créée :
 - Les joueurs choisissent leur rôle via le menu déroulant
 - **PVP** : sélection de l'arme puis saisie du niveau de spécialisation (1-1000)
 - **PVE** : inscription directe
-- Bouton 🔀 **Fill** : s'inscrire automatiquement dans le premier slot disponible (sans choisir de rôle/arme)
+- Bouton 🔀 **Fill** : s'inscrire dans un rôle **Fill** dédié (affiché comme les autres rôles dans l'embed), sans choisir de rôle/arme — compte dans le total de joueurs et passe en liste d'attente si l'activité est pleine
 - Bouton ❌ pour se retirer (slots ou liste d'attente)
 - Bouton ⏳ Liste d'attente (sur les templates avec `has_waitlist`)
 - Bouton ✏️ Modifier (créateur ou Officier) → change la description, le tier et le départ
