@@ -281,6 +281,15 @@ async def init_db(database_url: str) -> None:
             )
         """)
 
+        # ── Salon d'annonces des mises à jour du bot ────────────────────────────
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS update_announce_config (
+                guild_id      BIGINT PRIMARY KEY,
+                channel_id    BIGINT NOT NULL,
+                last_version  TEXT
+            )
+        """)
+
 
 # ── ACTIVITIES ────────────────────────────────────────────────────────────────
 
@@ -959,6 +968,46 @@ async def add_self_role_menu(message_id: int, channel_id: int, guild_id: int, ro
 async def delete_self_role_menu(message_id: int) -> None:
     async with _pool.acquire() as conn:
         await conn.execute("DELETE FROM self_role_menus WHERE message_id = $1", message_id)
+
+
+# ── SALON D'ANNONCES DES MISES À JOUR ──────────────────────────────────────────
+
+async def get_update_announce_config(guild_id: int) -> dict | None:
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT * FROM update_announce_config WHERE guild_id = $1", guild_id)
+    if not row:
+        return None
+    return {"guild_id": row["guild_id"], "channel_id": row["channel_id"], "last_version": row["last_version"]}
+
+
+async def get_all_update_announce_configs() -> list[dict]:
+    async with _pool.acquire() as conn:
+        rows = await conn.fetch("SELECT * FROM update_announce_config")
+    return [
+        {"guild_id": r["guild_id"], "channel_id": r["channel_id"], "last_version": r["last_version"]}
+        for r in rows
+    ]
+
+
+async def set_update_announce_channel(guild_id: int, channel_id: int, last_version: str | None = None) -> None:
+    async with _pool.acquire() as conn:
+        await conn.execute("""
+            INSERT INTO update_announce_config (guild_id, channel_id, last_version)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (guild_id) DO UPDATE SET channel_id = EXCLUDED.channel_id, last_version = EXCLUDED.last_version
+        """, guild_id, channel_id, last_version)
+
+
+async def set_update_announce_last_version(guild_id: int, version: str) -> None:
+    async with _pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE update_announce_config SET last_version = $2 WHERE guild_id = $1", guild_id, version
+        )
+
+
+async def delete_update_announce_config(guild_id: int) -> None:
+    async with _pool.acquire() as conn:
+        await conn.execute("DELETE FROM update_announce_config WHERE guild_id = $1", guild_id)
 
 
 # ── MESSAGES BIENVENUE / AU REVOIR ─────────────────────────────────────────────

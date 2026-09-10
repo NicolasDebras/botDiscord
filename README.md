@@ -153,7 +153,7 @@ Système de candidature en libre-service, **configurable indépendamment sur cha
 |---|---|---|
 | `/config` | Officier | Panneau interactif pour configurer le serveur |
 
-`/config` ouvre un panneau éphémère (visible seulement par toi) avec un menu déroulant vers 7 sections :
+`/config` ouvre un panneau éphémère (visible seulement par toi) avec un menu déroulant vers 8 sections :
 
 **🔊 Salons vocaux temporaires**
 - **➕ Ajouter un hub** — choisis un salon vocal existant qui servira de déclencheur, une catégorie optionnelle pour les salons créés, puis renseigne le nom (`{pseudo}` = pseudo du créateur) et la limite de places
@@ -191,6 +191,11 @@ Système de candidature en libre-service, **configurable indépendamment sur cha
 - **🗑️ Supprimer un message** — choisis un message existant dans le menu pour le retirer de la config et supprimer le message Discord
 - Plusieurs messages de rôles possibles par serveur (ex : un pour les jeux, un pour les fuseaux horaires…)
 - Les boutons restent fonctionnels après un redémarrage du bot (vue persistante)
+
+**📢 Annonces de mises à jour**
+- Choisis un salon : le bot y poste immédiatement la dernière nouveauté, puis à chaque redémarrage avec une nouvelle version du bot, poste automatiquement les entrées du changelog (`changelog.py`) pas encore annoncées sur ce serveur
+- Bouton **🔕 Désactiver** pour couper les annonces sur ce serveur
+- Chaque serveur suit sa propre progression dans le changelog (`last_version`), donc configurer le salon plus tard sur un autre serveur ne fait pas manquer les annonces
 
 > Toute la configuration (`/config`, `/setup-recrutement`, `/setrate`, templates custom…) est isolée par serveur (`guild_id`).
 
@@ -263,6 +268,7 @@ LiliumBot/
 ├── config.py           # Token, rôles, templates par défaut, couleurs
 ├── db.py               # Couche d'accès PostgreSQL (asyncpg)
 ├── albion_api.py       # Client API Albion Online (fame, recherche joueur)
+├── changelog.py        # VERSION + entrées annoncées via /config → 📢 Annonces de mises à jour
 ├── requirements.txt
 └── Service/
     ├── activites.py    # Commandes /acti et /templates, UI des activités

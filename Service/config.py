@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 
+import changelog
 import db
 from config import ADMIN_ROLE_NAME
 from Service.utils import is_admin
@@ -93,6 +94,28 @@ def _autoroles_embed(guild: discord.Guild) -> discord.Embed:
             lines.append(f"[Message]({link}) dans <#{m['channel_id']}> — {roles_str}")
         embed.description = "\n".join(lines)
     embed.set_footer(text="Chaque bouton attribue/retire le rôle correspondant au membre qui clique.")
+    return embed
+
+
+async def _update_announce_embed(guild: discord.Guild) -> discord.Embed:
+    cfg = await db.get_update_announce_config(guild.id)
+    embed = discord.Embed(title="📢 Annonces de mises à jour", color=0x3498DB)
+    if cfg and cfg["channel_id"]:
+        embed.description = f"<#{cfg['channel_id']}>"
+        embed.add_field(name="Dernière version annoncée", value=cfg["last_version"] or "*Aucune*", inline=False)
+    else:
+        embed.description = "Non configuré."
+    embed.set_footer(text="Un message est posté automatiquement dans ce salon à chaque nouvelle fonctionnalité du bot.")
+    return embed
+
+
+def _changelog_embed(entry: dict) -> discord.Embed:
+    embed = discord.Embed(
+        title=f"🚀 Mise à jour du bot — {entry.get('title', entry['version'])}",
+        description="\n".join(f"• {item}" for item in entry["items"]),
+        color=0x2ECC71,
+    )
+    embed.set_footer(text=f"Version {entry['version']}")
     return embed
 
 
@@ -586,6 +609,43 @@ class AutoRolesConfigView(discord.ui.View):
         await interaction.response.edit_message(embed=_main_embed(), view=MainConfigView())
 
 
+# ── VUE : SALON D'ANNONCES DES MISES À JOUR ────────────────────────────────────
+
+class UpdateAnnounceView(discord.ui.View):
+    def __init__(self, guild_id: int):
+        super().__init__(timeout=180)
+        self.guild_id = guild_id
+
+    @discord.ui.select(cls=discord.ui.ChannelSelect, channel_types=[discord.ChannelType.text],
+                        placeholder="Choisis le salon des annonces de mise à jour")
+    async def channel_select(self, interaction: discord.Interaction, select: discord.ui.ChannelSelect):
+        channel = select.values[0]
+        await db.set_update_announce_channel(self.guild_id, channel.id, changelog.VERSION)
+
+        entry = changelog.CHANGELOG[0]
+        try:
+            await channel.send(embed=_changelog_embed(entry))
+        except discord.Forbidden:
+            await interaction.response.send_message(
+                f"⚠️ Salon configuré sur {channel.mention} mais je n'ai pas la permission d'y écrire.",
+                ephemeral=True,
+            )
+            return
+
+        await interaction.response.send_message(
+            f"✅ Annonces de mise à jour configurées sur {channel.mention}.", ephemeral=True
+        )
+
+    @discord.ui.button(label="🔕 Désactiver", style=discord.ButtonStyle.danger, row=1)
+    async def disable(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await db.delete_update_announce_config(self.guild_id)
+        await interaction.response.send_message("🔕 Annonces de mise à jour désactivées.", ephemeral=True)
+
+    @discord.ui.button(label="⬅️ Retour", style=discord.ButtonStyle.gray, row=1)
+    async def back(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.edit_message(embed=_main_embed(), view=MainConfigView())
+
+
 # ── VUE PRINCIPALE ─────────────────────────────────────────────────────────────
 
 class MainConfigSelect(discord.ui.Select):
@@ -605,6 +665,8 @@ class MainConfigSelect(discord.ui.Select):
                                   description="Rôle attribué quand le staff valide une candidature"),
             discord.SelectOption(label="Rôles à la carte (boutons)", value="autoroles", emoji="🏷️",
                                   description="Message avec boutons pour s'attribuer un rôle"),
+            discord.SelectOption(label="Annonces de mises à jour", value="annonces", emoji="📢",
+                                  description="Salon qui reçoit un message à chaque nouvelle fonctionnalité"),
         ]
         super().__init__(placeholder="Choisis une section à configurer...", options=options)
 
@@ -629,9 +691,12 @@ class MainConfigSelect(discord.ui.Select):
         elif value == "role_validation":
             embed = await _validated_role_embed(interaction.guild)
             await interaction.response.edit_message(embed=embed, view=ValidatedRoleView(interaction.guild.id))
-        else:
+        elif value == "autoroles":
             embed = _autoroles_embed(interaction.guild)
             await interaction.response.edit_message(embed=embed, view=AutoRolesConfigView(interaction.guild.id))
+        else:
+            embed = await _update_announce_embed(interaction.guild)
+            await interaction.response.edit_message(embed=embed, view=UpdateAnnounceView(interaction.guild.id))
 
 
 class MainConfigView(discord.ui.View):
@@ -645,6 +710,29 @@ class MainConfigView(discord.ui.View):
 class Config(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+
+    @commands.Cog.listener()
+    async def on_ready(self):
+        configs = await db.get_all_update_announce_configs()
+        for cfg in configs:
+            if cfg["last_version"] == changelog.VERSION:
+                continue
+
+            entries = changelog.get_entries_since(cfg["last_version"])
+            if not entries:
+                await db.set_update_announce_last_version(cfg["guild_id"], changelog.VERSION)
+                continue
+
+            channel = self.bot.get_channel(cfg["channel_id"])
+            if not channel:
+                continue
+
+            for entry in entries:
+                try:
+                    await channel.send(embed=_changelog_embed(entry))
+                except discord.Forbidden:
+                    break
+            await db.set_update_announce_last_version(cfg["guild_id"], changelog.VERSION)
 
     @app_commands.command(name="config", description="[ADMIN] Configurer le serveur (vocaux temporaires, bienvenue, au revoir)")
     async def config(self, interaction: discord.Interaction):
