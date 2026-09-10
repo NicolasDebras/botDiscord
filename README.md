@@ -230,6 +230,28 @@ L'embed `/info` affiche :
 
 ---
 
+### Location d'armes
+
+| Commande | Accès | Description |
+|---|---|---|
+| `/location @joueur arme duree [caution]` | Officier | Créer une location d'arme |
+| `/recaplocation` | Officier | Voir toutes les locations actives avec décompte et montant dû |
+| `/closelocation id` | Officier | Clôturer une location et afficher le montant final |
+
+**Tarif :** 100 000 silver / jour.
+
+Le compteur s'incrémente **chaque soir à 22h** — le jour de création ne compte pas.
+
+Chaque location affiche :
+- Le joueur locataire et l'arme
+- La date de début
+- Le nombre de jours comptés et le montant dû
+- La caution versée (si renseignée)
+
+Un `id` unique est attribué à chaque location — visible dans `/recaplocation` — à passer à `/closelocation` pour la clôturer.
+
+---
+
 ### Administration
 
 | Commande | Accès | Description |

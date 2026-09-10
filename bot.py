@@ -27,6 +27,7 @@ EXTENSIONS = [
     "Service.bienvenue",
     "Service.self_roles",
     "Service.config",
+    "Service.location",
 ]
 
 

@@ -271,6 +271,27 @@ async def init_db(database_url: str) -> None:
             "ALTER TABLE recruitment_config ADD COLUMN IF NOT EXISTS absent_role_id BIGINT"
         )
 
+        # ── Locations d'armes ────────────────────────────────────────────────────
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS locations (
+                id            SERIAL      PRIMARY KEY,
+                guild_id      BIGINT      NOT NULL,
+                user_id       TEXT        NOT NULL,
+                user_name     TEXT        NOT NULL,
+                arme          TEXT        NOT NULL,
+                started_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                jours_ecoules INT         NOT NULL DEFAULT 0,
+                caution       BIGINT      NOT NULL DEFAULT 0,
+                price_per_day BIGINT      NOT NULL DEFAULT 100000,
+                is_closed     BOOLEAN     NOT NULL DEFAULT FALSE,
+                closed_at     TIMESTAMPTZ
+            )
+        """)
+        # migration si table existait avec l'ancienne colonne duree_jours
+        await conn.execute(
+            "ALTER TABLE locations ADD COLUMN IF NOT EXISTS jours_ecoules INT NOT NULL DEFAULT 0"
+        )
+
         # ── Messages de rôles auto-attribuables (boutons) ───────────────────────
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS self_role_menus (
@@ -1073,3 +1094,57 @@ async def set_default_role(guild_id: int, role_id: int | None) -> None:
             VALUES ($1, $2)
             ON CONFLICT (guild_id) DO UPDATE SET default_role_id = EXCLUDED.default_role_id
         """, guild_id, role_id)
+
+
+# ── LOCATIONS ─────────────────────────────────────────────────────────────────
+
+async def create_location(guild_id: int, user_id: str, user_name: str, arme: str, caution: int = 0) -> int:
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow("""
+            INSERT INTO locations (guild_id, user_id, user_name, arme, caution)
+            VALUES ($1, $2, $3, $4, $5)
+            RETURNING id
+        """, guild_id, user_id, user_name, arme, caution)
+    return row["id"]
+
+
+async def increment_active_locations() -> int:
+    """Incrémente jours_ecoules pour toutes les locations actives sauf celles créées aujourd'hui (Paris).
+    Retourne le nombre de locations incrémentées."""
+    async with _pool.acquire() as conn:
+        result = await conn.execute("""
+            UPDATE locations
+            SET jours_ecoules = jours_ecoules + 1
+            WHERE is_closed = FALSE
+              AND (started_at AT TIME ZONE 'Europe/Paris')::date
+                  < (NOW() AT TIME ZONE 'Europe/Paris')::date
+        """)
+    # asyncpg retourne "UPDATE N"
+    return int(result.split()[-1])
+
+
+async def get_active_locations(guild_id: int) -> list[dict]:
+    async with _pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT * FROM locations WHERE guild_id = $1 AND is_closed = FALSE ORDER BY started_at ASC",
+            guild_id,
+        )
+    return [dict(r) for r in rows]
+
+
+async def get_location_by_id(location_id: int, guild_id: int) -> dict | None:
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT * FROM locations WHERE id = $1 AND guild_id = $2",
+            location_id, guild_id,
+        )
+    return dict(row) if row else None
+
+
+async def close_location(location_id: int) -> None:
+    now = datetime.now(timezone.utc)
+    async with _pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE locations SET is_closed = TRUE, closed_at = $2 WHERE id = $1",
+            location_id, now,
+        )
