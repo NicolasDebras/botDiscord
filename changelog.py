@@ -7,9 +7,64 @@ Pour annoncer une nouvelle fonctionnalité : incrémenter VERSION et ajouter
 une entrée en tête de CHANGELOG (ordre du plus récent au plus ancien).
 """
 
-VERSION = "2026.09.10.1"
+VERSION = "2026.09.15.1"
 
 CHANGELOG: list[dict] = [
+    {
+        "version": "2026.09.15.1",
+        "title": "🔧 Fix salon vocal temporaire dupliqué",
+        "items": [
+            "Correction d'un bug où rejoindre le hub deux fois de suite créait deux salons vocaux "
+            "pour le même joueur. Désormais, si un salon existe déjà, le joueur y est redirigé directement.",
+        ],
+    },
+    {
+        "version": "2026.09.15",
+        "title": "📦 Système de location d'armes",
+        "items": [
+            "Nouvelle commande `/location @joueur arme [caution]` — crée une location à 100 000 silver/jour.",
+            "Nouvelle commande `/recaplocation` — liste toutes les locations actives avec le montant dû et la caution.",
+            "Nouvelle commande `/closelocation id` — clôture une location et affiche le montant final.",
+            "Le compteur de jours s'incrémente chaque soir à **22h** — le jour de création ne compte pas.",
+        ],
+    },
+    {
+        "version": "2026.09.14.2",
+        "title": "⚙️ Rôles du récap 22h configurables via /config",
+        "items": [
+            "La section **Récap recrutement (22h)** dans `/config` propose maintenant un bouton "
+            "**🎭 Configurer les rôles** pour choisir : le rôle pingé dans le récap (Recruteur), "
+            "le rôle utilisé pour détecter les inactifs (Membre), et le rôle attribué par `/kick` (Absent).",
+            "Ces valeurs étaient auparavant codées en dur — elles sont maintenant configurables par serveur.",
+        ],
+    },
+    {
+        "version": "2026.09.14.1",
+        "title": "🏆 Top/Flop fame hebdomadaire dans le récap 22h",
+        "items": [
+            "Le Top 3 / Flop 3 fame dans le récap de 22h affiche désormais la **fame gagnée cette semaine** "
+            "(reset chaque lundi) plutôt que depuis le recrutement.",
+            "Correction d'un bug qui empêchait l'envoi du 2ème message du récap (stats + inactifs + top/flop).",
+        ],
+    },
+    {
+        "version": "2026.09.13",
+        "title": "🏁 Erreurs de fin d'activité visibles dans Discord",
+        "items": [
+            "Les erreurs lors de la clôture d'une activité (bouton 🏁) s'affichent maintenant directement "
+            "dans Discord en message éphémère, au lieu de disparaître silencieusement dans les logs.",
+        ],
+    },
+    {
+        "version": "2026.09.12",
+        "title": "⚔️ Template small Naeeeeej",
+        "items": [
+            "Nouveau template **small Naeeeeej** : compo small scale 30 joueurs (PF1 + PF2), "
+            "rôles en majuscules, sélection d'arme via une pop-up (arme + niveau de spécialisation).",
+            "L'embed affiche les joueurs en mode compact : `arme — @mention — spé`.",
+            "Le **PF2** est masqué jusqu'à ce qu'au moins un rôle PF1 soit complet.",
+        ],
+    },
     {
         "version": "2026.09.10.1",
         "title": "🔀 Fix du bouton Fill",
