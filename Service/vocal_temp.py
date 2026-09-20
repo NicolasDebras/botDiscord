@@ -104,14 +104,28 @@ class VocalTemp(commands.Cog):
         # ── Rejoint un hub → création du salon temporaire ──────────────────────
         if after.channel and after.channel.id in _hubs:
             hub = _hubs[after.channel.id]
+
+            # Anti-doublon : si le membre a déjà un salon temp de ce hub, on l'y déplace
+            existing_id = next(
+                (cid for cid, t in _temp_channels.items()
+                 if t["owner_id"] == member.id and t["hub_id"] == after.channel.id),
+                None,
+            )
+            if existing_id:
+                existing_ch = member.guild.get_channel(existing_id)
+                if existing_ch:
+                    try:
+                        await member.move_to(existing_ch, reason="Salon vocal temporaire existant")
+                    except discord.HTTPException:
+                        pass
+                    return
+
             category = member.guild.get_channel(hub["category_id"]) if hub["category_id"] else after.channel.category
             if not isinstance(category, discord.CategoryChannel):
                 category = after.channel.category
 
             name = hub["name_template"].replace("{pseudo}", member.display_name)[:100]
 
-            # Reprend les permissions de la catégorie (rôles autorisés/refusés)
-            # puis ajoute les droits de gestion du créateur par-dessus.
             overwrites = dict(category.overwrites) if isinstance(category, discord.CategoryChannel) else {}
             member_overwrite = overwrites.get(member, discord.PermissionOverwrite())
             member_overwrite.update(manage_channels=True, move_members=True, mute_members=True, deafen_members=True)
