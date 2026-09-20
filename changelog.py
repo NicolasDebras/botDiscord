@@ -7,9 +7,18 @@ Pour annoncer une nouvelle fonctionnalité : incrémenter VERSION et ajouter
 une entrée en tête de CHANGELOG (ordre du plus récent au plus ancien).
 """
 
-VERSION = "2026.09.10.1"
+VERSION = "2026.09.20"
 
 CHANGELOG: list[dict] = [
+    {
+        "version": "2026.09.20",
+        "title": "🔊 Fix suppression des salons vocaux temporaires",
+        "items": [
+            "Les salons vocaux temporaires qui restaient parfois orphelins (déconnexion sale, "
+            "redémarrage du bot pile au mauvais moment) sont maintenant rattrapés par un balayage "
+            "automatique toutes les 2 minutes en plus de la suppression instantanée.",
+        ],
+    },
     {
         "version": "2026.09.10.1",
         "title": "🔀 Fix du bouton Fill",

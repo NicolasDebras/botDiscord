@@ -159,7 +159,7 @@ Système de candidature en libre-service, **configurable indépendamment sur cha
 - **➕ Ajouter un hub** — choisis un salon vocal existant qui servira de déclencheur, une catégorie optionnelle pour les salons créés, puis renseigne le nom (`{pseudo}` = pseudo du créateur) et la limite de places
 - **✏️ Gérer un hub** — modifier le nom/la limite ou supprimer un hub existant
 - Plusieurs hubs possibles par serveur (ex : un hub "Duo", un hub "Squad")
-- Rejoindre un salon hub crée automatiquement un salon vocal temporaire et y déplace le membre ; le créateur reçoit les droits de gestion du salon (renommer, limiter les places, déplacer/expulser) ; le salon est supprimé automatiquement dès qu'il est vide
+- Rejoindre un salon hub crée automatiquement un salon vocal temporaire et y déplace le membre ; le créateur reçoit les droits de gestion du salon (renommer, limiter les places, déplacer/expulser) ; le salon est supprimé automatiquement dès qu'il est vide — un balayage de sécurité toutes les 2 minutes rattrape les cas où l'événement Discord a été manqué (déconnexion, redémarrage du bot)
 
 **👋 Message de bienvenue** / **🚪 Message d'au revoir**
 - Choisis le salon textuel puis renseigne le message dans la pop-up

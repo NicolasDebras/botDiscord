@@ -1,5 +1,5 @@
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 
 import db
 
@@ -38,27 +38,64 @@ async def remove_hub(channel_id: int) -> None:
     await refresh_cache()
 
 
+async def _resolve_channel(bot: commands.Bot, channel_id: int) -> discord.abc.GuildChannel | None:
+    """Comme bot.get_channel, mais vérifie via l'API en cas de cache manquant
+    au lieu de considérer le salon comme supprimé à tort."""
+    channel = bot.get_channel(channel_id)
+    if channel is not None:
+        return channel
+    try:
+        return await bot.fetch_channel(channel_id)
+    except discord.NotFound:
+        return None
+    except discord.HTTPException:
+        return "unknown"  # panne API temporaire : ne pas conclure à une suppression
+
+
 class VocalTemp(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
+    async def cog_load(self):
+        self.cleanup_empty_channels.start()
+
+    async def cog_unload(self):
+        self.cleanup_empty_channels.cancel()
+
+    async def _cleanup_channel(self, channel_id: int) -> None:
+        channel = await _resolve_channel(self.bot, channel_id)
+        if channel == "unknown":
+            return  # panne API : on retentera au prochain passage
+        if channel is None:
+            _temp_channels.pop(channel_id, None)
+            await db.delete_temp_voice_channel(channel_id)
+            return
+        if not channel.members:
+            try:
+                await channel.delete(reason="Nettoyage salon vocal temporaire vide")
+            except discord.HTTPException:
+                pass
+            _temp_channels.pop(channel_id, None)
+            await db.delete_temp_voice_channel(channel_id)
+
     @commands.Cog.listener()
     async def on_ready(self):
         await refresh_cache()
-
-        # Nettoyage : salons temp en DB qui n'existent plus ou sont vides
         for channel_id in list(_temp_channels.keys()):
-            channel = self.bot.get_channel(channel_id)
-            if channel is None or not channel.members:
-                if channel is not None:
-                    try:
-                        await channel.delete(reason="Nettoyage salon vocal temporaire vide")
-                    except discord.HTTPException:
-                        pass
-                await db.delete_temp_voice_channel(channel_id)
-
+            await self._cleanup_channel(channel_id)
         await refresh_cache()
         print(f"   {len(_hubs)} hub(s) vocal(aux), {len(_temp_channels)} salon(s) temporaire(s) rechargé(s).")
+
+    # ── Filet de sécurité : rattrape les salons jamais nettoyés par l'event
+    # (ex : déconnexion sale, event manqué, cache pas encore prêt au démarrage) ──
+    @tasks.loop(minutes=2)
+    async def cleanup_empty_channels(self):
+        for channel_id in list(_temp_channels.keys()):
+            await self._cleanup_channel(channel_id)
+
+    @cleanup_empty_channels.before_loop
+    async def before_cleanup(self):
+        await self.bot.wait_until_ready()
 
     @commands.Cog.listener()
     async def on_voice_state_update(
