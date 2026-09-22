@@ -7,9 +7,17 @@ Pour annoncer une nouvelle fonctionnalité : incrémenter VERSION et ajouter
 une entrée en tête de CHANGELOG (ordre du plus récent au plus ancien).
 """
 
-VERSION = "2026.09.20"
+VERSION = "2026.09.22"
 
 CHANGELOG: list[dict] = [
+    {
+        "version": "2026.09.22",
+        "title": "❌ Bouton Refuser dans les candidatures",
+        "items": [
+            "Un bouton **❌ Refuser la candidature** (staff uniquement) est désormais présent dans chaque salon de candidature. "
+            "Il clôture le ticket sans attribuer de rôle de validation.",
+        ],
+    },
     {
         "version": "2026.09.20",
         "title": "🔊 Fix suppression des salons vocaux temporaires",
