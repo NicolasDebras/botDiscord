@@ -7,9 +7,17 @@ Pour annoncer une nouvelle fonctionnalité : incrémenter VERSION et ajouter
 une entrée en tête de CHANGELOG (ordre du plus récent au plus ancien).
 """
 
-VERSION = "2026.09.22"
+VERSION = "2026.09.24"
 
 CHANGELOG: list[dict] = [
+    {
+        "version": "2026.09.24",
+        "title": "🔧 Fix rôle Fill affiché en double dans l'embed",
+        "items": [
+            "Le rôle **Fill** n'apparaît plus deux fois dans l'embed d'activité. "
+            "Il était dupliqué sur certains templates sans `pf_1` défini.",
+        ],
+    },
     {
         "version": "2026.09.22",
         "title": "❌ Bouton Refuser dans les candidatures",

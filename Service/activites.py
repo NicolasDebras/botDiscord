@@ -178,6 +178,8 @@ def build_embed(data: dict) -> discord.Embed:
 
     pf2_header_done = False
     for role_key in roles_to_show:
+        if role_key in ("Fill", "PF2:Fill"):
+            continue
         is_pf2    = role_key.startswith("PF2:")
         role_name = role_key[4:] if is_pf2 else role_key
         emoji     = ROLES.get(role_name, "🔹")
