@@ -279,6 +279,28 @@ class ValidateCandidatureView(discord.ui.View):
         except discord.Forbidden:
             pass
 
+    @discord.ui.button(
+        label="❌ Refuser la candidature",
+        style=discord.ButtonStyle.danger,
+        custom_id="recru_cancel",
+    )
+    async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not await _is_staff(interaction.user):
+            await interaction.response.send_message(
+                "⛔ Réservé au staff / rôle recrutement.", ephemeral=True
+            )
+            return
+
+        await interaction.response.send_message(
+            f"❌ Candidature refusée par {interaction.user.mention} — ce salon va être fermé."
+        )
+        await db.delete_recruitment_ticket_by_channel(interaction.channel.id)
+        await asyncio.sleep(5)
+        try:
+            await interaction.channel.delete(reason=f"Candidature refusée par {interaction.user}")
+        except discord.Forbidden:
+            pass
+
 
 # ── COG ───────────────────────────────────────────────────────────────────────
 class RecrutementExterne(commands.Cog):

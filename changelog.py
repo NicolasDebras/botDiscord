@@ -21,6 +21,22 @@ CHANGELOG: list[dict] = [
         ],
     },
     {
+        "version": "2026.09.24",
+        "title": "🔧 Fix rôle Fill affiché en double dans l'embed",
+        "items": [
+            "Le rôle **Fill** n'apparaît plus deux fois dans l'embed d'activité. "
+            "Il était dupliqué sur certains templates sans `pf_1` défini.",
+        ],
+    },
+    {
+        "version": "2026.09.22",
+        "title": "❌ Bouton Refuser dans les candidatures",
+        "items": [
+            "Un bouton **❌ Refuser la candidature** (staff uniquement) est désormais présent dans chaque salon de candidature. "
+            "Il clôture le ticket sans attribuer de rôle de validation.",
+        ],
+    },
+    {
         "version": "2026.09.20",
         "title": "🔊 Fix suppression des salons vocaux temporaires",
         "items": [
