@@ -7,9 +7,19 @@ Pour annoncer une nouvelle fonctionnalité : incrémenter VERSION et ajouter
 une entrée en tête de CHANGELOG (ordre du plus récent au plus ancien).
 """
 
-VERSION = "2026.09.20"
+VERSION = "2026.09.27"
 
 CHANGELOG: list[dict] = [
+    {
+        "version": "2026.09.27",
+        "title": "🩹 Erreurs de commandes visibles dans Discord",
+        "items": [
+            "Toute erreur inattendue dans une commande slash s'affiche maintenant en message d'erreur "
+            "éphémère, au lieu de faire échouer silencieusement l'interaction (\"ne répond plus\").",
+            "La synchronisation des commandes par serveur au démarrage n'interrompt plus les serveurs "
+            "suivants si un serveur échoue.",
+        ],
+    },
     {
         "version": "2026.09.20",
         "title": "🔊 Fix suppression des salons vocaux temporaires",

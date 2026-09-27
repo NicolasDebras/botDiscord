@@ -1,5 +1,7 @@
 import os
+import traceback
 import discord
+from discord import app_commands
 from discord.ext import commands
 import asyncio
 
@@ -31,15 +33,36 @@ EXTENSIONS = [
 ]
 
 
+# ── ERREURS SLASH COMMANDS ───────────────────────────────────────────────────
+@bot.tree.error
+async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
+    original = getattr(error, "original", error)
+    cmd_name = interaction.command.name if interaction.command else "?"
+    print(f"[slash command error] /{cmd_name} : {type(original).__name__}: {original}")
+    traceback.print_exception(type(original), original, original.__traceback__)
+
+    message = f"❌ Erreur dans `/{cmd_name}` : `{type(original).__name__}: {original}`"
+    try:
+        if interaction.response.is_done():
+            await interaction.followup.send(message, ephemeral=True)
+        else:
+            await interaction.response.send_message(message, ephemeral=True)
+    except discord.HTTPException:
+        pass
+
+
 # ── EVENTS ───────────────────────────────────────────────────────────────────
 @bot.event
 async def on_ready():
     # Sync des commandes sur tous les serveurs où le bot est installé
     for guild in bot.guilds:
         g = discord.Object(id=guild.id)
-        bot.tree.copy_global_to(guild=g)
-        synced = await bot.tree.sync(guild=g)
-        print(f"   {len(synced)} commande(s) synchronisées sur {guild.name} ({guild.id})")
+        try:
+            bot.tree.copy_global_to(guild=g)
+            synced = await bot.tree.sync(guild=g)
+            print(f"   {len(synced)} commande(s) synchronisées sur {guild.name} ({guild.id})")
+        except discord.HTTPException as e:
+            print(f"   ✖ Erreur de synchronisation sur {guild.name} ({guild.id}) : {e}")
 
     print(f"✅ Bot connecté en tant que {bot.user}  ({bot.user.id})")
     print(f"   Cogs chargés : {', '.join(EXTENSIONS)}")
