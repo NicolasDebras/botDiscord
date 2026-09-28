@@ -1,8 +1,33 @@
 import random
+import traceback
 import discord
 import db
 
 from config import ADMIN_ROLE_NAME, GM_ROLE_NAME, MEMBRE_ROLE_NAME, CALLER_ROLE_NAME, DEFAULT_BAL_RATE, GUILD_ID as _MAIN_GUILD_ID
+
+
+# ── HELPER : log d'erreur hors flux slash command ─────────────────────────────
+async def log_error(
+    source: str, error: BaseException,
+    guild_id: int | None = None, user_id: int | str | None = None,
+) -> None:
+    """Enregistre une erreur en base pour /errors — à utiliser dans les listeners,
+    tâches de fond et callbacks de composants, qui ne passent pas par le handler
+    d'erreur global des commandes slash (bot.tree.error)."""
+    print(f"[{source}] {type(error).__name__}: {error}")
+    tb_str = "".join(traceback.format_exception(type(error), error, error.__traceback__))
+    print(tb_str)
+    try:
+        await db.add_error_log(
+            command=source,
+            error_type=type(error).__name__,
+            error_message=str(error),
+            traceback_str=tb_str,
+            guild_id=guild_id,
+            user_id=str(user_id) if user_id is not None else None,
+        )
+    except Exception as e:
+        print(f"[log_error] Impossible d'enregistrer l'erreur en base : {e}")
 
 
 def fmt_silver(n: int) -> str:
@@ -109,7 +134,12 @@ class ActivitySelect(discord.ui.Select):
         try:
             await self._callback_fn(interaction, self.values[0])
         except Exception as e:
-            msg = f"❌ Erreur inattendue : {e}"
+            await log_error(
+                "ActivitySelect", e,
+                guild_id=interaction.guild.id if interaction.guild else None,
+                user_id=interaction.user.id if interaction.user else None,
+            )
+            msg = f"❌ Erreur inattendue : {type(e).__name__}: {e}"
             if interaction.response.is_done():
                 await interaction.followup.send(msg, ephemeral=True)
             else:

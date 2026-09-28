@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands, tasks
 
 import db
+from Service.utils import log_error
 
 # ── CACHES EN MÉMOIRE ─────────────────────────────────────────────────────────
 # {hub_channel_id: {channel_id, guild_id, category_id, name_template, user_limit}}
@@ -78,20 +79,30 @@ class VocalTemp(commands.Cog):
             _temp_channels.pop(channel_id, None)
             await db.delete_temp_voice_channel(channel_id)
 
+    async def _safe_cleanup_channel(self, channel_id: int) -> None:
+        """Comme _cleanup_channel, mais n'interrompt jamais l'appelant — une erreur
+        sur un salon ne doit pas empêcher de traiter les autres ni tuer la boucle."""
+        try:
+            await self._cleanup_channel(channel_id)
+        except Exception as e:
+            await log_error("vocal_temp.cleanup_channel", e)
+
     @commands.Cog.listener()
     async def on_ready(self):
         await refresh_cache()
         for channel_id in list(_temp_channels.keys()):
-            await self._cleanup_channel(channel_id)
+            await self._safe_cleanup_channel(channel_id)
         await refresh_cache()
         print(f"   {len(_hubs)} hub(s) vocal(aux), {len(_temp_channels)} salon(s) temporaire(s) rechargé(s).")
 
     # ── Filet de sécurité : rattrape les salons jamais nettoyés par l'event
     # (ex : déconnexion sale, event manqué, cache pas encore prêt au démarrage) ──
+    # Chaque salon est traité isolément (_safe_cleanup_channel) car une exception
+    # non rattrapée dans un @tasks.loop arrête la boucle définitivement.
     @tasks.loop(minutes=2)
     async def cleanup_empty_channels(self):
         for channel_id in list(_temp_channels.keys()):
-            await self._cleanup_channel(channel_id)
+            await self._safe_cleanup_channel(channel_id)
 
     @cleanup_empty_channels.before_loop
     async def before_cleanup(self):
@@ -99,6 +110,14 @@ class VocalTemp(commands.Cog):
 
     @commands.Cog.listener()
     async def on_voice_state_update(
+        self, member: discord.Member, before: discord.VoiceState, after: discord.VoiceState
+    ):
+        try:
+            await self._handle_voice_state_update(member, before, after)
+        except Exception as e:
+            await log_error("vocal_temp.on_voice_state_update", e, guild_id=member.guild.id, user_id=member.id)
+
+    async def _handle_voice_state_update(
         self, member: discord.Member, before: discord.VoiceState, after: discord.VoiceState
     ):
         # ── Rejoint un hub → création du salon temporaire ──────────────────────

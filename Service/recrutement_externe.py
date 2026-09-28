@@ -8,6 +8,7 @@ from discord import app_commands
 import db
 from config import ADMIN_ROLE_NAME
 from albion_api import fetch_albion_fame, fmt_fame
+from Service.utils import log_error
 
 
 def _slugify(text: str) -> str:
@@ -313,6 +314,12 @@ class RecrutementExterne(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
+        try:
+            await self._handle_member_join(member)
+        except Exception as e:
+            await log_error("recrutement_externe.on_member_join", e, guild_id=member.guild.id, user_id=member.id)
+
+    async def _handle_member_join(self, member: discord.Member):
         cfg = await db.get_recruitment_config(member.guild.id)
         if not cfg or not cfg["candidat_role_id"]:
             return

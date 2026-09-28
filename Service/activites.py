@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 
 import db
 from config import ROLES, DEFAULT_TEMPLATES, ACTIVITY_COLORS, DEFAULT_COLOR, ADMIN_ROLE_NAME, MEMBRE_ROLE_NAME
-from Service.utils import load_settings, append_bal_log, is_membre, is_caller_or_admin, notify_bal_limit, fmt_silver
+from Service.utils import load_settings, append_bal_log, is_membre, is_caller_or_admin, notify_bal_limit, fmt_silver, log_error
 
 # ── STOCKAGE EN MÉMOIRE  {message_id: data} ──────────────────────────────────
 activities: dict[int, dict] = {}
@@ -919,8 +919,7 @@ class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
             await interaction.followup.send(summary)
 
         except Exception as e:
-            import traceback
-            print(f"[FinActiModal] {traceback.format_exc()}")
+            await log_error("activites.FinActiModal", e, guild_id=interaction.guild.id, user_id=interaction.user.id)
             await interaction.followup.send(
                 f"❌ **Erreur FinActi** : `{type(e).__name__}: {e}`", ephemeral=True
             )
@@ -1036,9 +1035,7 @@ class FinActiButton(discord.ui.Button):
                 await interaction.response.send_modal(FinActiModal(self.activity_id, data))
                 return
         except Exception as e:
-            import traceback
-            tb = traceback.format_exc()
-            print(f"[FinActiButton] {tb}")
+            await log_error("activites.FinActiButton", e, guild_id=interaction.guild.id, user_id=interaction.user.id)
             msg = f"❌ **Erreur FinActi** : `{type(e).__name__}: {e}`"
             try:
                 if not interaction.response.is_done():
@@ -1070,8 +1067,7 @@ class FinActiButton(discord.ui.Button):
             await interaction.followup.send("✅ Activité clôturée !", ephemeral=True)
 
         except Exception as e:
-            import traceback
-            print(f"[FinActiButton/libre] {traceback.format_exc()}")
+            await log_error("activites.FinActiButton_libre", e, guild_id=interaction.guild.id, user_id=interaction.user.id)
             await interaction.followup.send(
                 f"❌ **Erreur FinActi** : `{type(e).__name__}: {e}`", ephemeral=True
             )
@@ -1247,7 +1243,7 @@ class Activites(commands.Cog):
             try:
                 self.bot.add_view(build_view(msg_id))
             except Exception as e:
-                print(f"[on_ready] Erreur add_view {msg_id}: {type(e).__name__}: {e}")
+                await log_error("activites.add_view", e, guild_id=data.get("guild_id"))
             try:
                 if channel:
                     msg = await channel.fetch_message(msg_id)

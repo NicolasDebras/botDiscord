@@ -7,6 +7,7 @@ import db
 from config import ADMIN_ROLE_NAME
 from Service.utils import is_admin
 from Service import vocal_temp, bienvenue, self_roles
+from Service.utils import log_error
 
 
 # ── EMBEDS ────────────────────────────────────────────────────────────────────
@@ -715,24 +716,30 @@ class Config(commands.Cog):
     async def on_ready(self):
         configs = await db.get_all_update_announce_configs()
         for cfg in configs:
-            if cfg["last_version"] == changelog.VERSION:
-                continue
+            try:
+                await self._announce_update(cfg)
+            except Exception as e:
+                await log_error("config.update_announce", e, guild_id=cfg["guild_id"])
 
-            entries = changelog.get_entries_since(cfg["last_version"])
-            if not entries:
-                await db.set_update_announce_last_version(cfg["guild_id"], changelog.VERSION)
-                continue
+    async def _announce_update(self, cfg: dict) -> None:
+        if cfg["last_version"] == changelog.VERSION:
+            return
 
-            channel = self.bot.get_channel(cfg["channel_id"])
-            if not channel:
-                continue
-
-            for entry in entries:
-                try:
-                    await channel.send(embed=_changelog_embed(entry))
-                except discord.Forbidden:
-                    break
+        entries = changelog.get_entries_since(cfg["last_version"])
+        if not entries:
             await db.set_update_announce_last_version(cfg["guild_id"], changelog.VERSION)
+            return
+
+        channel = self.bot.get_channel(cfg["channel_id"])
+        if not channel:
+            return
+
+        for entry in entries:
+            try:
+                await channel.send(embed=_changelog_embed(entry))
+            except discord.Forbidden:
+                break
+        await db.set_update_announce_last_version(cfg["guild_id"], changelog.VERSION)
 
     @app_commands.command(name="config", description="[ADMIN] Configurer le serveur (vocaux temporaires, bienvenue, au revoir)")
     async def config(self, interaction: discord.Interaction):

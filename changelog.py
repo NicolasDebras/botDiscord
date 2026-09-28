@@ -7,9 +7,23 @@ Pour annoncer une nouvelle fonctionnalité : incrémenter VERSION et ajouter
 une entrée en tête de CHANGELOG (ordre du plus récent au plus ancien).
 """
 
-VERSION = "2026.09.28.2"
+VERSION = "2026.09.28.3"
 
 CHANGELOG: list[dict] = [
+    {
+        "version": "2026.09.28.3",
+        "title": "🩹 Journal d'erreurs étendu à tout le bot + fix fiabilité",
+        "items": [
+            "Les erreurs dans les listeners (arrivée/départ de membre, salons vocaux…) et les tâches "
+            "de fond (récap 22h, locations, annonces de mise à jour) sont désormais enregistrées en "
+            "base et consultables via `/errors` — avant, seules les commandes slash étaient couvertes.",
+            "Fix fiabilité : une erreur inattendue dans le balayage des salons vocaux temporaires "
+            "arrêtait la tâche de fond **définitivement** (comportement des tâches planifiées "
+            "discord.py). Chaque salon est maintenant traité isolément.",
+            "Fix : sur un bot multi-serveurs, une erreur en annonçant une mise à jour sur un serveur "
+            "bloquait l'annonce pour tous les serveurs suivants. Chaque serveur est maintenant isolé.",
+        ],
+    },
     {
         "version": "2026.09.28.2",
         "title": "⚔️ Nouveau template Donjon Groupe 5",

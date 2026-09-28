@@ -8,7 +8,7 @@ from discord import app_commands
 
 import db
 from config import ADMIN_ROLE_NAME
-from Service.utils import fmt_silver, is_admin
+from Service.utils import fmt_silver, is_admin, log_error
 
 PRICE_PER_DAY = 100_000
 _PARIS        = ZoneInfo("Europe/Paris")
@@ -33,7 +33,7 @@ class Location(commands.Cog):
             if n:
                 print(f"[location] {n} location(s) incrémentée(s) à 22h.")
         except Exception as e:
-            print(f"[location] Erreur incrément : {e}")
+            await log_error("location.increment_locations", e)
 
     @increment_locations.before_loop
     async def before_increment(self):

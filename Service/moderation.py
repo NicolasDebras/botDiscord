@@ -2,6 +2,8 @@ import re
 import discord
 from discord.ext import commands
 
+from Service.utils import log_error
+
 _ACTI_FLASH_ID = 1466726574509260943
 _FORMAT_RE     = re.compile(r"^\d{2}/\d{2}\s*-\s*\d{2}[hH]\d{2}\s*-\s*.+", re.DOTALL)
 
@@ -12,6 +14,12 @@ class Moderation(commands.Cog):
 
     @commands.Cog.listener()
     async def on_thread_create(self, thread: discord.Thread):
+        try:
+            await self._handle_thread_create(thread)
+        except Exception as e:
+            await log_error("moderation.on_thread_create", e, guild_id=thread.guild.id if thread.guild else None)
+
+    async def _handle_thread_create(self, thread: discord.Thread):
         if thread.parent_id != _ACTI_FLASH_ID:
             return
         if _FORMAT_RE.match(thread.name):

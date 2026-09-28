@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 
 import db
+from Service.utils import log_error
 
 # ── CACHE EN MÉMOIRE {message_id: {channel_id, guild_id, roles}} ───────────────
 _menus: dict[int, dict] = {}
@@ -77,7 +78,7 @@ class SelfRoles(commands.Cog):
             try:
                 self.bot.add_view(build_view(message_id, menu["roles"]), message_id=message_id)
             except Exception as e:
-                print(f"[self_roles] Erreur add_view {message_id}: {type(e).__name__}: {e}")
+                await log_error("self_roles.add_view", e, guild_id=menu.get("guild_id"))
         print(f"   {len(_menus)} menu(x) de rôles auto-attribuables rechargé(s).")
 
 

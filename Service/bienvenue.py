@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 
 import db
+from Service.utils import log_error
 
 # ── CACHE EN MÉMOIRE {guild_id: {welcome_channel_id, welcome_message, goodbye_channel_id, goodbye_message}} ─
 _configs: dict[int, dict] = {}
@@ -49,6 +50,12 @@ class Bienvenue(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
+        try:
+            await self._handle_member_join(member)
+        except Exception as e:
+            await log_error("bienvenue.on_member_join", e, guild_id=member.guild.id, user_id=member.id)
+
+    async def _handle_member_join(self, member: discord.Member):
         cfg = _configs.get(member.guild.id)
         if not cfg:
             return
@@ -86,6 +93,12 @@ class Bienvenue(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_remove(self, member: discord.Member):
+        try:
+            await self._handle_member_remove(member)
+        except Exception as e:
+            await log_error("bienvenue.on_member_remove", e, guild_id=member.guild.id, user_id=member.id)
+
+    async def _handle_member_remove(self, member: discord.Member):
         cfg = _configs.get(member.guild.id)
         if not cfg or not cfg["goodbye_channel_id"] or not cfg["goodbye_message"]:
             return

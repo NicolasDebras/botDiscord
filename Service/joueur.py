@@ -9,7 +9,7 @@ from discord import app_commands
 import db
 from albion_api import fetch_albion_fame, fmt_fame
 from config import ADMIN_ROLE_NAME, RECRUTEUR_ROLE_ID, MEMBRE_ROLE_NAME, GUILD_ID as _MAIN_GUILD_ID
-from Service.utils import fmt_silver
+from Service.utils import fmt_silver, log_error
 
 _PARIS          = ZoneInfo("Europe/Paris")
 _RAPPEL_HEURE   = datetime.time(hour=22, minute=0, tzinfo=_PARIS)
@@ -178,7 +178,7 @@ class Joueur(commands.Cog):
             try:
                 await self._run_recap(guild, purge_immediate=False)
             except Exception as e:
-                print(f"[rappel_nouveaux] Erreur sur {guild.name} ({guild.id}): {type(e).__name__}: {e}")
+                await log_error("joueur.rappel_nouveaux", e, guild_id=guild.id)
 
     @rappel_nouveaux.before_loop
     async def before_rappel(self):

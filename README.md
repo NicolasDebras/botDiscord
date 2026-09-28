@@ -268,7 +268,9 @@ Un `id` unique est attribué à chaque location — visible dans `/recaplocation
 | `/errors [page] [commande] [id_erreur]` | Officier | Historique des erreurs de commandes slash (30 jours) — `id_erreur` renvoie la traceback complète en fichier |
 | `/helpliliumbot` | Tous | Afficher la liste de toutes les commandes du bot |
 
-**Journal d'erreurs (`/errors`)** — toute exception inattendue dans une commande slash est maintenant enregistrée en base (30 jours glissants) en plus d'être affichée en éphémère à l'utilisateur. `/errors` liste les dernières erreurs (paginé, filtrable par commande) ; `/errors id_erreur:<ID>` renvoie la traceback Python complète en pièce jointe.
+**Journal d'erreurs (`/errors`)** — toute exception inattendue est enregistrée en base (30 jours glissants) : commandes slash (en plus du message éphémère affiché à l'utilisateur), mais aussi les listeners (arrivée/départ de membre, salons vocaux…) et les tâches de fond (récap 22h, locations, annonces de mise à jour), qui ne passent pas par le même flux et étaient auparavant invisibles sans accès aux logs Railway. `/errors` liste les dernières erreurs (paginé, filtrable par commande) ; `/errors id_erreur:<ID>` renvoie la traceback Python complète en pièce jointe.
+
+> Les tâches planifiées (`@tasks.loop`) de discord.py s'arrêtent **définitivement** si une exception s'en échappe. Chaque salon/serveur traité par ces tâches (nettoyage des salons vocaux temporaires, annonces de mise à jour…) est donc isolé dans son propre `try/except` pour qu'une erreur sur un élément n'interrompe jamais le reste.
 
 **Exemple `/addtemplate` — ZvZ PF1+PF2 avec specs :**
 ```
