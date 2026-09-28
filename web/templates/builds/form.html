@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}{{ "Modifier" if build else "Nouveau" }} build — LiliumBot{% endblock %}
+{% block content %}
+<h1>{{ "Modifier le build" if build else "Nouveau build" }}</h1>
+<form class="form" method="post" action="{{ '/g/' ~ guild_id ~ '/builds/' ~ build.id ~ '/edit' if build else '/g/' ~ guild_id ~ '/builds/new' }}">
+    <label>Nom
+        <input type="text" name="name" required maxlength="100" value="{{ build.name if build else '' }}">
+    </label>
+    <label>Rôle
+        <input type="text" name="role" required list="roles-list" value="{{ build.role if build else '' }}">
+        <datalist id="roles-list">
+            {% for r in roles %}<option value="{{ r }}">{% endfor %}
+        </datalist>
+    </label>
+    <label>Type
+        <select name="type_acti">
+            <option value="PVP" {% if not build or build.type_acti == "PVP" %}selected{% endif %}>PVP</option>
+            <option value="PVE" {% if build and build.type_acti == "PVE" %}selected{% endif %}>PVE</option>
+        </select>
+    </label>
+    <label>Arme / équipement
+        <input type="text" name="weapon" maxlength="200" value="{{ build.weapon if build else '' }}">
+    </label>
+    <label>Notes
+        <textarea name="notes" maxlength="500">{{ build.notes if build else '' }}</textarea>
+    </label>
+    <label>Image (URL, optionnel)
+        <input type="url" name="image" value="{{ build.image if build else '' }}">
+    </label>
+    <div class="actions">
+        <button type="submit" class="btn">Enregistrer</button>
+        <a href="/g/{{ guild_id }}/builds">Annuler</a>
+    </div>
+</form>
+{% endblock %}

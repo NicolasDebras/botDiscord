@@ -338,6 +338,31 @@ async def init_db(database_url: str) -> None:
                 ON CONFLICT (key) DO NOTHING
             """)
 
+        # ── Bibliothèque de builds (site web) ───────────────────────────────────
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS builds (
+                id               SERIAL      PRIMARY KEY,
+                guild_id         BIGINT      NOT NULL,
+                name             TEXT        NOT NULL,
+                role             TEXT        NOT NULL,
+                type_acti        TEXT        NOT NULL DEFAULT 'PVP',
+                weapon           TEXT        NOT NULL DEFAULT '',
+                notes            TEXT        NOT NULL DEFAULT '',
+                image            TEXT        NOT NULL DEFAULT '',
+                created_by       TEXT        NOT NULL,
+                created_by_name  TEXT        NOT NULL,
+                created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+        """)
+
+        # ── Rôle staff du site web (création/modif builds + compos) ────────────
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS web_staff_config (
+                guild_id       BIGINT PRIMARY KEY,
+                staff_role_id  BIGINT NOT NULL
+            )
+        """)
+
 
 # ── ACTIVITIES ────────────────────────────────────────────────────────────────
 
@@ -1242,3 +1267,72 @@ async def close_location(location_id: int) -> None:
             "UPDATE locations SET is_closed = TRUE, closed_at = $2 WHERE id = $1",
             location_id, now,
         )
+
+
+# ── BIBLIOTHÈQUE DE BUILDS (site web) ───────────────────────────────────────────
+
+async def get_builds(guild_id: int, role: str | None = None, type_acti: str | None = None) -> list[dict]:
+    query, params = "SELECT * FROM builds WHERE guild_id = $1", [guild_id]
+    if role:
+        params.append(role)
+        query += f" AND role = ${len(params)}"
+    if type_acti:
+        params.append(type_acti)
+        query += f" AND type_acti = ${len(params)}"
+    query += " ORDER BY role, name"
+    async with _pool.acquire() as conn:
+        rows = await conn.fetch(query, *params)
+    return [dict(r) for r in rows]
+
+
+async def get_build_by_id(build_id: int, guild_id: int) -> dict | None:
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT * FROM builds WHERE id = $1 AND guild_id = $2", build_id, guild_id)
+    return dict(row) if row else None
+
+
+async def add_build(
+    guild_id: int, name: str, role: str, type_acti: str, weapon: str, notes: str, image: str,
+    created_by: str, created_by_name: str,
+) -> int:
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow("""
+            INSERT INTO builds (guild_id, name, role, type_acti, weapon, notes, image, created_by, created_by_name)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            RETURNING id
+        """, guild_id, name, role, type_acti, weapon, notes, image, created_by, created_by_name)
+    return row["id"]
+
+
+async def update_build(
+    build_id: int, guild_id: int, name: str, role: str, type_acti: str, weapon: str, notes: str, image: str,
+) -> None:
+    async with _pool.acquire() as conn:
+        await conn.execute("""
+            UPDATE builds SET name = $3, role = $4, type_acti = $5, weapon = $6, notes = $7, image = $8
+            WHERE id = $1 AND guild_id = $2
+        """, build_id, guild_id, name, role, type_acti, weapon, notes, image)
+
+
+async def delete_build(build_id: int, guild_id: int) -> None:
+    async with _pool.acquire() as conn:
+        await conn.execute("DELETE FROM builds WHERE id = $1 AND guild_id = $2", build_id, guild_id)
+
+
+# ── RÔLE STAFF DU SITE WEB ───────────────────────────────────────────────────────
+
+async def get_web_staff_role(guild_id: int) -> int | None:
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT staff_role_id FROM web_staff_config WHERE guild_id = $1", guild_id)
+    return row["staff_role_id"] if row else None
+
+
+async def set_web_staff_role(guild_id: int, role_id: int | None) -> None:
+    async with _pool.acquire() as conn:
+        if role_id is None:
+            await conn.execute("DELETE FROM web_staff_config WHERE guild_id = $1", guild_id)
+        else:
+            await conn.execute("""
+                INSERT INTO web_staff_config (guild_id, staff_role_id) VALUES ($1, $2)
+                ON CONFLICT (guild_id) DO UPDATE SET staff_role_id = EXCLUDED.staff_role_id
+            """, guild_id, role_id)

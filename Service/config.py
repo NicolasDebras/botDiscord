@@ -120,6 +120,14 @@ def _changelog_embed(entry: dict) -> discord.Embed:
     return embed
 
 
+async def _web_staff_embed(guild: discord.Guild) -> discord.Embed:
+    role_id = await db.get_web_staff_role(guild.id)
+    embed = discord.Embed(title="🌐 Rôle staff du site web", color=0x3498DB)
+    embed.description = f"<@&{role_id}>" if role_id else "Non configuré."
+    embed.set_footer(text="Seuls les membres ayant ce rôle peuvent créer/modifier builds et compos sur le site. Sans rôle configuré, le site reste en lecture seule.")
+    return embed
+
+
 async def _validated_role_embed(guild: discord.Guild) -> discord.Embed:
     cfg = await db.get_recruitment_config(guild.id)
     role_id = cfg["validated_role_id"] if cfg else None
@@ -504,6 +512,30 @@ class ValidatedRoleView(discord.ui.View):
         await interaction.response.edit_message(embed=_main_embed(), view=MainConfigView())
 
 
+# ── VUE : RÔLE STAFF DU SITE WEB ────────────────────────────────────────────────
+
+class WebStaffRoleView(discord.ui.View):
+    def __init__(self, guild_id: int):
+        super().__init__(timeout=180)
+        self.guild_id = guild_id
+
+    @discord.ui.select(cls=discord.ui.RoleSelect, placeholder="Choisis le rôle staff du site web")
+    async def role_select(self, interaction: discord.Interaction, select: discord.ui.RoleSelect):
+        await db.set_web_staff_role(self.guild_id, select.values[0].id)
+        await interaction.response.send_message(
+            f"✅ Rôle staff du site web : {select.values[0].mention}", ephemeral=True
+        )
+
+    @discord.ui.button(label="🔕 Désactiver", style=discord.ButtonStyle.danger, row=1)
+    async def disable(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await db.set_web_staff_role(self.guild_id, None)
+        await interaction.response.send_message("🔕 Rôle staff du site web désactivé (site en lecture seule).", ephemeral=True)
+
+    @discord.ui.button(label="⬅️ Retour", style=discord.ButtonStyle.gray, row=1)
+    async def back(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.edit_message(embed=_main_embed(), view=MainConfigView())
+
+
 # ── VUES : RÔLES À LA CARTE (BOUTONS) ───────────────────────────────────────────
 
 class CreateAutoRoleView(discord.ui.View):
@@ -668,6 +700,8 @@ class MainConfigSelect(discord.ui.Select):
                                   description="Message avec boutons pour s'attribuer un rôle"),
             discord.SelectOption(label="Annonces de mises à jour", value="annonces", emoji="📢",
                                   description="Salon qui reçoit un message à chaque nouvelle fonctionnalité"),
+            discord.SelectOption(label="Rôle staff du site web", value="web_staff", emoji="🌐",
+                                  description="Qui peut créer/modifier builds et compos sur le site"),
         ]
         super().__init__(placeholder="Choisis une section à configurer...", options=options)
 
@@ -695,9 +729,12 @@ class MainConfigSelect(discord.ui.Select):
         elif value == "autoroles":
             embed = _autoroles_embed(interaction.guild)
             await interaction.response.edit_message(embed=embed, view=AutoRolesConfigView(interaction.guild.id))
-        else:
+        elif value == "annonces":
             embed = await _update_announce_embed(interaction.guild)
             await interaction.response.edit_message(embed=embed, view=UpdateAnnounceView(interaction.guild.id))
+        else:
+            embed = await _web_staff_embed(interaction.guild)
+            await interaction.response.edit_message(embed=embed, view=WebStaffRoleView(interaction.guild.id))
 
 
 class MainConfigView(discord.ui.View):

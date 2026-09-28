@@ -7,9 +7,23 @@ Pour annoncer une nouvelle fonctionnalité : incrémenter VERSION et ajouter
 une entrée en tête de CHANGELOG (ordre du plus récent au plus ancien).
 """
 
-VERSION = "2026.09.28.3"
+VERSION = "2026.10.01"
 
 CHANGELOG: list[dict] = [
+    {
+        "version": "2026.10.01",
+        "title": "🌐 Site web — builds & compos",
+        "items": [
+            "Nouveau site web, connecté avec ton compte Discord : bibliothèque de builds (loadouts "
+            "par rôle) et créateur de compos visuel.",
+            "Les compos créées sur le site sont immédiatement utilisables dans `/acti` — même base "
+            "que `/addtemplate`, pas besoin de redémarrer le bot.",
+            "Accès en création réservé au rôle configuré via `/config` → 🌐 Rôle staff du site web "
+            "(lecture seule tant qu'aucun rôle n'est configuré).",
+            "Désactivé pour l'instant (`ENABLE_WEB`) — nécessite la config OAuth2 Discord côté serveur, "
+            "voir le README.",
+        ],
+    },
     {
         "version": "2026.09.28.3",
         "title": "🩹 Journal d'erreurs étendu à tout le bot + fix fiabilité",

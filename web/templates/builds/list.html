@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Builds — LiliumBot{% endblock %}
+{% block content %}
+<div class="page-head">
+    <h1>🗡️ Bibliothèque de builds</h1>
+    {% if staff %}<a class="btn" href="/g/{{ guild_id }}/builds/new">➕ Nouveau build</a>{% endif %}
+</div>
+
+<form class="filters" method="get">
+    <select name="role" onchange="this.form.submit()">
+        <option value="">Tous les rôles</option>
+        {% for r in roles %}
+        <option value="{{ r }}" {% if r == role_filter %}selected{% endif %}>{{ r }}</option>
+        {% endfor %}
+    </select>
+    <select name="type_acti" onchange="this.form.submit()">
+        <option value="">PVP &amp; PVE</option>
+        <option value="PVP" {% if type_filter == "PVP" %}selected{% endif %}>PVP</option>
+        <option value="PVE" {% if type_filter == "PVE" %}selected{% endif %}>PVE</option>
+    </select>
+</form>
+
+{% if builds %}
+<div class="grid">
+    {% for b in builds %}
+    <div class="card build-card">
+        {% if b.image %}<img class="build-image" src="{{ b.image }}" alt="">{% endif %}
+        <h3>{{ b.name }}</h3>
+        <div class="tags"><span class="tag">{{ b.role }}</span><span class="tag">{{ b.type_acti }}</span></div>
+        {% if b.weapon %}<p class="weapon">⚔️ {{ b.weapon }}</p>{% endif %}
+        {% if b.notes %}<p class="notes">{{ b.notes }}</p>{% endif %}
+        <p class="meta">par {{ b.created_by_name }}</p>
+        {% if staff %}
+        <div class="actions">
+            <a href="/g/{{ guild_id }}/builds/{{ b.id }}/edit">Modifier</a>
+            <form method="post" action="/g/{{ guild_id }}/builds/{{ b.id }}/delete" onsubmit="return confirm('Supprimer ce build ?');">
+                <button type="submit" class="link-danger">Supprimer</button>
+            </form>
+        </div>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<p>Aucun build pour ce filtre.</p>
+{% endif %}
+{% endblock %}

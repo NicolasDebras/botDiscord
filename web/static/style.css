@@ -1,0 +1,105 @@
+:root {
+    --bg: #1e2124;
+    --bg-card: #2b2f33;
+    --border: #3a3f44;
+    --text: #e6e6e6;
+    --text-muted: #9aa0a6;
+    --accent: #5865f2;
+    --danger: #ed4245;
+}
+
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+.topbar {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    padding: 12px 24px;
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border);
+}
+.brand { font-weight: 700; font-size: 1.1rem; color: var(--text); }
+.topnav { display: flex; gap: 16px; flex: 1; }
+.user { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.avatar { width: 28px; height: 28px; border-radius: 50%; }
+
+.container { max-width: 1000px; margin: 0 auto; padding: 24px; }
+
+.card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+}
+.center { max-width: 480px; margin: 80px auto; text-align: center; }
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 16px;
+    margin: 16px 0;
+}
+
+.page-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+
+.btn, .btn-discord, .btn-secondary {
+    display: inline-block;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 10px 16px;
+    cursor: pointer;
+    font-size: 0.95rem;
+}
+.btn-secondary { background: var(--bg-card); border: 1px solid var(--border); color: var(--text); margin-top: 8px; }
+.btn:hover, .btn-discord:hover, .btn-secondary:hover { opacity: 0.9; text-decoration: none; }
+
+.filters { display: flex; gap: 12px; margin-bottom: 16px; }
+.filters select, .form input, .form textarea, .form select {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 8px 10px;
+}
+
+.build-image, .compo-card img { width: 100%; border-radius: 6px; margin-bottom: 8px; object-fit: cover; max-height: 140px; }
+
+.tags { display: flex; gap: 6px; margin: 6px 0; }
+.tag { background: var(--border); border-radius: 4px; padding: 2px 8px; font-size: 0.8rem; }
+
+.weapon { color: var(--accent); }
+.notes, .meta { color: var(--text-muted); font-size: 0.9rem; }
+
+.role-summary { list-style: none; padding: 0; margin: 8px 0; }
+.role-summary li { padding: 2px 0; border-bottom: 1px dashed var(--border); }
+
+.actions { display: flex; gap: 12px; margin-top: 10px; align-items: center; }
+.link-danger { background: none; border: none; color: var(--danger); cursor: pointer; padding: 0; font: inherit; }
+.link-danger:hover { text-decoration: underline; }
+
+.form { display: flex; flex-direction: column; gap: 14px; max-width: 640px; }
+.form label { display: flex; flex-direction: column; gap: 6px; font-size: 0.9rem; color: var(--text-muted); }
+
+.role-rows { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+.role-row { display: grid; grid-template-columns: 1fr 100px 2fr auto; gap: 8px; }
+
+.error { color: var(--danger); }
+
+.guild-card { display: flex; flex-direction: column; align-items: center; gap: 8px; text-decoration: none; color: var(--text); }
+.guild-icon { width: 64px; height: 64px; border-radius: 50%; }
+.guild-icon-fallback {
+    display: flex; align-items: center; justify-content: center;
+    background: var(--accent); font-size: 1.5rem; font-weight: 700;
+}

@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}{{ "Modifier" if compo else "Nouvelle" }} compo — LiliumBot{% endblock %}
+{% block content %}
+<h1>{{ "Modifier la compo « " ~ name ~ " »" if compo else "Nouvelle compo" }}</h1>
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+
+{% if builds %}
+<details class="card">
+    <summary>📚 Builds disponibles (référence pour remplir "Arme / hint")</summary>
+    <ul class="role-summary">
+        {% for b in builds %}<li><strong>{{ b.role }}</strong> — {{ b.name }}{% if b.weapon %} — {{ b.weapon }}{% endif %}</li>{% endfor %}
+    </ul>
+</details>
+{% endif %}
+
+<form class="form" method="post" action="{{ '/g/' ~ guild_id ~ '/compos/' ~ name ~ '/edit' if compo else '/g/' ~ guild_id ~ '/compos/new' }}">
+    <label>Nom de la compo
+        {% if compo %}
+            <input type="text" value="{{ name }}" disabled>
+        {% else %}
+            <input type="text" name="name" required maxlength="100" value="{{ name }}">
+        {% endif %}
+    </label>
+    <label>Description
+        <textarea name="description" maxlength="1000">{{ compo.description if compo else '' }}</textarea>
+    </label>
+    <label>Type
+        <select name="type_acti">
+            <option value="PVP" {% if not compo or compo.type_acti == "PVP" %}selected{% endif %}>PVP</option>
+            <option value="PVE" {% if compo and compo.type_acti == "PVE" %}selected{% endif %}>PVE</option>
+        </select>
+    </label>
+    <label>Image (URL, optionnel)
+        <input type="url" name="image" value="{{ compo.image if compo else '' }}">
+    </label>
+
+    <h2>Rôles — PF1</h2>
+    <div id="pf1-rows" class="role-rows">
+        {% if compo %}
+            {% for r, n in compo.pf_1.items() %}
+            <div class="role-row">
+                <input type="text" name="role" value="{{ r }}" placeholder="Rôle" required>
+                <input type="number" name="count" value="{{ n }}" min="1" placeholder="Nombre" required>
+                <input type="text" name="weapon" value="{{ compo.weapon.get(r, '') if compo.weapon else '' }}" placeholder="Arme / hint (optionnel)">
+                <button type="button" onclick="this.parentElement.remove()">✕</button>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="role-row">
+                <input type="text" name="role" placeholder="Rôle" required>
+                <input type="number" name="count" min="1" placeholder="Nombre" required>
+                <input type="text" name="weapon" placeholder="Arme / hint (optionnel)">
+                <button type="button" onclick="this.parentElement.remove()">✕</button>
+            </div>
+        {% endif %}
+    </div>
+    <button type="button" class="btn-secondary" onclick="addRow('pf1-rows', 'role', 'count', 'weapon')">➕ Ajouter un rôle</button>
+
+    <h2>Rôles — PF2 (optionnel)</h2>
+    <div id="pf2-rows" class="role-rows">
+        {% if compo and compo.pf_2 %}
+            {% for r, n in compo.pf_2.items() %}
+            <div class="role-row">
+                <input type="text" name="role_pf2" value="{{ r }}" placeholder="Rôle">
+                <input type="number" name="count_pf2" value="{{ n }}" min="1" placeholder="Nombre">
+                <input type="text" name="weapon_pf2" value="{{ compo.weapon_pf2.get(r, '') if compo.weapon_pf2 else '' }}" placeholder="Arme / hint (optionnel)">
+                <button type="button" onclick="this.parentElement.remove()">✕</button>
+            </div>
+            {% endfor %}
+        {% endif %}
+    </div>
+    <button type="button" class="btn-secondary" onclick="addRow('pf2-rows', 'role_pf2', 'count_pf2', 'weapon_pf2')">➕ Ajouter un rôle PF2</button>
+
+    <div class="actions">
+        <button type="submit" class="btn">Enregistrer</button>
+        <a href="/g/{{ guild_id }}/compos">Annuler</a>
+    </div>
+</form>
+
+<script>
+function addRow(containerId, roleName, countName, weaponName) {
+    const container = document.getElementById(containerId);
+    const row = document.createElement('div');
+    row.className = 'role-row';
+    row.innerHTML = `
+        <input type="text" name="${roleName}" placeholder="Rôle">
+        <input type="number" name="${countName}" min="1" placeholder="Nombre">
+        <input type="text" name="${weaponName}" placeholder="Arme / hint (optionnel)">
+        <button type="button" onclick="this.parentElement.remove()">✕</button>
+    `;
+    container.appendChild(row);
+}
+</script>
+{% endblock %}

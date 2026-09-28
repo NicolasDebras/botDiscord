@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="fr">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}LiliumBot{% endblock %}</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header class="topbar">
+        <a class="brand" href="{{ '/g/' ~ guild_id ~ '/compos' if guild_id else '/' }}">⚔️ LiliumBot</a>
+        {% if guild_id %}
+        <nav class="topnav">
+            <a href="/g/{{ guild_id }}/compos">Compos</a>
+            <a href="/g/{{ guild_id }}/builds">Builds</a>
+            <a href="/guilds">Changer de serveur</a>
+        </nav>
+        {% endif %}
+        <div class="user">
+            {% if user %}
+                <img class="avatar" src="{{ user.avatar_url }}" alt="">
+                <span>{{ user.username }}</span>
+                <a href="/auth/logout">Déconnexion</a>
+            {% endif %}
+        </div>
+    </header>
+    <main class="container">
+        {% block content %}{% endblock %}
+    </main>
+</body>
+</html>

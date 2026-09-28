@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Tes serveurs — LiliumBot{% endblock %}
+{% block content %}
+<h1>Tes serveurs</h1>
+{% if guilds %}
+<div class="grid">
+    {% for g in guilds %}
+    <a class="card guild-card" href="/g/{{ g.id }}/compos">
+        {% if g.icon %}
+            <img class="guild-icon" src="{{ g.icon.url }}" alt="">
+        {% else %}
+            <div class="guild-icon guild-icon-fallback">{{ g.name[:1] }}</div>
+        {% endif %}
+        <span>{{ g.name }}</span>
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<p>Aucun serveur commun trouvé — assure-toi d'être membre d'un serveur où LiliumBot est installé.</p>
+{% endif %}
+{% endblock %}
