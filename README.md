@@ -315,7 +315,11 @@ LiliumBot/
 
 ## Templates par défaut
 
-`DEFAULT_TEMPLATES` est vide dans `config.py` — plus aucun template par défaut actif. **RAID AVA BN** est conservé en commentaire dans `config.py` (juste au-dessus de `DEFAULT_TEMPLATES`) pour réactivation facile ; les autres templates par défaut historiques (RAID AVA, MiddleScale Pentacle, STATIK, HeavyMelee, small Naeeeeej, MONKEY BANANA) ont été supprimés du code. Tous les templates custom (`/addtemplate`) ont également été purgés de la base de données (nettoyage ponctuel au démarrage, une seule fois).
+| Template | Type | Composition |
+|---|---|---|
+| Donjon Groupe 5 | PVE | TANK ×1, DPS ×3, HEAL ×1 |
+
+**RAID AVA BN** est conservé en commentaire dans `config.py` (juste au-dessus de `DEFAULT_TEMPLATES`) pour réactivation facile ; les autres templates par défaut historiques (RAID AVA, MiddleScale Pentacle, STATIK, HeavyMelee, small Naeeeeej, MONKEY BANANA) ont été supprimés du code. Tous les templates custom (`/addtemplate`) ont également été purgés de la base de données (nettoyage ponctuel au démarrage, une seule fois).
 
 Un template par défaut peut être restreint à certains serveurs via la clé `"guild_ids": [id, ...]` (absente ou vide = visible sur tous les serveurs). Les templates custom (`/addtemplate`) sont stockés en base de données et **scopés par serveur** : un template custom créé sur un serveur n'est visible que sur celui-ci.
 

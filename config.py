@@ -53,7 +53,14 @@ ROLES: dict[str, str] = {
 # "guild_ids": [id, ...] (optionnel) restreint le template à certains serveurs.
 # Absent ou vide = visible sur tous les serveurs où le bot est installé.
 # Les templates custom ajoutés via /addtemplate sont stockés en DB, scopés par serveur.
-DEFAULT_TEMPLATES: dict[str, dict] = {}
+DEFAULT_TEMPLATES: dict[str, dict] = {
+    "Donjon Groupe 5": {
+        "description": "Donjon de groupe — 5 joueurs",
+        "type_acti":   "PVE",
+        "image":       "",
+        "pf_1": {"TANK": 1, "DPS": 3, "HEAL": 1},
+    },
+}
 
 # ── Templates désactivés (gardés en référence, non actifs) ────────────────────
 # Pour réactiver : dé-commenter et remettre dans DEFAULT_TEMPLATES ci-dessus.

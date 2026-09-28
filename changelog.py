@@ -7,9 +7,16 @@ Pour annoncer une nouvelle fonctionnalité : incrémenter VERSION et ajouter
 une entrée en tête de CHANGELOG (ordre du plus récent au plus ancien).
 """
 
-VERSION = "2026.09.28.1"
+VERSION = "2026.09.28.2"
 
 CHANGELOG: list[dict] = [
+    {
+        "version": "2026.09.28.2",
+        "title": "⚔️ Nouveau template Donjon Groupe 5",
+        "items": [
+            "Nouveau template par défaut **Donjon Groupe 5** (PVE) : TANK ×1, DPS ×3, HEAL ×1.",
+        ],
+    },
     {
         "version": "2026.09.28.1",
         "title": "🧹 Suppression de tous les templates de compositions",
