@@ -265,7 +265,10 @@ Un `id` unique est attribué à chaque location — visible dans `/recaplocation
 | `/setrate taux` | Maitre de guilde | Modifier le taux de rachat guilde (%) |
 | `/balpartis [vider]` | Officier | Lister les joueurs qui ont quitté le Discord mais ont encore de la BAL |
 | `/totalbal` | Officier, GM | Afficher le total des BAL dues par la guilde (classé par montant) |
+| `/errors [page] [commande] [id_erreur]` | Officier | Historique des erreurs de commandes slash (30 jours) — `id_erreur` renvoie la traceback complète en fichier |
 | `/helpliliumbot` | Tous | Afficher la liste de toutes les commandes du bot |
+
+**Journal d'erreurs (`/errors`)** — toute exception inattendue dans une commande slash est maintenant enregistrée en base (30 jours glissants) en plus d'être affichée en éphémère à l'utilisateur. `/errors` liste les dernières erreurs (paginé, filtrable par commande) ; `/errors id_erreur:<ID>` renvoie la traceback Python complète en pièce jointe.
 
 **Exemple `/addtemplate` — ZvZ PF1+PF2 avec specs :**
 ```

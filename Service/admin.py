@@ -743,6 +743,7 @@ class Admin(commands.Cog):
                 "`/setdescription nom [description]` — Modifier la description d'un template *(Officier)*\n"
                 "`/setrate taux` — Taux de rachat guilde *(GM)*\n"
                 "`/config` — Configurer le serveur (vocaux temp, bienvenue, au revoir) *(Officier)*\n"
+                "`/errors [page] [commande] [id_erreur]` — Historique des erreurs de commandes *(Officier)*\n"
                 "`/helpliliumbot` — Cette aide *(Tous)*"
             ),
             inline=False,

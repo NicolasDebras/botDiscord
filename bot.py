@@ -30,6 +30,7 @@ EXTENSIONS = [
     "Service.self_roles",
     "Service.config",
     "Service.location",
+    "Service.errors",
 ]
 
 
@@ -39,7 +40,20 @@ async def on_app_command_error(interaction: discord.Interaction, error: app_comm
     original = getattr(error, "original", error)
     cmd_name = interaction.command.name if interaction.command else "?"
     print(f"[slash command error] /{cmd_name} : {type(original).__name__}: {original}")
-    traceback.print_exception(type(original), original, original.__traceback__)
+    tb_str = "".join(traceback.format_exception(type(original), original, original.__traceback__))
+    print(tb_str)
+
+    try:
+        await db.add_error_log(
+            command=cmd_name,
+            error_type=type(original).__name__,
+            error_message=str(original),
+            traceback_str=tb_str,
+            guild_id=interaction.guild.id if interaction.guild else None,
+            user_id=str(interaction.user.id) if interaction.user else None,
+        )
+    except Exception as e:
+        print(f"[slash command error] Impossible d'enregistrer l'erreur en base : {e}")
 
     message = f"❌ Erreur dans `/{cmd_name}` : `{type(original).__name__}: {original}`"
     try:

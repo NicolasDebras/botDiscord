@@ -311,6 +311,20 @@ async def init_db(database_url: str) -> None:
             )
         """)
 
+        # ── Journal des erreurs de commandes slash ──────────────────────────────
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS error_log (
+                id             SERIAL      PRIMARY KEY,
+                ts             TIMESTAMPTZ NOT NULL,
+                guild_id       BIGINT,
+                command        TEXT        NOT NULL,
+                user_id        TEXT,
+                error_type     TEXT        NOT NULL,
+                error_message  TEXT        NOT NULL,
+                traceback      TEXT        NOT NULL
+            )
+        """)
+
 
 # ── ACTIVITIES ────────────────────────────────────────────────────────────────
 
@@ -1029,6 +1043,73 @@ async def set_update_announce_last_version(guild_id: int, version: str) -> None:
 async def delete_update_announce_config(guild_id: int) -> None:
     async with _pool.acquire() as conn:
         await conn.execute("DELETE FROM update_announce_config WHERE guild_id = $1", guild_id)
+
+
+# ── JOURNAL DES ERREURS DE COMMANDES SLASH ──────────────────────────────────────
+
+async def add_error_log(
+    command: str, error_type: str, error_message: str, traceback_str: str,
+    guild_id: int | None = None, user_id: str | None = None,
+) -> None:
+    ts = datetime.now(timezone.utc)
+    async with _pool.acquire() as conn:
+        await conn.execute("""
+            INSERT INTO error_log (ts, guild_id, command, user_id, error_type, error_message, traceback)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+        """, ts, guild_id, command, user_id, error_type, error_message[:2000], traceback_str[:4000])
+        await conn.execute("DELETE FROM error_log WHERE ts < NOW() - INTERVAL '30 days'")
+
+
+async def get_error_log_by_id(error_id: int, guild_id: int | None = None) -> dict | None:
+    query, params = "SELECT * FROM error_log WHERE id = $1", [error_id]
+    if guild_id is not None:
+        params.append(guild_id)
+        query += " AND guild_id = $2"
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow(query, *params)
+    if not row:
+        return None
+    return {
+        "id":            row["id"],
+        "ts":            row["ts"],
+        "guild_id":      row["guild_id"],
+        "command":       row["command"],
+        "user_id":       row["user_id"],
+        "error_type":    row["error_type"],
+        "error_message": row["error_message"],
+        "traceback":     row["traceback"],
+    }
+
+
+async def get_error_logs(guild_id: int | None = None, command: str | None = None, limit: int = 200) -> list[dict]:
+    query  = "SELECT * FROM error_log"
+    clauses, params = [], []
+    if guild_id is not None:
+        params.append(guild_id)
+        clauses.append(f"guild_id = ${len(params)}")
+    if command:
+        params.append(command)
+        clauses.append(f"command = ${len(params)}")
+    if clauses:
+        query += " WHERE " + " AND ".join(clauses)
+    params.append(limit)
+    query += f" ORDER BY id DESC LIMIT ${len(params)}"
+
+    async with _pool.acquire() as conn:
+        rows = await conn.fetch(query, *params)
+    return [
+        {
+            "id":            r["id"],
+            "ts":            r["ts"],
+            "guild_id":      r["guild_id"],
+            "command":       r["command"],
+            "user_id":       r["user_id"],
+            "error_type":    r["error_type"],
+            "error_message": r["error_message"],
+            "traceback":     r["traceback"],
+        }
+        for r in rows
+    ]
 
 
 # ── MESSAGES BIENVENUE / AU REVOIR ─────────────────────────────────────────────
