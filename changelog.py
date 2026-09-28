@@ -7,9 +7,19 @@ Pour annoncer une nouvelle fonctionnalité : incrémenter VERSION et ajouter
 une entrée en tête de CHANGELOG (ordre du plus récent au plus ancien).
 """
 
-VERSION = "2026.09.28"
+VERSION = "2026.09.28.1"
 
 CHANGELOG: list[dict] = [
+    {
+        "version": "2026.09.28.1",
+        "title": "🧹 Suppression de tous les templates de compositions",
+        "items": [
+            "Tous les templates par défaut ont été retirés (RAID AVA, MiddleScale Pentacle, STATIK, "
+            "HeavyMelee, small Naeeeeej, MONKEY BANANA…) — **RAID AVA BN** est conservé en commentaire "
+            "dans `config.py` pour réactivation facile.",
+            "Tous les templates custom (`/addtemplate`) ont été purgés de la base de données.",
+        ],
+    },
     {
         "version": "2026.09.28",
         "title": "🩹 Journal d'erreurs persistant + commande /errors",

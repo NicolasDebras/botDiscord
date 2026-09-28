@@ -315,16 +315,9 @@ LiliumBot/
 
 ## Templates par défaut
 
-| Template | Type | Composition |
-|---|---|---|
-| RAID AVA | PVE | TANK, OFF TANK, FROST, DAMME, SCOOT, MAIN HEAL, IRON ROOT, DPS ×3, COBRA/GA — liste d'attente activée |
-| MiddleScale de G3 LE GOAT | PVP | PF1 : CALLER ×1, TANK ×4, SUPPORT ×4, HEAL ×4, DPS ×7, BM ×1 · PF2 : TANK ×4, SUPPORT ×4, HEAL ×4, DPS ×7 |
-| RAID AVA BN | PVE | MAIN TANK ×1, MAIN HEAL ×1, OFF TANK ×1, COBRA ×1, IRON ×1, SC ×1, HURLEGIVRE ×1, FAUX ×3, SCOUT ×1, LEACHER PVP ×1 — inscription via `/addacti` uniquement, LEACHER PVP reçoit 0 BAL |
-| STATIK | PVE | TANK ×2, HEAL ×2, SUPPORT ×1, DPS ×5 |
-| HeavyMelee | PVP (sans spé) | TANK ×4, SUPPORT ×4, HEAL ×4, DPS ×7 — armes affichées à titre indicatif, inscription directe sans saisie de spé |
-| small Naeeeeej | PVP | PF1 : CALLER ×1, 2ND REPACK ×1, TANK DEF ×2, TANK OFF ×2, SUPPORT DEF ×2, SUPPORT OFF ×2, HEAL ×3, HEAL SUPP ×1, DPS ×5, FINISHER ×1 · PF2 : TANK DEF ×1, TANK OFF ×1, SUPPORT DEF ×1, SUPPORT OFF ×1, HEAL ×1, HEAL SUPP ×1, DPS ×4 — sélection arme + spé |
+`DEFAULT_TEMPLATES` est vide dans `config.py` — plus aucun template par défaut actif. **RAID AVA BN** est conservé en commentaire dans `config.py` (juste au-dessus de `DEFAULT_TEMPLATES`) pour réactivation facile ; les autres templates par défaut historiques (RAID AVA, MiddleScale Pentacle, STATIK, HeavyMelee, small Naeeeeej, MONKEY BANANA) ont été supprimés du code. Tous les templates custom (`/addtemplate`) ont également été purgés de la base de données (nettoyage ponctuel au démarrage, une seule fois).
 
-Les templates par défaut sont définis dans `config.py` et ne peuvent pas être modifiés via les commandes. Un template par défaut peut être restreint à certains serveurs via la clé `"guild_ids": [id, ...]` (absente ou vide = visible sur tous les serveurs). Les templates custom (`/addtemplate`) sont stockés en base de données et **scopés par serveur** : un template custom créé sur un serveur n'est visible que sur celui-ci.
+Un template par défaut peut être restreint à certains serveurs via la clé `"guild_ids": [id, ...]` (absente ou vide = visible sur tous les serveurs). Les templates custom (`/addtemplate`) sont stockés en base de données et **scopés par serveur** : un template custom créé sur un serveur n'est visible que sur celui-ci.
 
 ---
 

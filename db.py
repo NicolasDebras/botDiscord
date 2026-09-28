@@ -325,6 +325,19 @@ async def init_db(database_url: str) -> None:
             )
         """)
 
+        # ── Nettoyage ponctuel : suppression de tous les templates custom ──────
+        # (les templates par défaut ont été vidés dans config.py — RAID AVA BN
+        # gardé en commentaire). Guardé par un flag pour ne s'exécuter qu'une fois.
+        already_purged = await conn.fetchval(
+            "SELECT value FROM settings WHERE key = 'purge_templates_20260928'"
+        )
+        if not already_purged:
+            await conn.execute("DELETE FROM custom_templates")
+            await conn.execute("""
+                INSERT INTO settings (key, value) VALUES ('purge_templates_20260928', 'done')
+                ON CONFLICT (key) DO NOTHING
+            """)
+
 
 # ── ACTIVITIES ────────────────────────────────────────────────────────────────
 
