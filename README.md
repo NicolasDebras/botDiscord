@@ -382,6 +382,12 @@ Un site web tourne **dans le même process que le bot** (serveur FastAPI lancé 
 3. Configurer le rôle staff via `/config` → 🌐 Rôle staff du site web, sur chaque serveur
 4. Poser `ENABLE_WEB=true` en dernier, une fois tout ce qui précède en place
 
+**Aperçu visuel sans setup** — `web/dev_preview.py` sert les mêmes pages avec des données factices (pas de Discord, pas de base) :
+```bash
+pip install fastapi "uvicorn[standard]" jinja2 python-multipart
+python3 -m web.dev_preview   # http://localhost:8080
+```
+
 > Hors périmètre pour l'instant (pistes d'évolution) : tableau de roster synchronisé aux inscriptions `/acti`, tracking loot/regear, analytics de présence.
 
 ---
