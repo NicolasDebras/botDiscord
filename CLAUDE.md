@@ -11,6 +11,18 @@ Règles :
 - Ajouter une entrée en tête de CHANGELOG (ordre du plus récent au plus ancien)
 - Chaque entrée a : "version", "title" (emoji + titre court), "items" (liste de phrases claires pour les utilisateurs)
 
+## Tests
+Le repo a une suite de tests unitaires (`tests/`, `pytest`) sur la logique pure — parsing armes/rôles (`Service/activites.py`), permissions (`Service/utils.py`), formatage, `changelog.get_entries_since`. Pas de vraie connexion Discord/Postgres (variables d'environnement factices posées par `tests/conftest.py`).
+
+- Lancer `pytest` avant/après un refactor touchant à cette logique (voir `README.md` → section Tests pour l'install)
+- Ajouter un test quand on ajoute une fonction de logique pure non triviale (parsing, calcul, règle de permission) — pas la peine pour du code qui ne fait qu'appeler Discord/DB directement
+- Ne pas casser les tests existants sans les mettre à jour consciemment (s'ils échouent après un changement volontaire de comportement, corriger l'assertion, pas juste supprimer le test)
+
+## Workflow git (ce repo ET le futur repo lilium-web)
+- **Avant tout `git push`** : lancer la suite de tests (`pytest`) et vérifier qu'elle passe. Un test qui échoue bloque le push — corriger le code ou le test avant de pousser, jamais pousser en l'état.
+- **Chaque fonctionnalité/fix terminé doit être poussé** — pas de gros paquet de commits qui traîne en local sans être poussé. Un commit propre et un push dès qu'une fonctionnalité est complète et testée, plutôt que d'accumuler.
+- Cette règle s'applique aussi au futur repo `lilium-web` (API + Angular, voir section suivante) une fois créé — répliquer ce paragraphe dans son propre CLAUDE.md à sa création.
+
 ## Projet compagnon : site web "builds & compos" (repo séparé, pas encore démarré)
 
 Une v1 du site avait été embarquée directement dans le process du bot (FastAPI + Jinja2, dossier `web/`, activable via `ENABLE_WEB`). Décision prise ensuite : repartir sur un **repo séparé** (`lilium-web`, à créer), plus facile à maintenir à terme, contenant à la fois l'API et le frontend **Angular**. Le dossier `web/` embarqué dans ce repo est donc destiné à être retiré (ainsi que `ENABLE_WEB` et les dépendances `fastapi`/`uvicorn`/`jinja2`/`itsdangerous`/`python-multipart`) une fois la bascule faite — `bot.py` reviendra à un simple `await bot.start(TOKEN)`.

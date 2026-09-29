@@ -67,6 +67,17 @@ python bot.py
 
 Les tables SQL sont créées automatiquement au premier démarrage.
 
+### Tests
+
+Tests unitaires sur la logique pure (parsing armes/rôles, formatage, permissions, changelog) — pas de connexion Discord ni Postgres nécessaire, juste des variables d'environnement factices (posées automatiquement par `tests/conftest.py`).
+
+```bash
+pip install -r requirements-dev.txt
+pytest
+```
+
+> Ces tests ne couvrent pas les fonctions qui appellent réellement Discord ou la base de données (out of scope pour de l'unitaire pur) — seulement la logique qui peut casser silencieusement lors d'un refactor (ex. le parsing `_parse_weapon_slots`/`_sort_roles`, déjà responsable d'un bug réel corrigé cette session).
+
 ---
 
 ## Commandes
