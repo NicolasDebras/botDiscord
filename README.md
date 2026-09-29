@@ -381,7 +381,7 @@ Un template par défaut peut être restreint à certains serveurs via la clé `"
 
 Un site web tourne **dans le même process que le bot** (serveur FastAPI lancé en tâche de fond dans `bot.py`, à côté de la connexion Discord) — pas de service séparé à héberger. **Désactivé par défaut** (`ENABLE_WEB` absent ou différent de `true`) : le bot démarre normalement sans le site tant que la config OAuth2 n'est pas en place. Il permet, connecté avec son compte Discord :
 
-- **Bibliothèque de builds** — créer/consulter des loadouts individuels (rôle, arme, notes, image), filtrables par rôle et par type (PVP/PVE)
+- **Bibliothèque de builds** — créer/consulter des loadouts individuels (rôle, arme, notes, image, et équipement Albion — colonne `items` — choisi sur le nouveau site `lilium-site`), filtrables par rôle et par type (PVP/PVE)
 - **Créateur de compos** — assembler des rôles en composition complète (PF1 + PF2, hints d'armes par rôle). Écrit directement dans la même base que `/addtemplate` : une compo créée sur le site est **immédiatement utilisable dans `/acti`**, sans redémarrer le bot
 
 **Accès** :

@@ -354,6 +354,11 @@ async def init_db(database_url: str) -> None:
                 created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
             )
         """)
+        # Équipement du build choisi sur le site (objets Albion) :
+        # {"mainhand": "2H_HOLYSTAFF", "head": "HEAD_CLOTH_SET2", ...}
+        await conn.execute(
+            "ALTER TABLE builds ADD COLUMN IF NOT EXISTS items JSONB NOT NULL DEFAULT '{}'::jsonb"
+        )
 
         # ── Rôle staff du site web (création/modif builds + compos) ────────────
         await conn.execute("""
