@@ -1,7 +1,7 @@
 import re
 import asyncio
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 from discord import app_commands
 from datetime import datetime, timezone
 
@@ -1203,6 +1203,27 @@ async def template_autocomplete(
 class Activites(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+
+    async def cog_load(self):
+        self.refresh_templates_loop.start()
+
+    async def cog_unload(self):
+        self.refresh_templates_loop.cancel()
+
+    # ── Les compos créées depuis le site web (process séparé, même base) ne
+    # peuvent pas appeler refresh_templates_cache() en direct : on recharge le
+    # cache périodiquement. try/except obligatoire — une exception non
+    # rattrapée dans un @tasks.loop arrête la boucle définitivement.
+    @tasks.loop(minutes=2)
+    async def refresh_templates_loop(self):
+        try:
+            await refresh_templates_cache()
+        except Exception as e:
+            await log_error("activites.refresh_templates_loop", e)
+
+    @refresh_templates_loop.before_loop
+    async def before_refresh_templates(self):
+        await self.bot.wait_until_ready()
 
     @commands.Cog.listener()
     async def on_ready(self):

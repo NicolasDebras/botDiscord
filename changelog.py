@@ -7,9 +7,20 @@ Pour annoncer une nouvelle fonctionnalité : incrémenter VERSION et ajouter
 une entrée en tête de CHANGELOG (ordre du plus récent au plus ancien).
 """
 
-VERSION = "2026.10.01"
+VERSION = "2026.10.01.1"
 
 CHANGELOG: list[dict] = [
+    {
+        "version": "2026.10.01.1",
+        "title": "🛡️ Admins du site web — /webadmin",
+        "items": [
+            "Nouvelle commande `/webadmin add|remove|list` (administrateurs du serveur et Maitre de "
+            "guilde) : nomme des **admins du site web**, un niveau au-dessus du staff, qui ont accès "
+            "à la page Admin du site.",
+            "Les compos créées depuis le site sont prises en compte par `/acti` en 2 minutes maximum, "
+            "même quand le site tourne séparément du bot.",
+        ],
+    },
     {
         "version": "2026.10.01",
         "title": "🌐 Site web — builds & compos",

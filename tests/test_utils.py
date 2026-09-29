@@ -1,4 +1,4 @@
-from Service.utils import fmt_silver, is_admin, is_membre, is_caller_or_admin
+from Service.utils import fmt_silver, is_admin, is_membre, is_caller_or_admin, can_manage_web_admins
 from tests.fakes import fake_member, fake_role
 
 
@@ -70,3 +70,22 @@ def test_is_caller_or_admin_false_for_simple_membre():
 def test_is_caller_or_admin_true_for_guild_administrator():
     member = fake_member(administrator=True, roles=[])
     assert is_caller_or_admin(member) is True
+
+
+# ── can_manage_web_admins (/webadmin) ────────────────────────────────────────
+
+def test_can_manage_web_admins_true_for_guild_administrator():
+    assert can_manage_web_admins(fake_member(administrator=True)) is True
+
+
+def test_can_manage_web_admins_true_for_maitre_de_guilde():
+    assert can_manage_web_admins(fake_member(roles=[fake_role("Maitre de guilde")])) is True
+
+
+def test_can_manage_web_admins_false_for_officier():
+    """Officier gère le staff du site via /config, mais ne nomme pas les admins."""
+    assert can_manage_web_admins(fake_member(roles=[fake_role("Officier")])) is False
+
+
+def test_can_manage_web_admins_false_for_simple_membre():
+    assert can_manage_web_admins(fake_member(roles=[fake_role("Membre")])) is False

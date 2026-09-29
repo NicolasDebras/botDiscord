@@ -287,6 +287,7 @@ Un `id` unique est attribué à chaque location — visible dans `/recaplocation
 | `/totalbal` | Officier, GM | Afficher le total des BAL dues par la guilde (classé par montant) |
 | `/errors [page] [commande] [id_erreur]` | Officier | Historique des erreurs de commandes slash (30 jours) — `id_erreur` renvoie la traceback complète en fichier |
 | `/helpliliumbot` | Tous | Afficher la liste de toutes les commandes du bot |
+| `/webadmin add @membre` / `remove @membre` / `list` | Admin serveur, Maitre de guilde | Gérer les **admins du site web** (niveau au-dessus du staff, accès à la page Admin du site `lilium-site`) |
 
 **Journal d'erreurs (`/errors`)** — toute exception inattendue est enregistrée en base (30 jours glissants) : commandes slash (en plus du message éphémère affiché à l'utilisateur), mais aussi les listeners (arrivée/départ de membre, salons vocaux…) et les tâches de fond (récap 22h, locations, annonces de mise à jour), qui ne passent pas par le même flux et étaient auparavant invisibles sans accès aux logs Railway. `/errors` liste les dernières erreurs (paginé, filtrable par commande) ; `/errors id_erreur:<ID>` renvoie la traceback Python complète en pièce jointe.
 
@@ -338,6 +339,7 @@ LiliumBot/
     ├── self_roles.py            # Rôles auto-attribuables par boutons (self-service)
     ├── config.py                # Panneau /config (vocaux temp, bienvenue, au revoir, rôles à la carte, staff web)
     ├── errors.py                # Commande /errors — historique des erreurs (voir plus bas)
+    ├── web_admin.py             # /webadmin — admins du site web (table web_admins, lue par lilium-site)
     └── utils.py                # Helpers partagés (is_admin, ActivitySelect, settings, log_error)
 ```
 
@@ -398,6 +400,8 @@ Un site web tourne **dans le même process que le bot** (serveur FastAPI lancé 
 pip install fastapi "uvicorn[standard]" jinja2 python-multipart
 python3 -m web.dev_preview   # http://localhost:8080
 ```
+
+**Nouveau site séparé (`lilium-site`, API + Angular)** — en cours de remplacement de ce site embarqué. Il partage la même base : ce bot crée les tables (dont `web_admins`, alimentée par `/webadmin`) et recharge le cache des templates custom **toutes les 2 minutes**, pour que les compos créées depuis le site séparé soient prises en compte par `/acti` sans redémarrage.
 
 > Hors périmètre pour l'instant (pistes d'évolution) : tableau de roster synchronisé aux inscriptions `/acti`, tracking loot/regear, analytics de présence.
 

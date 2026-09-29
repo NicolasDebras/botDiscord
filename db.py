@@ -363,6 +363,17 @@ async def init_db(database_url: str) -> None:
             )
         """)
 
+        # ── Admins du site web (au-dessus du staff) — gérés via /webadmin ──────
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS web_admins (
+                guild_id  BIGINT      NOT NULL,
+                user_id   BIGINT      NOT NULL,
+                added_by  BIGINT      NOT NULL,
+                added_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                PRIMARY KEY (guild_id, user_id)
+            )
+        """)
+
 
 # ── ACTIVITIES ────────────────────────────────────────────────────────────────
 
@@ -1336,3 +1347,34 @@ async def set_web_staff_role(guild_id: int, role_id: int | None) -> None:
                 INSERT INTO web_staff_config (guild_id, staff_role_id) VALUES ($1, $2)
                 ON CONFLICT (guild_id) DO UPDATE SET staff_role_id = EXCLUDED.staff_role_id
             """, guild_id, role_id)
+
+
+# ── ADMINS DU SITE WEB ──────────────────────────────────────────────────────────
+
+async def get_web_admins(guild_id: int) -> list[dict]:
+    async with _pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT user_id, added_by, added_at FROM web_admins WHERE guild_id = $1 ORDER BY added_at",
+            guild_id,
+        )
+    return [dict(r) for r in rows]
+
+
+async def add_web_admin(guild_id: int, user_id: int, added_by: int) -> bool:
+    """Retourne False si l'utilisateur était déjà admin du site sur ce serveur."""
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow("""
+            INSERT INTO web_admins (guild_id, user_id, added_by) VALUES ($1, $2, $3)
+            ON CONFLICT (guild_id, user_id) DO NOTHING
+            RETURNING user_id
+        """, guild_id, user_id, added_by)
+    return row is not None
+
+
+async def remove_web_admin(guild_id: int, user_id: int) -> bool:
+    """Retourne False si l'utilisateur n'était pas admin du site sur ce serveur."""
+    async with _pool.acquire() as conn:
+        result = await conn.execute(
+            "DELETE FROM web_admins WHERE guild_id = $1 AND user_id = $2", guild_id, user_id
+        )
+    return result != "DELETE 0"

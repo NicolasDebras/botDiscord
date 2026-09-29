@@ -43,6 +43,14 @@ def is_admin(member: discord.Member) -> bool:
     )
 
 
+# ── HELPER : qui peut nommer/retirer les admins du site web (/webadmin) ──────
+def can_manage_web_admins(member: discord.Member) -> bool:
+    return (
+        member.guild_permissions.administrator
+        or any(r.name == GM_ROLE_NAME for r in member.roles)
+    )
+
+
 # ── HELPER : vérification du rôle membre ─────────────────────────────────────
 def is_membre(member: discord.Member) -> bool:
     return (

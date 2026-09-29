@@ -33,6 +33,7 @@ EXTENSIONS = [
     "Service.config",
     "Service.location",
     "Service.errors",
+    "Service.web_admin",
 ]
 
 
