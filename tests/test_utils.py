@@ -1,5 +1,24 @@
-from Service.utils import fmt_silver, is_admin, is_membre, is_caller_or_admin, can_manage_web_admins
+from Service.utils import fmt_silver, is_admin, is_membre, is_caller_or_admin, can_manage_web_admins, split_message
 from tests.fakes import fake_member, fake_role
+
+
+# ── split_message (limite Discord de 2000 caractères) ────────────────────────
+
+def test_split_message_short_text_unchanged():
+    assert split_message("a\n\nb") == ["a\n\nb"]
+
+
+def test_split_message_cuts_between_lines_under_limit():
+    lines = [f"• Joueur{n} — <@{10**17 + n}> — recruté le 01/09/2026" for n in range(80)]
+    parts = split_message("\n".join(lines))
+    assert len(parts) > 1
+    assert all(len(p) <= 2000 for p in parts)
+    assert "\n".join(parts) == "\n".join(lines)  # rien de perdu, aucune ligne coupée
+
+
+def test_split_message_hard_cuts_single_huge_line():
+    parts = split_message("x" * 4500, limit=2000)
+    assert [len(p) for p in parts] == [2000, 2000, 500]
 
 
 # ── fmt_silver ───────────────────────────────────────────────────────────────

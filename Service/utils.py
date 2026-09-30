@@ -35,6 +35,29 @@ def fmt_silver(n: int) -> str:
     return f"{n:,}".replace(",", " ")
 
 
+def split_message(text: str, limit: int = 2000) -> list[str]:
+    """Découpe un texte en morceaux de `limit` caractères max (limite Discord),
+    en coupant entre les lignes ; une ligne trop longue est coupée net."""
+    chunks: list[str] = []
+    current = ""
+    for line in text.split("\n"):
+        while len(line) > limit:
+            if current:
+                chunks.append(current)
+                current = ""
+            chunks.append(line[:limit])
+            line = line[limit:]
+        candidate = f"{current}\n{line}" if current else line
+        if len(candidate) > limit:
+            chunks.append(current)
+            current = line
+        else:
+            current = candidate
+    if current.strip():
+        chunks.append(current)
+    return chunks or [""]
+
+
 # ── HELPER : vérification du rôle admin ──────────────────────────────────────
 def is_admin(member: discord.Member) -> bool:
     return (

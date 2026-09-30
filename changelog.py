@@ -7,9 +7,19 @@ Pour annoncer une nouvelle fonctionnalité : incrémenter VERSION et ajouter
 une entrée en tête de CHANGELOG (ordre du plus récent au plus ancien).
 """
 
-VERSION = "2026.10.01.4"
+VERSION = "2026.10.01.5"
 
 CHANGELOG: list[dict] = [
+    {
+        "version": "2026.10.01.5",
+        "title": "🩹 Image de la compo fiable + récap recrutement",
+        "items": [
+            "L'image de la compo sous `/acti` (et celle des builds en MP) s'affiche maintenant à coup "
+            "sûr : les icônes des objets sont intégrées au bot au lieu d'être téléchargées à chaque fois.",
+            "Le récap recrutement de 22h ne plante plus quand il y a beaucoup de recrues : il est "
+            "découpé en plusieurs messages.",
+        ],
+    },
     {
         "version": "2026.10.01.4",
         "title": "🖼️ Image de la compo sous chaque acti",

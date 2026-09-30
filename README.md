@@ -96,6 +96,13 @@ pytest
 - à l'inscription, le joueur choisit juste son **rôle** : le build lui est imposé : il est inscrit directement, sans liste d'armes ni saisie du niveau de spé ;
 - `/massup` envoie en plus, en **MP**, à chaque joueur inscrit sur un rôle avec build, une **image de son build** (icônes officielles de l'équipement façon inventaire du jeu, choix multiples, cases « au choix », précisions). Le lanceur reçoit un récap éphémère (nombre de MP envoyés, joueurs aux MP fermés).
 
+Les **icônes des objets sont embarquées** dans le repo (`assets/icons/<ID>.png`, ~2 Mo) : les images se génèrent sans réseau. Le CDN d'Albion ne sert que de secours pour un objet absent (téléchargement limité, délais par requête, une icône introuvable s'affiche « ? » sans faire échouer l'image). Quand le catalogue du site est mis à jour (`python -m scripts.update_items` dans `lilium-site/api`), relancer dans ce repo :
+
+```bash
+python -m scripts.download_icons              # ajoute les icônes manquantes (lit ../lilium-site/api/app/data/items.json)
+python -m scripts.download_icons --force      # re-télécharge tout
+```
+
 Une fois l'activité créée :
 - Les joueurs choisissent leur rôle via le menu déroulant
 - **PVP** : sélection de l'arme puis saisie du niveau de spécialisation (1-1000)
@@ -317,6 +324,8 @@ LiliumBot/
 ├── changelog.py        # VERSION + entrées annoncées via /config → 📢 Annonces de mises à jour
 ├── requirements.txt
 ├── assets/fonts/      # Police Inter (OFL) pour l'image des builds
+├── assets/icons/      # Icônes des objets Albion (128 px) pour les images de builds/compos
+├── scripts/download_icons.py  # Outil de dev : (re)télécharge assets/icons depuis le catalogue du site
 └── Service/
     ├── activites.py    # Commandes /acti et /templates, UI des activités
     ├── admin.py        # Commandes d'administration

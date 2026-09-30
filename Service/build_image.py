@@ -48,7 +48,8 @@ WIDTH = MARGIN * 2 + CELL * 3 + GAP * 2
 # Inter (licence OFL, assets/fonts/OFL.txt) : la police par défaut de Pillow n'a pas les accents.
 _FONT_FILE = Path(__file__).resolve().parent.parent / "assets" / "fonts" / "Inter.ttf"
 
-_ICON_URL = "https://render.albiononline.com/v1/item/T{tier}_{item_id}.png?size=128"
+ICONS_DIR = Path(__file__).resolve().parent.parent / "assets" / "icons"
+_ICON_URL ="https://render.albiononline.com/v1/item/T{tier}_{item_id}.png?size=128"
 _icon_cache: dict[str, bytes | None] = {}
 
 
@@ -74,32 +75,85 @@ def item_ids(items: dict | None) -> list[str]:
     return seen
 
 
+ICON_REQUEST_TIMEOUT = 8     # s, par requête vers le CDN
+ICON_RETRIES         = 2     # tentatives par requête en cas de lenteur / erreur réseau
+ICON_CONCURRENCY     = 6     # requêtes simultanées max (le CDN n'aime pas les rafales)
+ICONS_DEADLINE       = 40    # s, budget total : au-delà, les icônes manquantes deviennent « ? »
+
+
+def local_icon(item_id: str) -> bytes | None:
+    """Icône embarquée dans le repo (assets/icons/<ID>.png, cf. scripts/download_icons.py)."""
+    if not item_id or "/" in item_id or "\\" in item_id or ".." in item_id:
+        return None
+    path = ICONS_DIR / f"{item_id}.png"
+    try:
+        return path.read_bytes()
+    except OSError:
+        return None
+
+
+async def _get_icon(session: aiohttp.ClientSession, url: str) -> tuple[bool, bytes | None]:
+    """(réponse sûre, contenu). Réponse sûre = 200 (contenu) ou 404 (None) ;
+    sinon (lenteur, erreur réseau, 5xx) on renvoie (False, None) après les tentatives."""
+    for _ in range(ICON_RETRIES):
+        try:
+            async with session.get(url, timeout=aiohttp.ClientTimeout(total=ICON_REQUEST_TIMEOUT)) as resp:
+                if resp.status == 200:
+                    return True, await resp.read()
+                if resp.status == 404:
+                    return True, None
+        except (aiohttp.ClientError, asyncio.TimeoutError):
+            pass
+    return False, None
+
+
 async def fetch_icon(session: aiohttp.ClientSession, item_id: str) -> bytes | None:
     """Icône officielle : on part du tier 8 et on descend (la bouffe/les potions
-    n'existent pas à tous les tiers). Résultat mis en cache (y compris l'absence)."""
+    n'existent pas à tous les tiers). Seules les réponses sûres sont mises en cache :
+    une lenteur passagère du CDN ne doit pas marquer l'icône comme absente."""
     if item_id in _icon_cache:
         return _icon_cache[item_id]
-    data = None
+    local = local_icon(item_id)
+    if local is not None:
+        _icon_cache[item_id] = local
+        return local
     for tier in range(8, 0, -1):
-        try:
-            async with session.get(_ICON_URL.format(tier=tier, item_id=item_id)) as resp:
-                if resp.status == 200:
-                    data = await resp.read()
-                    break
-        except aiohttp.ClientError:
-            break
-    _icon_cache[item_id] = data
-    return data
+        sure, data = await _get_icon(session, _ICON_URL.format(tier=tier, item_id=item_id))
+        if not sure:
+            return None
+        if data is not None:
+            _icon_cache[item_id] = data
+            return data
+    _icon_cache[item_id] = None
+    return None
 
 
 async def fetch_icons(items: dict | None, extra_ids: list[str] | None = None) -> dict[str, bytes | None]:
+    """Télécharge les icônes en parallèle (limité). Ne lève jamais d'erreur réseau :
+    une icône en échec ou hors délai vaut None (dessinée « ? »)."""
     ids = item_ids(items)
     for i in extra_ids or []:
         if i not in ids:
             ids.append(i)
-    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=20)) as session:
-        results = await asyncio.gather(*(fetch_icon(session, i) for i in ids))
-    return dict(zip(ids, results))
+    if not ids:
+        return {}
+    sem = asyncio.Semaphore(ICON_CONCURRENCY)
+
+    async def one(session, item_id):
+        async with sem:
+            return await fetch_icon(session, item_id)
+
+    async with aiohttp.ClientSession() as session:
+        tasks = {asyncio.ensure_future(one(session, i)): i for i in ids}
+        done, pending = await asyncio.wait(tasks, timeout=ICONS_DEADLINE)
+        for t in pending:
+            t.cancel()
+        await asyncio.gather(*pending, return_exceptions=True)
+    icons = {i: None for i in ids}
+    for t in done:
+        if not t.cancelled() and t.exception() is None:
+            icons[tasks[t]] = t.result()
+    return icons
 
 
 @lru_cache(maxsize=32)

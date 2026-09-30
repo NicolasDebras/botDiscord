@@ -9,7 +9,7 @@ from discord import app_commands
 import db
 from albion_api import fetch_albion_fame, fmt_fame
 from config import ADMIN_ROLE_NAME, RECRUTEUR_ROLE_ID, MEMBRE_ROLE_NAME, GUILD_ID as _MAIN_GUILD_ID
-from Service.utils import fmt_silver, log_error
+from Service.utils import fmt_silver, log_error, split_message
 
 _PARIS          = ZoneInfo("Europe/Paris")
 _RAPPEL_HEURE   = datetime.time(hour=22, minute=0, tzinfo=_PARIS)
@@ -102,13 +102,15 @@ class Joueur(commands.Cog):
 
         recruteur_role_id = (rec_cfg["recruitment_role_id"] if rec_cfg else None) or RECRUTEUR_ROLE_ID
         ping = f"<@&{recruteur_role_id}>"
-        await channel.send(
+        recap = (
             f"{ping}\n"
             f"📋 **Récap suivi recrutement**\n\n"
             f"**Joueurs qui ont rejoint la guilde il y a moins d'une semaine :**\n{fmt_section(moins_1s)}\n\n"
             f"**Joueurs qui ont rejoint la guilde il y a moins de 2 semaines :**\n{fmt_section(moins_2s)}\n\n"
             f"**Joueurs à valider via `/ancien` (plus de 2 semaines dans la guilde) :**\n{fmt_section(a_valider)}"
         )
+        for part in split_message(recap):  # beaucoup de recrues → plusieurs messages (limite 2000)
+            await channel.send(part)
 
         # ── 3. Stats silver depuis lundi ──────────────────────────────────────
         days_since_monday = max(1, now_paris.weekday() + 1)
@@ -161,7 +163,7 @@ class Joueur(commands.Cog):
         top_plus  = classement[:3]
         top_moins = list(reversed(classement[-3:])) if classement else []
 
-        await channel.send(
+        stats_msg = (
             f"📊 **Stats de la semaine (depuis lundi)**\n\n"
             f"💰 Payout hors RAID AVA : **{fmt_silver(payout_normal)} silver**\n"
             f"⚔️ RAID AVA : **{fmt_silver(payout_raid)} silver**\n\n"
@@ -169,6 +171,8 @@ class Joueur(commands.Cog):
             f"🏆 **Top 3 fame (cette semaine) :**\n{fmt_classement(top_plus)}\n\n"
             f"🐌 **Flop 3 fame (cette semaine) :**\n{fmt_classement(top_moins)}"
         )
+        for part in split_message(stats_msg):
+            await channel.send(part)
         return True
 
     # ── Tâche 22h (tous les serveurs où le bot est installé) ───────────────────
