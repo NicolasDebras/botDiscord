@@ -9,7 +9,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# Site web (builds & compos), lancé dans le même process que le bot — voir bot.py
-EXPOSE 8080
-
 CMD ["python", "bot.py"]

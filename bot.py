@@ -1,14 +1,12 @@
 import os
 import traceback
 import discord
-import uvicorn
 from discord import app_commands
 from discord.ext import commands
 import asyncio
 
 from config import TOKEN
 import db
-from web.main import create_app
 
 # ── INTENTS ──────────────────────────────────────────────────────────────────
 intents = discord.Intents.default()
@@ -102,22 +100,7 @@ async def main():
             except Exception as e:
                 print(f"   ✖ Erreur chargement {ext} : {e}")
 
-        # Site web (builds & compos) — même process, même event loop que le bot.
-        # Désactivé par défaut : ENABLE_WEB=true pour l'activer une fois la config
-        # OAuth2 (DISCORD_CLIENT_ID/SECRET, DISCORD_REDIRECT_URI, WEB_SESSION_SECRET) en place.
-        if os.environ.get("ENABLE_WEB", "").lower() == "true":
-            port = int(os.environ.get("PORT", 8080))
-            web_app = create_app(bot)
-            web_config = uvicorn.Config(web_app, host="0.0.0.0", port=port, log_level="warning")
-            web_server = uvicorn.Server(web_config)
-            print(f"✅ Site web activé sur le port {port}.")
-
-            await asyncio.gather(
-                bot.start(TOKEN),
-                web_server.serve(),
-            )
-        else:
-            await bot.start(TOKEN)
+        await bot.start(TOKEN)
 
 
 if __name__ == "__main__":

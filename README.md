@@ -19,7 +19,7 @@ Bot Discord pour la gestion des activités et du système BAL de la guilde.
 - Système BAL : paiement, classement, historique des transactions
 - Commandes d'administration (kick, ajout forcé, templates custom, taux de rachat)
 - Persistance **PostgreSQL** via Railway
-- **Site web** (builds & compos) — connexion Discord, bibliothèque de builds et créateur de compos visuel, lancé dans le même process que le bot
+- Compatible avec le **site web** [`lilium-site`](https://github.com/NicolasDebras/lilium-site) (builds & compos) — repo et process séparés, voir plus bas
 
 ---
 
@@ -45,14 +45,6 @@ Créer un fichier `.env` à la racine :
 DISCORD_TOKEN=ton_token_discord
 DISCORD_GUILD_ID=ton_guild_id          # Serveur principal — utilisé pour les migrations DB (legacy)
 DATABASE_URL=postgresql://user:password@host:5432/dbname
-
-# Site web (builds & compos) — voir section dédiée plus bas. Désactivé par défaut.
-ENABLE_WEB=true                        # à ajouter seulement quand la config OAuth2 ci-dessous est prête
-DISCORD_CLIENT_ID=ton_application_id
-DISCORD_CLIENT_SECRET=ton_client_secret
-DISCORD_REDIRECT_URI=https://ton-domaine/auth/callback
-WEB_SESSION_SECRET=une_chaine_aleatoire_longue
-PORT=8080                              # injecté automatiquement par Railway
 ```
 
 > Sur **Railway**, `DATABASE_URL` est injecté automatiquement par le plugin PostgreSQL. Pas besoin de le définir manuellement.
@@ -323,13 +315,7 @@ LiliumBot/
 ├── albion_api.py       # Client API Albion Online (fame, recherche joueur)
 ├── changelog.py        # VERSION + entrées annoncées via /config → 📢 Annonces de mises à jour
 ├── requirements.txt
-├── web/                # Site web (builds & compos), lancé dans le process du bot
-│   ├── main.py         # App FastAPI, routes racine, guild picker
-│   ├── auth.py         # OAuth2 Discord (scope identify) + session cookie signée
-│   ├── routes_builds.py
-│   ├── routes_compos.py
-│   ├── templates/      # Jinja2 (base, login, guilds, builds/, compos/)
-│   └── static/style.css
+├── assets/fonts/      # Police Inter (OFL) pour l'image des builds
 └── Service/
     ├── activites.py    # Commandes /acti et /templates, UI des activités
     ├── admin.py        # Commandes d'administration
@@ -383,33 +369,18 @@ Un template par défaut peut être restreint à certains serveurs via la clé `"
 
 ---
 
-## Site web (builds & compos)
+## Site web (builds & compos) — repo séparé `lilium-site`
 
-Un site web tourne **dans le même process que le bot** (serveur FastAPI lancé en tâche de fond dans `bot.py`, à côté de la connexion Discord) — pas de service séparé à héberger. **Désactivé par défaut** (`ENABLE_WEB` absent ou différent de `true`) : le bot démarre normalement sans le site tant que la config OAuth2 n'est pas en place. Il permet, connecté avec son compte Discord :
+Le site ([`lilium-site`](https://github.com/NicolasDebras/lilium-site) : API FastAPI + Angular) est un **projet et un process séparés**. **Le bot n'en dépend pas** : il ne l'appelle jamais et fonctionne normalement si le site est arrêté.
 
-- **Bibliothèque de builds** — créer/consulter des loadouts individuels (rôle, arme, notes, image, et équipement Albion — colonne `items` — choisi sur le nouveau site `lilium-site`), filtrables par rôle et par type (PVP/PVE)
-- **Créateur de compos** — assembler des rôles en composition complète (PF1 + PF2, hints d'armes par rôle). Écrit directement dans la même base que `/addtemplate` : une compo créée sur le site est **immédiatement utilisable dans `/acti`**, sans redémarrer le bot
+Ce qu'ils partagent, c'est uniquement **la base PostgreSQL**, dont le bot reste propriétaire (il crée et migre les tables au démarrage) :
+- `builds` (dont la colonne `items` = équipement Albion) — lue par `/massup` pour envoyer l'image du build en MP ;
+- `custom_templates` — les compos du site y sont écrites au même format que `/addtemplate` (+ `builds` / `builds_pf2`), et utilisées par `/acti` ;
+- `web_staff_config` (`/config` → 🌐 Rôle staff du site web) et `web_admins` (`/webadmin`) — les droits du site, gérés depuis Discord.
 
-**Accès** :
-- Connexion via Discord OAuth2 (scope `identify` uniquement) — l'appartenance aux serveurs et les rôles sont vérifiés via le cache live du bot, pas via l'API Discord
-- Lecture (builds + compos) ouverte à tout membre du serveur
-- Création/modification/suppression réservée au rôle configuré via `/config` → 🌐 Rôle staff du site web (site en lecture seule tant qu'aucun rôle n'est configuré)
+Le bot recharge le cache des templates custom **toutes les 2 minutes** : une compo créée sur le site est utilisable dans `/acti` sans redémarrage.
 
-**Mise en place** (en plus des variables d'environnement du site, voir plus haut) :
-1. Dans le [Discord Developer Portal](https://discord.com/developers/applications), onglet **OAuth2** de l'application du bot : générer un **Client Secret**, et ajouter le redirect URI (`https://<domaine>/auth/callback`)
-2. Sur Railway, activer le **networking public** sur le service du bot (Railway injecte alors `PORT` et route le trafic HTTP vers le process) et poser `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `DISCORD_REDIRECT_URI`, `WEB_SESSION_SECRET`
-3. Configurer le rôle staff via `/config` → 🌐 Rôle staff du site web, sur chaque serveur
-4. Poser `ENABLE_WEB=true` en dernier, une fois tout ce qui précède en place
-
-**Aperçu visuel sans setup** — `web/dev_preview.py` sert les mêmes pages avec des données factices (pas de Discord, pas de base) :
-```bash
-pip install fastapi "uvicorn[standard]" jinja2 python-multipart
-python3 -m web.dev_preview   # http://localhost:8080
-```
-
-**Nouveau site séparé (`lilium-site`, API + Angular)** — en cours de remplacement de ce site embarqué. Il partage la même base : ce bot crée les tables (dont `web_admins`, alimentée par `/webadmin`) et recharge le cache des templates custom **toutes les 2 minutes**, pour que les compos créées depuis le site séparé soient prises en compte par `/acti` sans redémarrage.
-
-> Hors périmètre pour l'instant (pistes d'évolution) : tableau de roster synchronisé aux inscriptions `/acti`, tracking loot/regear, analytics de présence.
+> Pistes d'évolution : tableau de roster synchronisé aux inscriptions `/acti`, tracking loot/regear, analytics de présence.
 
 ---
 
@@ -418,7 +389,7 @@ python3 -m web.dev_preview   # http://localhost:8080
 1. Push le repo sur GitHub
 2. Créer un projet Railway depuis le repo
 3. Ajouter le plugin **PostgreSQL** → les variables `DATABASE_URL` et `PGXXX` sont injectées automatiquement
-4. Ajouter les variables d'environnement `DISCORD_TOKEN` et `DISCORD_GUILD_ID` (+ les variables du site web, voir section dédiée, si tu veux l'activer)
+4. Ajouter les variables d'environnement `DISCORD_TOKEN` et `DISCORD_GUILD_ID`
 5. Inviter le bot sur autant de serveurs Discord que nécessaire — aucune configuration supplémentaire n'est requise, la synchronisation des commandes se fait automatiquement au démarrage
 6. Railway build et démarre le bot — les tables sont créées au premier démarrage
 
