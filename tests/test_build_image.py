@@ -1,0 +1,115 @@
+import io
+
+from PIL import Image
+
+from Service.activites import build_id_for_role
+from Service.build_image import WIDTH, item_ids, normalize_items, render_build_image
+from Service.massup import build_recipients, dm_summary
+
+
+def _png(color=(200, 0, 0)) -> bytes:
+    out = io.BytesIO()
+    Image.new("RGBA", (128, 128), color).save(out, format="PNG")
+    return out.getvalue()
+
+
+def _open(data: bytes) -> Image.Image:
+    return Image.open(io.BytesIO(data))
+
+
+TEMPLATE = {
+    "pf_1": {"TANK": 1, "HEAL": 2, "CALLER": 1},
+    "builds": {"TANK": 12, "HEAL": "15"},
+    "pf_2": {"DPS": 3},
+    "builds_pf2": {"DPS": 20},
+}
+
+
+# ── build_id_for_role ────────────────────────────────────────────────────────
+
+def test_build_id_for_role_pf1_pf2_and_missing():
+    assert build_id_for_role(TEMPLATE, "TANK") == 12
+    assert build_id_for_role(TEMPLATE, "HEAL") == 15      # id stocké en texte → int
+    assert build_id_for_role(TEMPLATE, "PF2:DPS") == 20
+    assert build_id_for_role(TEMPLATE, "CALLER") is None
+    assert build_id_for_role(TEMPLATE, "DPS") is None      # DPS n'a un build qu'en PF2
+    assert build_id_for_role({}, "TANK") is None
+
+
+# ── build_recipients / dm_summary (/massup) ──────────────────────────────────
+
+def test_build_recipients_groups_players_by_build():
+    slots = {
+        "TANK": [(1, "A", "Tank Masse (700)")],
+        "HEAL": [(2, "B", ""), (3, "C", "")],
+        "CALLER": [(4, "D", "")],
+        "PF2:DPS": [(5, "E", "")],
+        "Fill": [(6, "F", "")],
+    }
+    assert build_recipients(slots, TEMPLATE) == {
+        12: [(1, "TANK")],
+        15: [(2, "HEAL"), (3, "HEAL")],
+        20: [(5, "DPS (PF2)")],
+    }
+
+
+def test_build_recipients_without_builds_is_empty():
+    assert build_recipients({"TANK": [(1, "A", "")]}, {"pf_1": {"TANK": 1}}) == {}
+
+
+def test_dm_summary():
+    assert dm_summary(0, []) is None
+    assert dm_summary(3, []) == "✉️ 3 build(s) envoyé(s) en MP."
+    assert "<@7> <@8>" in dm_summary(1, [7, 8])
+
+
+# ── normalize_items / item_ids ───────────────────────────────────────────────
+
+def test_normalize_items_accepts_old_format_and_json_string():
+    assert normalize_items({"mainhand": "MAIN_SWORD", "head": [], "cape": ["*"]}) == {
+        "mainhand": ["MAIN_SWORD"], "cape": ["*"],
+    }
+    assert normalize_items('{"head": ["HEAD_PLATE_SET1"]}') == {"head": ["HEAD_PLATE_SET1"]}
+    assert normalize_items(None) == {}
+
+
+def test_item_ids_skips_free_choice_and_duplicates():
+    items = {"mainhand": ["A", "B"], "offhand": ["A"], "cape": ["*"]}
+    assert item_ids(items) == ["A", "B"]
+
+
+# ── render_build_image ───────────────────────────────────────────────────────
+
+BUILD = {
+    "name": "Heal Sacré", "role": "HEAL", "type_acti": "PVP",
+    "items": {"mainhand": ["2H_HOLYSTAFF", "2H_HOLYSTAFF_HELL"], "head": ["HEAD_CLOTH_SET2"],
+              "cape": ["*"], "food": ["MEAL_STEW"]},
+    "weapon": "", "notes": "",
+}
+
+
+def test_render_produces_png_with_expected_width():
+    icons = {i: _png() for i in item_ids(BUILD["items"])}
+    img = _open(render_build_image(BUILD, icons))
+    assert img.format == "PNG"
+    assert img.width == WIDTH
+
+
+def test_render_grows_with_notes():
+    icons = {i: _png() for i in item_ids(BUILD["items"])}
+    short = _open(render_build_image(BUILD, icons))
+    long = _open(render_build_image({**BUILD, "notes": "Ligne\n" * 5, "weapon": "Tier 8"}, icons))
+    assert long.height > short.height
+
+
+def test_render_tolerates_missing_or_broken_icons_and_empty_build():
+    icons = {"2H_HOLYSTAFF": None, "HEAD_CLOTH_SET2": b"pas une image"}
+    assert _open(render_build_image(BUILD, icons)).width == WIDTH
+    assert _open(render_build_image({"name": "Vide", "items": {}}, {})).width == WIDTH
+
+
+def test_render_draws_icon_pixels():
+    """L'icône (rouge) doit apparaître dans l'image finale."""
+    build = {"name": "X", "items": {"armor": ["ARMOR_X"]}}
+    img = _open(render_build_image(build, {"ARMOR_X": _png((255, 0, 0))})).convert("RGB")
+    assert (255, 0, 0) in {img.getpixel((x, y)) for x in range(0, img.width, 4) for y in range(0, img.height, 4)}

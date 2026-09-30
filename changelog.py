@@ -7,9 +7,19 @@ Pour annoncer une nouvelle fonctionnalité : incrémenter VERSION et ajouter
 une entrée en tête de CHANGELOG (ordre du plus récent au plus ancien).
 """
 
-VERSION = "2026.10.01.1"
+VERSION = "2026.10.01.2"
 
 CHANGELOG: list[dict] = [
+    {
+        "version": "2026.10.01.2",
+        "title": "🧩 Compos de builds + build en MP avec /massup",
+        "items": [
+            "Les compos créées sur le site sont maintenant des ensembles de builds : avec `/acti`, "
+            "tu choisis ton rôle et le build t'est imposé (plus de liste d'armes).",
+            "`/massup` envoie à chaque joueur, en MP, une image de son build (équipement, bouffe, "
+            "potion, choix possibles). Pense à ouvrir tes MP pour la recevoir !",
+        ],
+    },
     {
         "version": "2026.10.01.1",
         "title": "🛡️ Admins du site web — /webadmin",

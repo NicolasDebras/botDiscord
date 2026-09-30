@@ -1,10 +1,14 @@
+import io
+
 import discord
 from discord.ext import commands
 from discord import app_commands
 
+import db
 from config import MEMBRE_ROLE_NAME
-from Service.activites import activities, _acti_label
-from Service.utils import ActivitySelect, is_membre
+from Service.activites import activities, _acti_label, build_id_for_role, load_all_templates
+from Service.build_image import build_image
+from Service.utils import ActivitySelect, is_membre, log_error
 
 # ── Loot RAID AVA par rôle ────────────────────────────────────────────────────
 _LOOT_FIXE: dict[str, str] = {
@@ -72,6 +76,64 @@ def _build_raid_ava_lines(data: dict) -> list[str]:
     return lines
 
 
+# ── Builds imposés (compos du site) : qui reçoit quel build en MP ─────────────
+def build_recipients(slots: dict[str, list], template_data: dict) -> dict[int, list[tuple[int, str]]]:
+    """{build_id: [(user_id, libellé du rôle), ...]} pour les rôles qui ont un build.
+    Les rôles sans build (et le Fill) ne reçoivent rien."""
+    out: dict[int, list[tuple[int, str]]] = {}
+    for role_key, members in slots.items():
+        build_id = build_id_for_role(template_data, role_key)
+        if build_id is None:
+            continue
+        label = f"{role_key[4:]} (PF2)" if role_key.startswith("PF2:") else role_key
+        out.setdefault(build_id, []).extend((int(entry[0]), label) for entry in members)
+    return out
+
+
+async def send_build_dms(
+    inter: discord.Interaction, data: dict, label: str,
+) -> tuple[int, list[int]]:
+    """Envoie à chaque joueur l'image du build de son rôle. Retourne (nb envoyés, ids aux MP fermés)."""
+    template = data.get("template")
+    tdata = load_all_templates(data.get("guild_id", 0)).get(template, {}) if template else {}
+    recipients = build_recipients(data["slots"], tdata)
+    sent, closed = 0, []
+
+    for build_id, players in recipients.items():
+        build = await db.get_build_by_id(build_id, data.get("guild_id", 0))
+        if not build:
+            continue
+        try:
+            png = await build_image(build)
+        except Exception as e:
+            await log_error("massup.build_image", e, guild_id=data.get("guild_id"))
+            continue
+
+        for user_id, role_label in players:
+            try:
+                user = inter.guild.get_member(user_id) or await inter.client.fetch_user(user_id)
+                await user.send(
+                    f"📢 **{label}** — tu es convoqué en **{role_label}**.\n"
+                    f"Ton build : **{build['name']}**",
+                    file=discord.File(io.BytesIO(png), filename="build.png"),
+                )
+                sent += 1
+            except discord.Forbidden:
+                closed.append(user_id)
+            except Exception as e:
+                await log_error("massup.dm", e, guild_id=data.get("guild_id"), user_id=user_id)
+    return sent, closed
+
+
+def dm_summary(sent: int, closed: list[int]) -> str | None:
+    if not sent and not closed:
+        return None
+    text = f"✉️ {sent} build(s) envoyé(s) en MP."
+    if closed:
+        text += f" {len(closed)} joueur(s) ont les MP fermés : " + " ".join(f"<@{u}>" for u in closed)
+    return text
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # COG MASSUP
 # ══════════════════════════════════════════════════════════════════════════════
@@ -122,6 +184,11 @@ class MassUp(commands.Cog):
                 body = " ".join(f"<@{uid}>" for uid in participants)
 
             await inter.response.send_message(intro + body)
+
+            # Compo du site : chaque joueur reçoit l'image du build de son rôle en MP.
+            summary = dm_summary(*await send_build_dms(inter, data, label))
+            if summary:
+                await inter.followup.send(summary, ephemeral=True)
 
         view = discord.ui.View(timeout=60)
         view.add_item(ActivitySelect(on_select, "📢 Quelle activité convoquer ?", guild_id=interaction.guild.id))

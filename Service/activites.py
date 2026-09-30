@@ -113,6 +113,17 @@ def get_specs(template_data: dict) -> dict[str, str]:
     return template_data.get("weapon", template_data.get("specs", {}))
 
 
+def build_id_for_role(template_data: dict, role_key: str) -> int | None:
+    """Build imposé pour ce rôle par une compo du site (clés "builds" / "builds_pf2"),
+    ou None. role_key = "TANK" ou "PF2:TANK"."""
+    if role_key.startswith("PF2:"):
+        builds, role = template_data.get("builds_pf2") or {}, role_key[4:]
+    else:
+        builds, role = template_data.get("builds") or {}, role_key
+    build_id = builds.get(role)
+    return int(build_id) if build_id is not None else None
+
+
 # ── CONSTRUCTION DE L'EMBED ──────────────────────────────────────────────────
 def build_embed(data: dict) -> discord.Embed:
     template = data.get("template")
@@ -607,6 +618,17 @@ class RoleSelect(discord.ui.Select):
             hint_spec = tdata.get("weapon_pf2", tdata.get("specs_pf2", {})).get(chosen_role[4:], "")
         else:
             hint_spec = get_specs(tdata).get(chosen_role, "")
+
+        # Compo du site : le rôle a un build imposé → pas de liste d'armes,
+        # le build fait office d'arme (spé demandée en PVP, comme d'habitude).
+        if build_id_for_role(tdata, chosen_role) is not None:
+            build_name = hint_spec or chosen_role
+            if type_acti == "PVP" and not tdata.get("no_spec"):
+                await interaction.response.send_modal(SpecLevelModal(self.activity_id, chosen_role, build_name))
+                return
+            await interaction.response.defer(ephemeral=True)
+            await _register_player(interaction, self.activity_id, chosen_role, build_name)
+            return
 
         if type_acti == "PVP" and hint_spec and not tdata.get("no_spec"):
             if tdata.get("free_pick"):

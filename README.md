@@ -88,6 +88,7 @@ pytest
 |---|---|---|
 | `/acti` | Membre | Créer une activité de guilde |
 | `/templates` | Membre | Afficher les templates disponibles |
+| `/massup [message]` | Membre | Ping tous les inscrits d'une activité ; avec une compo du site, envoie aussi à chacun **l'image de son build en MP** |
 
 **Paramètres de `/acti` :**
 - `nametemplate` — Template de composition (optionnel)
@@ -97,6 +98,10 @@ pytest
 - `tier` — Tier requis (champ libre, ex : `T8.3`) — optionnel
 
 > Sans template, une activité libre est créée avec les rôles DPS / HEAL / SUPPORT et 100 places max.
+
+**Compos du site (builds imposés)** — une compo créée sur le site `lilium-site` est un ensemble de builds (un build par rôle et par party). Avec `/acti nametemplate:<compo>` :
+- à l'inscription, le joueur choisit juste son **rôle** : le build lui est imposé (pas de liste d'armes). En PVP le bot demande toujours le niveau de spé ;
+- `/massup` envoie en plus, en **MP**, à chaque joueur inscrit sur un rôle avec build, une **image de son build** (icônes officielles de l'équipement façon inventaire du jeu, choix multiples, cases « au choix », précisions). Le lanceur reçoit un récap éphémère (nombre de MP envoyés, joueurs aux MP fermés).
 
 Une fois l'activité créée :
 - Les joueurs choisissent leur rôle via le menu déroulant
@@ -329,7 +334,8 @@ LiliumBot/
     ├── activites.py    # Commandes /acti et /templates, UI des activités
     ├── admin.py        # Commandes d'administration
     ├── bal.py          # Commandes BAL
-    ├── massup.py       # Commande /massup (ping participants)
+    ├── massup.py       # Commande /massup (ping participants + image du build en MP)
+    ├── build_image.py  # Image PNG d'un build (Pillow, police Inter dans assets/fonts)
     ├── moderation.py   # Surveillance format canal acti-flash
     ├── recrutement.py  # Commande /recrutement (fiche de candidature + baseline fame)
     ├── joueur.py                # /info, /ancien, /reporter, /kick + tâche 22h
