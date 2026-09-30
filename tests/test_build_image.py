@@ -113,3 +113,37 @@ def test_render_draws_icon_pixels():
     build = {"name": "X", "items": {"armor": ["ARMOR_X"]}}
     img = _open(render_build_image(build, {"ARMOR_X": _png((255, 0, 0))})).convert("RGB")
     assert (255, 0, 0) in {img.getpixel((x, y)) for x in range(0, img.width, 4) for y in range(0, img.height, 4)}
+
+
+# ── Image de la compo (/acti) ────────────────────────────────────────────────
+
+from Service.build_image import COMPO_WIDTH, LILAC, compo_rows, render_compo_image  # noqa: E402
+
+
+def test_compo_rows_lists_only_roles_with_builds_in_party_order():
+    assert compo_rows(TEMPLATE) == [
+        ("Party 1", "TANK", 1, 12),
+        ("Party 1", "HEAL", 2, 15),
+        ("Party 2", "DPS", 3, 20),
+    ]
+    assert compo_rows({"pf_1": {"TANK": 1}}) == []
+
+
+def _compo_rows(n_pf2=0):
+    build = {"name": "Tank Masse", "items": {"mainhand": ["A", "B"], "cape": ["*"]}}
+    rows = [("Party 1", "TANK", 2, build), ("Party 1", "HEAL", 1, {"name": "Heal", "items": {}})]
+    rows += [("Party 2", "DPS", 3, build)] * n_pf2
+    return rows
+
+
+def test_render_compo_image_size_and_lilac_background():
+    img = _open(render_compo_image("Traque", _compo_rows(), {"A": _png(), "B": None}))
+    assert img.format == "PNG"
+    assert img.width == COMPO_WIDTH
+    assert img.convert("RGB").getpixel((2, 2)) == LILAC  # haut du dégradé = lilas clair
+
+
+def test_render_compo_image_grows_with_rows_and_second_party():
+    one = _open(render_compo_image("X", _compo_rows(), {}))
+    two = _open(render_compo_image("X", _compo_rows(n_pf2=1), {}))
+    assert two.height > one.height

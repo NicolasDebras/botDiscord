@@ -37,6 +37,8 @@ BG       = (11, 10, 15)
 SURFACE  = (31, 27, 41)
 BORDER   = (46, 40, 64)
 LILAC    = (200, 162, 255)
+LILAC_2  = (167, 123, 243)   # lilas foncé (bas du dégradé)
+INK      = (20, 15, 31)      # texte sombre sur fond lilas
 TEXT     = (236, 232, 245)
 MUTED    = (157, 149, 179)
 
@@ -90,8 +92,11 @@ async def fetch_icon(session: aiohttp.ClientSession, item_id: str) -> bytes | No
     return data
 
 
-async def fetch_icons(items: dict | None) -> dict[str, bytes | None]:
+async def fetch_icons(items: dict | None, extra_ids: list[str] | None = None) -> dict[str, bytes | None]:
     ids = item_ids(items)
+    for i in extra_ids or []:
+        if i not in ids:
+            ids.append(i)
     async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=20)) as session:
         results = await asyncio.gather(*(fetch_icon(session, i) for i in ids))
     return dict(zip(ids, results))
@@ -192,3 +197,99 @@ def render_build_image(build: dict, icons: dict[str, bytes | None]) -> bytes:
 async def build_image(build: dict) -> bytes:
     """Télécharge les icônes du build puis génère l'image."""
     return render_build_image(build, await fetch_icons(build.get("items")))
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# IMAGE DE LA COMPO (postée par /acti juste après l'embed)
+# ══════════════════════════════════════════════════════════════════════════════
+COMPO_SLOTS = ("mainhand", "offhand", "head", "armor", "shoes", "cape", "food", "potion")
+C_ICON, C_ICON_GAP, C_ROW_H, C_LEFT = 52, 6, 76, 250
+COMPO_WIDTH = MARGIN * 2 + C_LEFT + len(COMPO_SLOTS) * (C_ICON + C_ICON_GAP)
+
+
+def compo_rows(template_data: dict) -> list[tuple[str, str, int, int]]:
+    """[(party, rôle, nombre, build_id), ...] pour les rôles de la compo qui ont un build."""
+    rows = []
+    for party, count_key, builds_key in (("Party 1", "pf_1", "builds"), ("Party 2", "pf_2", "builds_pf2")):
+        builds = template_data.get(builds_key) or {}
+        for role, count in (template_data.get(count_key) or {}).items():
+            if builds.get(role) is not None:
+                rows.append((party, role, int(count), int(builds[role])))
+    return rows
+
+
+def _lilac_background(width: int, height: int) -> Image.Image:
+    """Dégradé vertical lilas clair → lilas foncé."""
+    img = Image.new("RGBA", (width, height))
+    draw = ImageDraw.Draw(img)
+    for y in range(height):
+        t = y / max(height - 1, 1)
+        color = tuple(round(a + (b - a) * t) for a, b in zip(LILAC, LILAC_2))
+        draw.line([(0, y), (width, y)], fill=color)
+    return img
+
+
+def _draw_small_slot(img: Image.Image, draw: ImageDraw.ImageDraw, x: int, y: int,
+                     choices: list[str], icons: dict[str, bytes | None]) -> None:
+    draw.rounded_rectangle((x, y, x + C_ICON, y + C_ICON), radius=8, fill=SURFACE)
+    if not choices:
+        return
+    if choices == [FREE_CHOICE]:
+        _centered_text(draw, (x, y, x + C_ICON, y + C_ICON), "?", _font(24, "Bold"), LILAC)
+        return
+    icon = _open_icon(icons.get(choices[0]), C_ICON)
+    if icon:
+        img.paste(icon, (x, y), icon)
+    else:
+        _centered_text(draw, (x, y, x + C_ICON, y + C_ICON), "?", _font(24, "Bold"), LILAC)
+    if len(choices) > 1:  # alternatives : pastille « +N »
+        bx, by = x + C_ICON - 20, y + C_ICON - 16
+        draw.rounded_rectangle((bx, by, bx + 22, by + 16), radius=8, fill=LILAC)
+        _centered_text(draw, (bx, by, bx + 22, by + 16), f"+{len(choices) - 1}", _font(11, "Bold"), INK)
+
+
+def render_compo_image(name: str, rows: list[tuple[str, str, int, dict]], icons: dict[str, bytes | None]) -> bytes:
+    """rows = [(party, rôle, nombre, build)] → PNG : fond lilas, une carte sombre par build
+    (rôle × nombre, nom du build, icônes des 8 emplacements)."""
+    parties = list(dict.fromkeys(r[0] for r in rows))
+    multi_party = len(parties) > 1
+    height = 110 + len(rows) * (C_ROW_H + 10) + (len(parties) * 34 if multi_party else 0) + MARGIN
+    img = _lilac_background(COMPO_WIDTH, height)
+    draw = ImageDraw.Draw(img)
+
+    total = sum(r[2] for r in rows)
+    draw.text((MARGIN, 24), name[:40], font=_font(34, "Bold"), fill=INK)
+    draw.text((MARGIN, 68), f"{total} joueurs · {len(rows)} builds", font=_font(17, "Medium"), fill=INK)
+
+    y = 110
+    for party in parties:
+        if multi_party:
+            draw.text((MARGIN, y), party.upper(), font=_font(16, "Bold"), fill=INK)
+            y += 34
+        for _, role, count, build in (r for r in rows if r[0] == party):
+            draw.rounded_rectangle((MARGIN, y, COMPO_WIDTH - MARGIN, y + C_ROW_H), radius=14, fill=BG)
+            draw.text((MARGIN + 18, y + 12), f"{role}  ×{count}", font=_font(20, "Bold"), fill=LILAC)
+            draw.text((MARGIN + 18, y + 42), (build.get("name") or "")[:26], font=_font(16), fill=TEXT)
+            items = normalize_items(build.get("items"))
+            ix = MARGIN + C_LEFT
+            for slot in COMPO_SLOTS:
+                _draw_small_slot(img, draw, ix, y + (C_ROW_H - C_ICON) // 2, items.get(slot, []), icons)
+                ix += C_ICON + C_ICON_GAP
+            y += C_ROW_H + 10
+
+    out = io.BytesIO()
+    img.convert("RGB").save(out, format="PNG")
+    return out.getvalue()
+
+
+async def compo_image(name: str, template_data: dict, builds_by_id: dict[int, dict]) -> bytes | None:
+    """Image de la compo, ou None si aucun de ses rôles n'a de build."""
+    rows = [(party, role, count, builds_by_id[bid])
+            for party, role, count, bid in compo_rows(template_data) if bid in builds_by_id]
+    if not rows:
+        return None
+    ids: list[str] = []
+    for *_, build in rows:
+        ids.extend(i for i in item_ids(build.get("items")) if i not in ids)
+    icons = await fetch_icons(None, ids)
+    return render_compo_image(name, rows, icons)

@@ -1,3 +1,4 @@
+import io
 import re
 import asyncio
 import discord
@@ -7,6 +8,7 @@ from datetime import datetime, timezone
 
 import db
 from config import ROLES, DEFAULT_TEMPLATES, ACTIVITY_COLORS, DEFAULT_COLOR, ADMIN_ROLE_NAME, MEMBRE_ROLE_NAME
+from Service.build_image import compo_image, compo_rows
 from Service.utils import load_settings, append_bal_log, is_membre, is_caller_or_admin, notify_bal_limit, fmt_silver, log_error
 
 # ── STOCKAGE EN MÉMOIRE  {message_id: data} ──────────────────────────────────
@@ -291,6 +293,21 @@ def build_embed(data: dict) -> discord.Embed:
 # ── CONSTRUCTION DE LA VUE ───────────────────────────────────────────────────
 def build_view(activity_id: int) -> discord.ui.View:
     return ActivityView(activity_id)
+
+
+async def _post_compo_image(interaction: discord.Interaction, template_name: str, template_data: dict) -> None:
+    """Poste, juste après l'embed de l'acti, l'image de tous les builds de la compo
+    (compos du site uniquement). Ne bloque jamais l'acti en cas d'erreur."""
+    rows = compo_rows(template_data)
+    if not rows:
+        return
+    try:
+        builds = await db.get_builds_by_ids([bid for *_, bid in rows], interaction.guild.id)
+        png = await compo_image(template_name, template_data, builds)
+        if png:
+            await interaction.followup.send(file=discord.File(io.BytesIO(png), filename="compo.png"))
+    except Exception as e:
+        await log_error("activites.compo_image", e, guild_id=interaction.guild.id, user_id=interaction.user.id)
 
 
 # ── HELPER : label affiché d'une activité ───────────────────────────────────
@@ -1387,6 +1404,10 @@ class Activites(commands.Cog):
         activities[message.id] = data
         await save_activities()
         await message.edit(view=build_view(message.id))
+
+        # Compo du site : on poste juste après l'embed une image avec tous les builds.
+        if template_name:
+            await _post_compo_image(interaction, template_name, all_templates[template_name])
 
     # ── /templates ───────────────────────────────────────────────────────────
     @app_commands.command(name="templates", description="Afficher les templates de compositions disponibles")

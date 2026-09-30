@@ -1307,6 +1307,17 @@ async def get_build_by_id(build_id: int, guild_id: int) -> dict | None:
     return dict(row) if row else None
 
 
+async def get_builds_by_ids(build_ids: list[int], guild_id: int) -> dict[int, dict]:
+    """{id: build} pour les builds d'une compo (un seul aller-retour)."""
+    if not build_ids:
+        return {}
+    async with _pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT * FROM builds WHERE guild_id = $1 AND id = ANY($2::int[])", guild_id, list(build_ids)
+        )
+    return {row["id"]: dict(row) for row in rows}
+
+
 async def add_build(
     guild_id: int, name: str, role: str, type_acti: str, weapon: str, notes: str, image: str,
     created_by: str, created_by_name: str,
