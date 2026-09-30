@@ -7,9 +7,18 @@ Pour annoncer une nouvelle fonctionnalité : incrémenter VERSION et ajouter
 une entrée en tête de CHANGELOG (ordre du plus récent au plus ancien).
 """
 
-VERSION = "2026.10.01.5"
+VERSION = "2026.10.01.6"
 
 CHANGELOG: list[dict] = [
+    {
+        "version": "2026.10.01.6",
+        "title": "🎨 Image de la compo plus lisible",
+        "items": [
+            "Les autres choix possibles d'une case s'affichent en mini-icônes, et les cases libres "
+            "indiquent « Au choix ».",
+            "Le nom de l'acti n'est plus répété sur l'image (il est déjà dans l'embed).",
+        ],
+    },
     {
         "version": "2026.10.01.5",
         "title": "🩹 Image de la compo fiable + récap recrutement",

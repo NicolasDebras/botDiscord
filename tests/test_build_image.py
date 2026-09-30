@@ -143,6 +143,15 @@ def test_render_compo_image_size_and_lilac_background():
     assert img.convert("RGB").getpixel((2, 2)) == LILAC  # haut du dégradé = lilas clair
 
 
+def test_render_compo_image_draws_alternative_choices_as_mini_icons():
+    """Les choix alternatifs (2e, 3e objet) apparaissent en mini-icônes, pas en « +N »."""
+    build = {"name": "B", "items": {"mainhand": ["MAIN", "ALT"]}}
+    icons = {"MAIN": _png((255, 0, 0)), "ALT": _png((0, 0, 255))}
+    img = _open(render_compo_image("X", [("Party 1", "DPS", 1, build)], icons)).convert("RGB")
+    pixels = {img.getpixel((x, y)) for x in range(0, img.width, 2) for y in range(0, img.height, 2)}
+    assert (0, 0, 255) in pixels and (255, 0, 0) in pixels
+
+
 def test_render_compo_image_grows_with_rows_and_second_party():
     one = _open(render_compo_image("X", _compo_rows(), {}))
     two = _open(render_compo_image("X", _compo_rows(n_pf2=1), {}))

@@ -258,6 +258,8 @@ async def build_image(build: dict) -> bytes:
 # ══════════════════════════════════════════════════════════════════════════════
 COMPO_SLOTS = ("mainhand", "offhand", "head", "armor", "shoes", "cape", "food", "potion")
 C_ICON, C_ICON_GAP, C_ROW_H, C_LEFT = 52, 6, 76, 250
+C_HEADER = 56  # hauteur de l'en-tête (« N joueurs · M builds »)
+C_MINI = 22  # mini-icône d'un choix alternatif (coin bas-droit de la case)
 COMPO_WIDTH = MARGIN * 2 + C_LEFT + len(COMPO_SLOTS) * (C_ICON + C_ICON_GAP)
 
 
@@ -289,17 +291,25 @@ def _draw_small_slot(img: Image.Image, draw: ImageDraw.ImageDraw, x: int, y: int
     if not choices:
         return
     if choices == [FREE_CHOICE]:
-        _centered_text(draw, (x, y, x + C_ICON, y + C_ICON), "?", _font(24, "Bold"), LILAC)
+        mid = y + C_ICON // 2
+        _centered_text(draw, (x, mid - 15, x + C_ICON, mid), "Au", _font(12, "Bold"), LILAC)
+        _centered_text(draw, (x, mid - 1, x + C_ICON, mid + 14), "choix", _font(12, "Bold"), LILAC)
         return
     icon = _open_icon(icons.get(choices[0]), C_ICON)
     if icon:
         img.paste(icon, (x, y), icon)
     else:
         _centered_text(draw, (x, y, x + C_ICON, y + C_ICON), "?", _font(24, "Bold"), LILAC)
-    if len(choices) > 1:  # alternatives : pastille « +N »
-        bx, by = x + C_ICON - 20, y + C_ICON - 16
-        draw.rounded_rectangle((bx, by, bx + 22, by + 16), radius=8, fill=LILAC)
-        _centered_text(draw, (bx, by, bx + 22, by + 16), f"+{len(choices) - 1}", _font(11, "Bold"), INK)
+    # Autres choix possibles : mini-icônes cerclées de lilas dans le coin bas-droit.
+    by = y + C_ICON - C_MINI + 4
+    for i, alt in enumerate(choices[1:]):
+        bx = x + C_ICON - C_MINI + 4 - i * (C_MINI + 2)
+        draw.rounded_rectangle((bx - 1, by - 1, bx + C_MINI + 1, by + C_MINI + 1), radius=6, fill=SURFACE, outline=LILAC, width=2)
+        mini = _open_icon(icons.get(alt), C_MINI)
+        if mini:
+            img.paste(mini, (bx, by), mini)
+        else:
+            _centered_text(draw, (bx, by, bx + C_MINI, by + C_MINI), "?", _font(12, "Bold"), LILAC)
 
 
 def render_compo_image(name: str, rows: list[tuple[str, str, int, dict]], icons: dict[str, bytes | None]) -> bytes:
@@ -307,15 +317,15 @@ def render_compo_image(name: str, rows: list[tuple[str, str, int, dict]], icons:
     (rôle × nombre, nom du build, icônes des 8 emplacements)."""
     parties = list(dict.fromkeys(r[0] for r in rows))
     multi_party = len(parties) > 1
-    height = 110 + len(rows) * (C_ROW_H + 10) + (len(parties) * 34 if multi_party else 0) + MARGIN
+    height = C_HEADER + len(rows) * (C_ROW_H + 10) + (len(parties) * 34 if multi_party else 0) + MARGIN
     img = _lilac_background(COMPO_WIDTH, height)
     draw = ImageDraw.Draw(img)
 
+    # Pas de titre : le nom de l'acti est déjà dans l'embed juste au-dessus.
     total = sum(r[2] for r in rows)
-    draw.text((MARGIN, 24), name[:40], font=_font(34, "Bold"), fill=INK)
-    draw.text((MARGIN, 68), f"{total} joueurs · {len(rows)} builds", font=_font(17, "Medium"), fill=INK)
+    draw.text((MARGIN, 20), f"{total} joueurs · {len(rows)} builds", font=_font(17, "Bold"), fill=INK)
 
-    y = 110
+    y = C_HEADER
     for party in parties:
         if multi_party:
             draw.text((MARGIN, y), party.upper(), font=_font(16, "Bold"), fill=INK)

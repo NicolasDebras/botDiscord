@@ -92,7 +92,7 @@ pytest
 > Sans template, une activité libre est créée avec les rôles DPS / HEAL / SUPPORT et 100 places max.
 
 **Compos du site (builds imposés)** — une compo créée sur le site `lilium-site` est un ensemble de builds (un build par rôle et par party). Avec `/acti nametemplate:<compo>` :
-- juste après l'embed de l'acti, le bot poste une **image de la compo** : fond lilas, une ligne par build (rôle × nombre, nom, icônes des 8 emplacements, « +N » pour les alternatives, « ? » pour « au choix ») ;
+- juste après l'embed de l'acti, le bot poste une **image de la compo** : fond lilas, une ligne par build (rôle × nombre, nom, icônes des 8 emplacements, les autres choix possibles en mini-icônes dans le coin de la case, « Au choix » pour une case libre) ;
 - à l'inscription, le joueur choisit juste son **rôle** : le build lui est imposé : il est inscrit directement, sans liste d'armes ni saisie du niveau de spé ;
 - `/massup` envoie en plus, en **MP**, à chaque joueur inscrit sur un rôle avec build, une **image de son build** (icônes officielles de l'équipement façon inventaire du jeu, choix multiples, cases « au choix », précisions). Le lanceur reçoit un récap éphémère (nombre de MP envoyés, joueurs aux MP fermés).
 
