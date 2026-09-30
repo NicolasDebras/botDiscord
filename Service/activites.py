@@ -619,13 +619,10 @@ class RoleSelect(discord.ui.Select):
         else:
             hint_spec = get_specs(tdata).get(chosen_role, "")
 
-        # Compo du site : le rôle a un build imposé → pas de liste d'armes,
-        # le build fait office d'arme (spé demandée en PVP, comme d'habitude).
+        # Compo du site : le rôle a un build imposé → inscription directe au
+        # choix du rôle (ni liste d'armes ni saisie de spé), le build fait office d'arme.
         if build_id_for_role(tdata, chosen_role) is not None:
             build_name = hint_spec or chosen_role
-            if type_acti == "PVP" and not tdata.get("no_spec"):
-                await interaction.response.send_modal(SpecLevelModal(self.activity_id, chosen_role, build_name))
-                return
             await interaction.response.defer(ephemeral=True)
             await _register_player(interaction, self.activity_id, chosen_role, build_name)
             return
