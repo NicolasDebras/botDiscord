@@ -480,8 +480,9 @@ def can_validate(member, data: dict) -> bool:
 
 
 def needs_validation(data: dict, member, already_in: bool) -> bool:
-    """Un joueur déjà accepté qui change de rôle, ou un validateur, passe directement."""
-    return bool(data.get("validation")) and not already_in and not can_validate(member, data)
+    """Seuls le créateur de l'acti et un joueur déjà accepté qui change de rôle passent directement
+    (les Caller/Officiers/GM/admins passent aussi par la validation, mais peuvent valider les autres)."""
+    return bool(data.get("validation")) and not already_in and not _is_creator(member, data)
 
 
 def _new_rid() -> str:

@@ -97,7 +97,7 @@ pytest
 - le **créateur de l'acti reçoit un MP** (joueur, rôle, build/spé, lien vers l'acti) avec **✅ Accepter / ❌ Refuser** — boutons valables même après un redémarrage du bot ;
 - les **Caller / Officiers / GM** (et le créateur) peuvent aussi trancher via le bouton **« ⏳ En attente (n) »** de l'acti — utile si le créateur a ses MP fermés ;
 - à l'acceptation, les places sont revérifiées (si le rôle est devenu plein, la demande reste en attente) ; le joueur reçoit un MP dans les deux cas ;
-- passent directement, sans validation : le créateur, les Caller/Officiers/GM, et un joueur déjà accepté qui change de rôle. Redemander remplace la demande précédente ; « Se retirer » annule une demande en attente.
+- passent directement, sans validation : **uniquement le créateur** et un joueur déjà accepté qui change de rôle (les Caller/Officiers/GM passent aussi par la validation, mais peuvent valider les autres). Redemander remplace la demande précédente ; « Se retirer » annule une demande en attente.
 
 **Compos du site (builds imposés)** — une compo créée sur le site `lilium-site` est un ensemble de builds (un build par rôle et par party). Avec `/acti nametemplate:<compo>` :
 - juste après l'embed de l'acti, le bot poste une **image de la compo** : fond lilas, une ligne par build (rôle × nombre, nom, icônes des 8 emplacements, les autres choix possibles en mini-icônes dans le coin de la case, « Au choix » pour une case libre) ;

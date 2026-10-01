@@ -138,7 +138,9 @@ def test_who_can_validate(acti):
 def test_needs_validation(acti):
     assert needs_validation(acti, member(PLAYER, "Membre"), already_in=False)
     assert not needs_validation(acti, member(PLAYER, "Membre"), already_in=True)    # changement de rôle
-    assert not needs_validation(acti, member(CALLER, "Caller"), already_in=False)
+    assert needs_validation(acti, member(CALLER, "Caller"), already_in=False)
+    assert needs_validation(acti, fake_member(user_id=CALLER, administrator=True), already_in=False)
+    assert not needs_validation(acti, member(CREATOR), already_in=False)
     assert not needs_validation({**acti, "validation": False}, member(PLAYER), already_in=False)
 
 
@@ -168,13 +170,20 @@ def test_new_request_replaces_previous_one(acti):
     assert req["role"] == "DPS" and req["rid"] != first
 
 
-def test_creator_and_callers_register_directly(acti):
+def test_only_creator_registers_directly(acti):
     client = FakeClient()
     register(member(CREATOR), client, "TANK")
-    register(member(CALLER, "Caller"), client, "DPS")
     assert [e[0] for e in acti["slots"]["TANK"]] == [CREATOR]
-    assert [e[0] for e in acti["slots"]["DPS"]] == [CALLER]
     assert acti["pending"] == [] and client.dms == []
+
+
+def test_callers_and_gm_also_need_validation(acti):
+    client = FakeClient()
+    register(member(CALLER, "Caller"), client, "DPS")
+    register(fake_member(user_id=40, display_name="GM", roles=[fake_role("Membre")], administrator=True), client, "TANK")
+    assert acti["slots"]["DPS"] == [] and acti["slots"]["TANK"] == []
+    assert sorted(p["uid"] for p in acti["pending"]) == [CALLER, 40]
+    assert len(client.dms) == 2
 
 
 def test_accepted_player_changes_role_without_new_validation(acti):
