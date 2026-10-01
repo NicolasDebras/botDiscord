@@ -1,5 +1,6 @@
 import io
 import re
+import secrets
 import asyncio
 import discord
 from discord.ext import commands, tasks
@@ -274,11 +275,20 @@ def build_embed(data: dict) -> discord.Embed:
         fill_value = "\n".join(f"<@{entry[0]}>" for entry in fill_members)
         embed.add_field(name=f"🔀 Fill  [{len(fill_members)}]", value=fill_value[:1024], inline=False)
 
+    pending = data.get("pending", [])
+    if pending:
+        pending_value = "\n".join(
+            f"<@{p['uid']}> — {_role_label(p['role'])}" + (f"  ({p['spec']})" if p.get("spec") else "")
+            for p in pending
+        )
+        embed.add_field(name=f"⏳ En attente de validation  [{len(pending)}]", value=pending_value[:1024], inline=False)
+
     payout_line    = "💰 BAL" if bal else "🆓 Libre"
     total_inscrits = sum(len(v) for v in slots.values())
+    validation     = "\n🔒 Inscriptions sur validation du caller" if data.get("validation") else ""
     embed.add_field(
         name="─────────────────────────",
-        value=f"**Pay Out :** {payout_line}    **Inscrits :** {total_inscrits}/{max_p}",
+        value=f"**Pay Out :** {payout_line}    **Inscrits :** {total_inscrits}/{max_p}{validation}",
         inline=False,
     )
 
@@ -376,57 +386,253 @@ async def _register_player(
         return
 
     all_templates = load_all_templates(data.get("guild_id", 0))
-    if template in all_templates:
-        tdata     = all_templates[template]
-        role_name = chosen_role[4:] if chosen_role.startswith("PF2:") else chosen_role
-        max_role  = get_pf2(tdata).get(role_name, 999) if chosen_role.startswith("PF2:") else get_pf1(tdata).get(chosen_role, 999)
-        current_in_role = [entry[0] for entry in slots.get(chosen_role, [])]
-        if len(current_in_role) >= max_role and user_id not in current_in_role:
-            label = f"{role_name} PF2" if chosen_role.startswith("PF2:") else chosen_role
-            await _reply(interaction, f"⛔ Plus de place en **{label}** ({max_role} max).", ephemeral=True)
-            return
+    tdata = all_templates.get(template, {}) if template else {}
+    error = registration_error(data, tdata, user_id, chosen_role, spec)
+    if error:
+        await _reply(interaction, error, ephemeral=True)
+        return
 
-        # ── Vérifier la sous-limite d'arme (ignoré en mode free_pick) ──────────
-        if spec and tdata.get("type_acti") == "PVP" and not tdata.get("free_pick"):
-            hint_spec = (
-                tdata.get("weapon_pf2", tdata.get("specs_pf2", {})).get(role_name, "")
-                if chosen_role.startswith("PF2:") else
-                get_specs(tdata).get(chosen_role, "")
-            )
-            if hint_spec:
-                weapon_name = _player_weapon(spec)
-                for _display, clean_name, n_slots in _parse_weapon_slots(hint_spec):
-                    if clean_name == weapon_name and n_slots is not None:
-                        taken = sum(
-                            1 for e in slots.get(chosen_role, [])
-                            if _player_weapon(e[2]) == weapon_name and e[0] != user_id
-                        )
-                        if taken >= n_slots:
-                            await _reply(interaction,
-                                f"⛔ Plus de place pour **{weapon_name}** ({n_slots} max).", ephemeral=True
-                            )
-                            return
-                        break
+    # Acti sur validation : la demande part au caller au lieu d'inscrire directement.
+    if needs_validation(data, interaction.user, already_in):
+        await _request_validation(interaction, activity_id, chosen_role, spec)
+        return
 
-    for role, members in slots.items():
+    _place_player(data, user_id, user_name, chosen_role, spec)
+    await save_activities(only=activity_id)
+    await _refresh_activity_message(interaction.client, activity_id)
+    await _reply(interaction, f"✅ Inscrit en **{_role_label(chosen_role)}**{f'  —  {spec}' if spec else ''} !",
+                 ephemeral=True)
+
+
+def _role_label(role_key: str) -> str:
+    return f"{role_key[4:]} PF2" if role_key.startswith("PF2:") else role_key
+
+
+def registration_error(data: dict, tdata: dict, user_id: int, chosen_role: str, spec: str) -> str | None:
+    """Contrôles de place d'un rôle (et de la sous-limite d'arme) : message d'erreur ou None.
+    Utilisé à l'inscription et à l'acceptation d'une demande (/acti validation)."""
+    if not tdata:
+        return None
+    slots     = data["slots"]
+    is_pf2    = chosen_role.startswith("PF2:")
+    role_name = chosen_role[4:] if is_pf2 else chosen_role
+    max_role  = get_pf2(tdata).get(role_name, 999) if is_pf2 else get_pf1(tdata).get(chosen_role, 999)
+    current_in_role = [entry[0] for entry in slots.get(chosen_role, [])]
+    if len(current_in_role) >= max_role and user_id not in current_in_role:
+        return f"⛔ Plus de place en **{_role_label(chosen_role)}** ({max_role} max)."
+
+    # ── Sous-limite d'arme (ignorée en mode free_pick) ──────────────────────
+    if spec and tdata.get("type_acti") == "PVP" and not tdata.get("free_pick"):
+        hint_spec = (
+            tdata.get("weapon_pf2", tdata.get("specs_pf2", {})).get(role_name, "")
+            if is_pf2 else get_specs(tdata).get(chosen_role, "")
+        )
+        if hint_spec:
+            weapon_name = _player_weapon(spec)
+            for _display, clean_name, n_slots in _parse_weapon_slots(hint_spec):
+                if clean_name == weapon_name and n_slots is not None:
+                    taken = sum(
+                        1 for e in slots.get(chosen_role, [])
+                        if _player_weapon(e[2]) == weapon_name and e[0] != user_id
+                    )
+                    if taken >= n_slots:
+                        return f"⛔ Plus de place pour **{weapon_name}** ({n_slots} max)."
+                    break
+    return None
+
+
+def _place_player(data: dict, user_id: int, user_name: str, chosen_role: str, spec: str) -> None:
+    """Retire le joueur de son ancien rôle (et de ses demandes en attente) puis l'inscrit."""
+    for members in data["slots"].values():
         for entry in members[:]:
             if entry[0] == user_id:
                 members.remove(entry)
                 break
+    data["pending"] = [p for p in data.get("pending", []) if p["uid"] != user_id]
+    data["slots"].setdefault(chosen_role, []).append((user_id, user_name, spec))
 
-    slots.setdefault(chosen_role, []).append((user_id, user_name, spec))
-    await save_activities(only=activity_id)
 
+async def _refresh_activity_message(client: discord.Client, activity_id: int) -> None:
+    data = activities.get(activity_id)
+    if not data:
+        return
     try:
-        channel = interaction.client.get_channel(data["channel_id"])
+        channel = client.get_channel(data["channel_id"])
         msg     = await channel.fetch_message(activity_id)
         await msg.edit(embed=build_embed(data), view=build_view(activity_id))
     except Exception:
         pass
 
-    label   = f"{chosen_role[4:]} PF2" if chosen_role.startswith("PF2:") else chosen_role
-    confirm = f"✅ Inscrit en **{label}**{f'  —  {spec}' if spec else ''} !"
-    await _reply(interaction, confirm, ephemeral=True)
+
+# ══════════════════════════════════════════════════════════════════════════════
+# INSCRIPTIONS SUR VALIDATION (/acti validation:True)
+# Chaque nouvelle inscription part dans data["pending"] ; le créateur reçoit un MP
+# (boutons persistants ValidationButton) et les Caller/Officiers/GM peuvent aussi
+# trancher via le bouton « ⏳ En attente » de l'acti. Le joueur en attente
+# n'occupe pas de place (ni pingé par /massup, ni payé par /finacti).
+# ══════════════════════════════════════════════════════════════════════════════
+
+def can_validate(member, data: dict) -> bool:
+    """Créateur de l'acti, ou Caller / Officier / GM / administrateur."""
+    if _is_creator(member, data):
+        return True
+    return hasattr(member, "roles") and is_caller_or_admin(member)
+
+
+def needs_validation(data: dict, member, already_in: bool) -> bool:
+    """Un joueur déjà accepté qui change de rôle, ou un validateur, passe directement."""
+    return bool(data.get("validation")) and not already_in and not can_validate(member, data)
+
+
+def _new_rid() -> str:
+    return secrets.token_hex(3)
+
+
+def _find_pending(data: dict, user_id: int) -> dict | None:
+    return next((p for p in data.get("pending", []) if p["uid"] == user_id), None)
+
+
+def _activity_link(data: dict, activity_id: int) -> str:
+    return f"https://discord.com/channels/{data.get('guild_id', 0)}/{data['channel_id']}/{activity_id}"
+
+
+def _request_embed(data: dict, activity_id: int, req: dict) -> discord.Embed:
+    spec = f"  —  {req['spec']}" if req.get("spec") else ""
+    return discord.Embed(
+        title="⏳ Demande d'inscription",
+        description=(
+            f"<@{req['uid']}> (**{req['name']}**) veut s'inscrire en **{_role_label(req['role'])}**{spec}\n"
+            f"à **{_acti_label(data)}** → [voir l'activité]({_activity_link(data, activity_id)})"
+        ),
+        color=DEFAULT_COLOR,
+    )
+
+
+class ValidationButton(discord.ui.DynamicItem[discord.ui.Button],
+                       template=r"actival:(?P<aid>\d+):(?P<uid>\d+):(?P<rid>[0-9a-f]+):(?P<act>[ar])"):
+    """Bouton Accepter / Refuser du MP envoyé au créateur — persistant (survit aux redémarrages)."""
+
+    def __init__(self, activity_id: int, user_id: int, rid: str, accept: bool):
+        self.activity_id, self.user_id, self.rid, self.accept = activity_id, user_id, rid, accept
+        super().__init__(discord.ui.Button(
+            label="Accepter" if accept else "Refuser",
+            emoji="✅" if accept else "❌",
+            style=discord.ButtonStyle.success if accept else discord.ButtonStyle.danger,
+            custom_id=f"actival:{activity_id}:{user_id}:{rid}:{'a' if accept else 'r'}",
+        ))
+
+    @classmethod
+    async def from_custom_id(cls, interaction, item, match):
+        return cls(int(match["aid"]), int(match["uid"]), match["rid"], match["act"] == "a")
+
+    async def callback(self, interaction: discord.Interaction):
+        await _decide(interaction, self.activity_id, self.user_id, self.rid, self.accept, from_dm=True)
+
+
+def validation_view(activity_id: int, user_id: int, rid: str) -> discord.ui.View:
+    view = discord.ui.View(timeout=None)
+    view.add_item(ValidationButton(activity_id, user_id, rid, True))
+    view.add_item(ValidationButton(activity_id, user_id, rid, False))
+    return view
+
+
+async def _dm(client: discord.Client, user_id: int, *args, **kwargs) -> bool:
+    """MP sans jamais lever : False si MP fermés / utilisateur introuvable."""
+    try:
+        user = client.get_user(user_id) or await client.fetch_user(user_id)
+        await user.send(*args, **kwargs)
+        return True
+    except (discord.Forbidden, discord.NotFound):
+        return False
+    except Exception as e:
+        await log_error("activites.validation_dm", e, user_id=user_id)
+        return False
+
+
+async def _request_validation(interaction: discord.Interaction, activity_id: int, chosen_role: str, spec: str) -> None:
+    data = activities[activity_id]
+    user = interaction.user
+    req  = {"uid": user.id, "name": user.display_name, "role": chosen_role, "spec": spec, "rid": _new_rid()}
+    data["pending"] = [p for p in data.get("pending", []) if p["uid"] != user.id] + [req]
+    await save_activities(only=activity_id)
+    await _refresh_activity_message(interaction.client, activity_id)
+
+    sent = False
+    if data.get("creator_id"):
+        sent = await _dm(interaction.client, data["creator_id"],
+                         embed=_request_embed(data, activity_id, req),
+                         view=validation_view(activity_id, user.id, req["rid"]))
+    where = "Le caller a reçu ta demande en MP." if sent else "Un caller la validera depuis l'activité."
+    await _reply(interaction,
+                 f"⏳ Demande d'inscription en **{_role_label(chosen_role)}** envoyée — {where} "
+                 f"Tu recevras un MP quand elle sera traitée.", ephemeral=True)
+
+
+async def _validator(interaction: discord.Interaction, data: dict):
+    """Membre du serveur qui clique (en MP, interaction.user n'a pas de rôles)."""
+    user = interaction.user
+    if hasattr(user, "roles"):
+        return user
+    guild = interaction.client.get_guild(data.get("guild_id", 0))
+    if guild is None:
+        return user
+    try:
+        return guild.get_member(user.id) or await guild.fetch_member(user.id)
+    except Exception:
+        return user
+
+
+async def _decide(interaction: discord.Interaction, activity_id: int, user_id: int, rid: str | None,
+                  accept: bool, *, from_dm: bool = False) -> None:
+    """Accepte ou refuse une demande en attente (MP du créateur ou bouton « En attente » de l'acti)."""
+    if not interaction.response.is_done():
+        await interaction.response.defer(ephemeral=True)   # MP + base : peut dépasser les 3 s de Discord
+    data = activities.get(activity_id)
+    if not data:
+        await _reply(interaction, "❌ Activité introuvable (terminée ou annulée).", ephemeral=True)
+        return
+    if not can_validate(await _validator(interaction, data), data):
+        await _reply(interaction, "⛔ Seuls le créateur de l'acti et les Caller/Officiers/GM peuvent valider.",
+                     ephemeral=True)
+        return
+    req = _find_pending(data, user_id)
+    if not req or (rid and req["rid"] != rid):
+        await _reply(interaction, "ℹ️ Demande obsolète : déjà traitée, retirée ou remplacée.", ephemeral=True)
+        return
+
+    label = _acti_label(data)
+    if accept:
+        tdata = load_all_templates(data.get("guild_id", 0)).get(data.get("template") or "", {})
+        error = registration_error(data, tdata, user_id, req["role"], req["spec"])
+        total = sum(len(v) for v in data["slots"].values())
+        if not error and total >= data["max_players"]:
+            error = f"⛔ L'activité est complète ({data['max_players']} joueurs max)."
+        if error:
+            await _reply(interaction, f"{error} La demande de <@{user_id}> reste en attente.", ephemeral=True)
+            return
+        _place_player(data, user_id, req["name"], req["role"], req["spec"])
+    else:
+        data["pending"] = [p for p in data["pending"] if p["uid"] != user_id]
+    await save_activities(only=activity_id)
+    await _refresh_activity_message(interaction.client, activity_id)
+
+    role_txt = _role_label(req["role"])
+    by       = interaction.user.display_name
+    if accept:
+        player_msg = (f"✅ Ton inscription à **{label}** en **{role_txt}** a été validée par {by}."
+                      f"  →  {_activity_link(data, activity_id)}")
+    else:
+        player_msg = f"❌ Ton inscription à **{label}** en **{role_txt}** a été refusée par {by}."
+    await _dm(interaction.client, user_id, player_msg)
+
+    done = f"{'✅ Acceptée' if accept else '❌ Refusée'} : <@{user_id}> en **{role_txt}** (par {by})."
+    if from_dm and interaction.message:
+        try:   # le MP du créateur garde la demande, sans les boutons
+            await interaction.message.edit(content=done, view=None)
+            return
+        except Exception:
+            pass
+    await _reply(interaction, done, ephemeral=True)
 
 
 # ── MODAL NIVEAU DE SPÉ (PVP — après sélection de l'arme) ────────────────────
@@ -702,6 +908,10 @@ class LeaveButton(discord.ui.Button):
                     break
             if removed:
                 break
+
+        if not removed and _find_pending(data, user_id):
+            data["pending"] = [p for p in data["pending"] if p["uid"] != user_id]
+            removed = True
 
         if not removed:
             waitlist = data.get("waitlist", [])
@@ -1194,6 +1404,76 @@ class WaitlistButton(discord.ui.Button):
 
 
 # ── VUE PRINCIPALE ───────────────────────────────────────────────────────────
+# ── BOUTON « EN ATTENTE » (acti sur validation) ──────────────────────────────
+class PendingButton(discord.ui.Button):
+    def __init__(self, activity_id: int, count: int = 0):
+        super().__init__(
+            label=f"En attente ({count})", emoji="⏳",
+            style=discord.ButtonStyle.secondary,
+            custom_id=f"pending_{activity_id}",
+        )
+        self.activity_id = activity_id
+
+    async def callback(self, interaction: discord.Interaction):
+        data = activities.get(self.activity_id)
+        if not data:
+            await interaction.response.send_message("❌ Activité introuvable.", ephemeral=True)
+            return
+        if not can_validate(interaction.user, data):
+            await interaction.response.send_message(
+                "⛔ Réservé au créateur de l'acti et aux Caller/Officiers/GM.", ephemeral=True
+            )
+            return
+        pending = data.get("pending", [])
+        if not pending:
+            await interaction.response.send_message("✅ Aucune demande en attente.", ephemeral=True)
+            return
+        await interaction.response.send_message(
+            f"⏳ **{len(pending)}** demande(s) en attente — choisis un joueur puis accepte ou refuse.",
+            view=PendingReviewView(self.activity_id, pending), ephemeral=True,
+        )
+
+
+class PendingReviewView(discord.ui.View):
+    """Vue éphémère : sélection d'une demande + Accepter / Refuser."""
+
+    def __init__(self, activity_id: int, pending: list[dict]):
+        super().__init__(timeout=300)
+        self.activity_id = activity_id
+        self.selected: int | None = None
+        self.select = discord.ui.Select(
+            placeholder="Choisis une demande…",
+            options=[
+                discord.SelectOption(
+                    label=f"{p['name']} — {_role_label(p['role'])}"[:100],
+                    description=p["spec"][:100] if p.get("spec") else None,
+                    value=str(p["uid"]),
+                )
+                for p in pending[:25]
+            ],
+        )
+        self.select.callback = self._on_select
+        self.add_item(self.select)
+
+    async def _on_select(self, interaction: discord.Interaction):
+        self.selected = int(self.select.values[0])
+        await interaction.response.defer()
+
+    async def _decide_selected(self, interaction: discord.Interaction, accept: bool):
+        if self.selected is None:
+            await interaction.response.send_message("ℹ️ Choisis d'abord une demande dans la liste.", ephemeral=True)
+            return
+        await _decide(interaction, self.activity_id, self.selected, None, accept)
+
+    @discord.ui.button(label="Accepter", emoji="✅", style=discord.ButtonStyle.success, row=1)
+    async def accept_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._decide_selected(interaction, True)
+
+    @discord.ui.button(label="Refuser", emoji="❌", style=discord.ButtonStyle.danger, row=1)
+    async def refuse_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._decide_selected(interaction, False)
+
+
 class ActivityView(discord.ui.View):
     def __init__(self, activity_id: int):
         super().__init__(timeout=None)
@@ -1217,6 +1497,8 @@ class ActivityView(discord.ui.View):
                 self.add_item(FillButton(activity_id))
         if tdata.get("has_waitlist"):
             self.add_item(WaitlistButton(activity_id))
+        if data.get("validation"):
+            self.add_item(PendingButton(activity_id, len(data.get("pending", []))))
         self.add_item(EditActiButton(activity_id))
         self.add_item(FinActiButton(activity_id))
         self.add_item(CancelButton(activity_id))
@@ -1242,6 +1524,8 @@ class Activites(commands.Cog):
 
     async def cog_load(self):
         self.refresh_templates_loop.start()
+        # Boutons Accepter/Refuser des MP de validation : actifs même après un redémarrage.
+        self.bot.add_dynamic_items(ValidationButton)
 
     async def cog_unload(self):
         self.refresh_templates_loop.cancel()
@@ -1324,6 +1608,7 @@ class Activites(commands.Cog):
         bal          = "Paiement BAL ? (true = BAL, false = Libre)",
         depart       = "Point de départ (Ville / HO / Libre)",
         tier         = "Tier requis (ex : T7, T8.3…)",
+        validation   = "Inscriptions sur validation : chaque joueur doit être accepté par toi (MP) ou un Caller",
     )
     @app_commands.autocomplete(nametemplate=template_autocomplete)
     @app_commands.choices(depart=[
@@ -1339,6 +1624,7 @@ class Activites(commands.Cog):
         bal:          bool = True,
         depart:       str = "Libre",
         tier:         str = "",
+        validation:   bool = False,
     ):
         if not is_membre(interaction.user):
             await interaction.response.send_message(
@@ -1397,6 +1683,8 @@ class Activites(commands.Cog):
             "channel_id":         interaction.channel_id,
             "guild_id":           interaction.guild.id,
             "waitlist":           [],
+            "validation":         validation,
+            "pending":            [],
         }
 
         await interaction.response.send_message(embed=build_embed(data))
