@@ -23,29 +23,10 @@ GUILD_ID              = int(os.environ["DISCORD_GUILD_ID"])
 
 # ── RÔLES avec emojis ────────────────────────────────────────────────────────
 ROLES: dict[str, str] = {
-    "TANK":        "🛡️",
-    "MAIN TANK":   "🛡️",
-    "TANK OFF":    "🛡️",
-    "TANK DEF":    "🛡️",
-    "OFF TANK":    "🛡️",
-    "HEAL":        "💚",
-    "MAIN HEAL":   "💚",
-    "IRON ROOT":   "🌿",
-    "IRON":        "🌿",
-    "DPS":         "⚔️",
-    "FAUX":        "🌾",
-    "DAMME":       "💥",
-    "SUPPORT":     "🔮",
-    "CALLER":      "📢",
-    "SCOUT":       "👁️",
-    "FROST":       "❄️",
-    "HURLEGIVRE":  "🌨️",
-    "SC":          "💣",
-    "COBRA/GA":    "🏹",
-    "COBRA":       "🐍",
-    "BM":          "🐴",
-    "LEACHER PVP": "⚡",
-    "HO":          "🏠",
+    "TANK":    "🛡️",
+    "HEAL":    "💚",
+    "DPS":     "⚔️",
+    "SUPPORT": "🔮",
 }
  
 # ── TEMPLATES PAR DÉFAUT ──────────────────────────────────────────────────────

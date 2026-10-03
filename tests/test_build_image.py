@@ -129,6 +129,19 @@ def test_compo_rows_lists_only_roles_with_builds_in_party_order():
     assert compo_rows({"pf_1": {"TANK": 1}}) == []
 
 
+def test_compo_rows_grouped_by_role_inside_each_party():
+    template = {
+        "pf_1": {"SUPPORT": 1, "DPS": 3, "TANK": 1, "HEAL": 2},
+        "builds": {"SUPPORT": 4, "DPS": 3, "TANK": 1, "HEAL": 2},
+        "pf_2": {"DPS": 2, "TANK": 1},
+        "builds_pf2": {"DPS": 6, "TANK": 5},
+    }
+    assert [(p, r) for p, r, _, _ in compo_rows(template)] == [
+        ("Party 1", "TANK"), ("Party 1", "HEAL"), ("Party 1", "DPS"), ("Party 1", "SUPPORT"),
+        ("Party 2", "TANK"), ("Party 2", "DPS"),
+    ]
+
+
 def _compo_rows(n_pf2=0):
     build = {"name": "Tank Masse", "items": {"mainhand": ["A", "B"], "cape": ["*"]}}
     rows = [("Party 1", "TANK", 2, build), ("Party 1", "HEAL", 1, {"name": "Heal", "items": {}})]
@@ -150,6 +163,29 @@ def test_render_compo_image_draws_alternative_choices_as_mini_icons():
     img = _open(render_compo_image("X", [("Party 1", "DPS", 1, build)], icons)).convert("RGB")
     pixels = {img.getpixel((x, y)) for x in range(0, img.width, 2) for y in range(0, img.height, 2)}
     assert (0, 0, 255) in pixels and (255, 0, 0) in pixels
+
+
+def test_fit_text_cuts_between_words_with_ellipsis():
+    from Service.build_image import _font, fit_text
+    font = _font(16)
+    assert fit_text("Tank", font, 200) == "Tank"
+    cut = fit_text("Tank build numéro onze avec un nom vraiment très long", font, 200)
+    assert cut.endswith("…") and font.getlength(cut) <= 200
+    assert not cut[:-1].endswith(" ")                        # coupé entre deux mots
+    assert "Tank build numéro onze avec un nom vraiment très long".startswith(cut[:-1])
+    one_word = fit_text("Supercalifragilisticexpialidocious" * 3, font, 120)
+    assert one_word.endswith("…") and font.getlength(one_word) <= 120
+
+
+def test_render_compo_image_with_twenty_builds():
+    """Grosse compo : 20 builds sur 2 parties, noms longs — l'image reste légère et lisible."""
+    build = {"name": "Build avec un nom beaucoup trop long pour la carte", "items": {"mainhand": ["A", "B", "C"], "cape": ["*"]}}
+    rows = [("Party 1" if i < 10 else "Party 2", f"ROLE{i}", 5, build) for i in range(20)]
+    data = render_compo_image("ZvZ", rows, {"A": _png(), "B": _png(), "C": None})
+    img = _open(data)
+    assert img.width == COMPO_WIDTH
+    assert img.height > 20 * 76
+    assert len(data) < 8 * 1024 * 1024                      # largement sous la limite d'envoi Discord
 
 
 def test_render_compo_image_grows_with_rows_and_second_party():

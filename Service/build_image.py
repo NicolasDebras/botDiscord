@@ -175,6 +175,22 @@ def _open_icon(data: bytes | None, size: int) -> Image.Image | None:
         return None
 
 
+def fit_text(text: str, font, max_width: float) -> str:
+    """Raccourcit le texte (avec « … ») pour qu'il tienne en `max_width` pixels,
+    en coupant de préférence entre deux mots."""
+    if font.getlength(text) <= max_width:
+        return text
+    words = text.split()
+    while len(words) > 1:
+        words.pop()
+        candidate = " ".join(words) + "…"
+        if font.getlength(candidate) <= max_width:
+            return candidate
+    while text and font.getlength(text + "…") > max_width:   # un seul mot trop long
+        text = text[:-1]
+    return text + "…"
+
+
 def _centered_text(draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int], text: str, font, fill) -> None:
     x0, y0, x1, y1 = box
     w = draw.textlength(text, font=font)
@@ -226,7 +242,9 @@ def render_build_image(build: dict, icons: dict[str, bytes | None]) -> bytes:
 
     img = Image.new("RGBA", (WIDTH, height), BG)
     draw = ImageDraw.Draw(img)
-    draw.text((MARGIN, 22), (build.get("name") or "Build")[:40], font=_font(30, "Bold"), fill=LILAC)
+    title_font = _font(30, "Bold")
+    draw.text((MARGIN, 22), fit_text(build.get("name") or "Build", title_font, WIDTH - 2 * MARGIN),
+              font=title_font, fill=LILAC)
     subtitle = " · ".join(t for t in (build.get("role", ""), build.get("type_acti", "")) if t)
     draw.text((MARGIN, 60), subtitle, font=_font(18), fill=MUTED)
 
@@ -263,14 +281,25 @@ C_MINI = 22  # mini-icône d'un choix alternatif (coin bas-droit de la case)
 COMPO_WIDTH = MARGIN * 2 + C_LEFT + len(COMPO_SLOTS) * (C_ICON + C_ICON_GAP)
 
 
+ROLE_ORDER = ("TANK", "HEAL", "DPS", "SUPPORT")
+
+
+def _role_rank(role: str) -> int:
+    return ROLE_ORDER.index(role) if role in ROLE_ORDER else len(ROLE_ORDER)
+
+
 def compo_rows(template_data: dict) -> list[tuple[str, str, int, int]]:
-    """[(party, rôle, nombre, build_id), ...] pour les rôles de la compo qui ont un build."""
+    """[(party, rôle, nombre, build_id), ...] pour les rôles de la compo qui ont un build.
+    PF1 puis PF2 ; dans chaque party, regroupés par rôle : TANK, HEAL, DPS, SUPPORT, puis le reste."""
     rows = []
     for party, count_key, builds_key in (("Party 1", "pf_1", "builds"), ("Party 2", "pf_2", "builds_pf2")):
         builds = template_data.get(builds_key) or {}
-        for role, count in (template_data.get(count_key) or {}).items():
-            if builds.get(role) is not None:
-                rows.append((party, role, int(count), int(builds[role])))
+        party_rows = [
+            (party, role, int(count), int(builds[role]))
+            for role, count in (template_data.get(count_key) or {}).items()
+            if builds.get(role) is not None
+        ]
+        rows.extend(sorted(party_rows, key=lambda r: _role_rank(r[1])))   # tri stable
     return rows
 
 
@@ -332,8 +361,12 @@ def render_compo_image(name: str, rows: list[tuple[str, str, int, dict]], icons:
             y += 34
         for _, role, count, build in (r for r in rows if r[0] == party):
             draw.rounded_rectangle((MARGIN, y, COMPO_WIDTH - MARGIN, y + C_ROW_H), radius=14, fill=BG)
-            draw.text((MARGIN + 18, y + 12), f"{role}  ×{count}", font=_font(20, "Bold"), fill=LILAC)
-            draw.text((MARGIN + 18, y + 42), (build.get("name") or "")[:26], font=_font(16), fill=TEXT)
+            # Rôle et nom du build : tout l'espace avant les icônes, coupés proprement avec « … »
+            text_w = C_LEFT - 18 - 12
+            draw.text((MARGIN + 18, y + 12), fit_text(f"{role}  ×{count}", _font(20, "Bold"), text_w),
+                      font=_font(20, "Bold"), fill=LILAC)
+            draw.text((MARGIN + 18, y + 42), fit_text(build.get("name") or "", _font(16), text_w),
+                      font=_font(16), fill=TEXT)
             items = normalize_items(build.get("items"))
             ix = MARGIN + C_LEFT
             for slot in COMPO_SLOTS:

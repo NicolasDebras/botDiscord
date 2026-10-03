@@ -372,18 +372,13 @@ Un template par défaut peut être restreint à certains serveurs via la clé `"
 | Rôle | Emoji |
 |---|---|
 | TANK | 🛡️ |
-| OFF TANK | 🛡️ |
 | HEAL | 💚 |
-| MAIN HEAL | 💚 |
-| IRON ROOT | 🌿 |
 | DPS | ⚔️ |
-| DAMME | 💥 |
 | SUPPORT | 🔮 |
-| CALLER | 📢 |
-| SCOOT | 🏃 |
-| FROST | ❄️ |
-| COBRA/GA | 🏹 |
-| BM | 🐴 |
+
+> Liste volontairement réduite à ces 4 rôles (proposés par l'autocomplétion de `/addtemplate`, `/addacti` et le site). Un ancien template qui utiliserait un autre nom de rôle fonctionne toujours, avec l'emoji 🔹. Copie à garder synchro dans `lilium-site/api/app/constants.py`.
+
+Sur l'image de la compo postée par `/acti`, les builds sont rangés par party (PF1 puis PF2) et, dans chaque party, par rôle : TANK, HEAL, DPS, SUPPORT.
 
 ---
 

@@ -7,9 +7,18 @@ Pour annoncer une nouvelle fonctionnalité : incrémenter VERSION et ajouter
 une entrée en tête de CHANGELOG (ordre du plus récent au plus ancien).
 """
 
-VERSION = "2026.10.01.6"
+VERSION = "2026.10.03.1"
 
 CHANGELOG: list[dict] = [
+    {
+        "version": "2026.10.03.1",
+        "title": "🧹 Rôles simplifiés + image de compo rangée",
+        "items": [
+            "Les rôles proposés sont réduits à **TANK, HEAL, DPS et SUPPORT**.",
+            "L'image de la compo sous `/acti` range les builds par rôle dans chaque party (PF1 puis PF2), "
+            "et les noms de build trop longs sont coupés proprement.",
+        ],
+    },
     {
         "version": "2026.10.01.6",
         "title": "🎨 Image de la compo plus lisible",
