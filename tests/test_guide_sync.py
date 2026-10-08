@@ -21,7 +21,8 @@ def _bot_commands() -> set[str]:
 
 @pytest.mark.skipif(not GUIDE.exists(), reason="repo lilium-site absent")
 def test_every_slash_command_is_in_the_site_guide():
-    documented = set(re.findall(r"name: '([a-z_-]+)'", GUIDE.read_text(encoding="utf-8")))
+    # « webadmin add » documente la commande « webadmin » (sous-commande) : on garde le 1er mot
+    documented = set(re.findall(r"name: '([a-z_-]+)[ ']", GUIDE.read_text(encoding="utf-8")))
     bot = _bot_commands()
     assert bot, "aucune commande trouvée dans le code du bot"
     assert sorted(bot - documented) == [], "commandes absentes du guide du site (guide-content.ts)"
