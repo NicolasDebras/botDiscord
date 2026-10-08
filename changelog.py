@@ -16,6 +16,7 @@ CHANGELOG: list[dict] = [
         "items": [
             "Une compo du site peut avoir plusieurs lignes du même rôle avec des builds différents (ex. 1 Def tank + 1 Main tank).",
             "Dans `/acti`, chacune est un rôle séparé (« TANK · Def tank », « TANK · Main tank ») avec ses places et son build envoyé en MP par `/massup`.",
+            "Correctif : sur une compo du site en PvP, une ligne avec plusieurs places (ex. DPS ×3) n'acceptait qu'un seul joueur.",
         ],
     },
     {

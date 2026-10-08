@@ -191,3 +191,28 @@ def test_base_role_strips_party_build_name_and_duplicate_number():
 def test_compo_image_sorts_duplicate_roles_with_their_base_role():
     from Service.build_image import _role_rank
     assert _role_rank("TANK · Main tank") == _role_rank("TANK") < _role_rank("HEAL · X") < _role_rank("DPS 2")
+
+
+def test_build_line_accepts_as_many_players_as_its_count():
+    """Régression : sur une compo du site (PvP), le nom du build était pris pour une arme
+    limitée à 1 place → une ligne « DPS ×3 » refusait le 2e joueur."""
+    from Service.activites import registration_error, _place_player
+    tdata = {"type_acti": "PVP", "pf_1": {"DPS": 3, "TANK": 1, "TANK · Main tank": 1},
+             "weapon": {"DPS": "DPS mono cible", "TANK": "Def tank", "TANK · Main tank": "Main tank"},
+             "builds": {"DPS": 4, "TANK": 1, "TANK · Main tank": 2}}
+    data = {"slots": {}}
+    for uid in (1, 2, 3):
+        assert registration_error(data, tdata, uid, "DPS", "DPS mono cible") is None
+        _place_player(data, uid, f"J{uid}", "DPS", "DPS mono cible")
+    assert "Plus de place en" in registration_error(data, tdata, 4, "DPS", "DPS mono cible")
+    # 2 tanks : chaque ligne a sa place
+    assert registration_error(data, tdata, 5, "TANK", "Def tank") is None
+    assert registration_error(data, tdata, 6, "TANK · Main tank", "Main tank") is None
+
+
+def test_weapon_sub_limit_still_applies_without_build():
+    from Service.activites import registration_error, _place_player
+    tdata = {"type_acti": "PVP", "pf_1": {"DPS": 3}, "weapon": {"DPS": "Arc (×1) · Épée (×2)"}}
+    data = {"slots": {}}
+    _place_player(data, 1, "J1", "DPS", "Arc")
+    assert "Plus de place pour **Arc**" in registration_error(data, tdata, 2, "DPS", "Arc")

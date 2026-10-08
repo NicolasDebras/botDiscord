@@ -466,6 +466,10 @@ def registration_error(data: dict, tdata: dict, user_id: int, chosen_role: str, 
         return f"⛔ Plus de place en **{_role_label(chosen_role)}** ({max_role} max)."
 
     # ── Sous-limite d'arme (ignorée en mode free_pick) ──────────────────────
+    # Pas pour une ligne avec build imposé (compo du site) : le hint y est le NOM du build,
+    # pas une liste d'armes « (×N) » — seul le nombre de places de la ligne compte.
+    if build_id_for_role(tdata, chosen_role) is not None:
+        return None
     if spec and tdata.get("type_acti") == "PVP" and not tdata.get("free_pick"):
         hint_spec = (
             tdata.get("weapon_pf2", tdata.get("specs_pf2", {})).get(role_name, "")
