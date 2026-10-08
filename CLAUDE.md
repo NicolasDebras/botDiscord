@@ -12,6 +12,7 @@ Règles communes (invariants, workflow git, lecture économe) : `../CLAUDE.md`.
 - `Service/config.py` — panneau /config ; `self_roles.py`, `bienvenue.py`, `vocal_temp.py`, `recrutement*.py`, `joueur.py`, `web_admin.py`, `errors.py`
 
 ## À chaque changement
+- Commande ajoutée/modifiée → mettre à jour `lilium-site/frontend/src/app/pages/guide/guide-content.ts` (vérifié par `tests/test_guide_sync.py`).
 - README.md mis à jour si visible.
 - `changelog.py` si visible par les joueurs : VERSION `YYYY.MM.DD[.N]`, entrée en tête `{"version", "title": emoji + titre, "items": [...]}`.
 
