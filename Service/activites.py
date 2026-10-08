@@ -135,15 +135,24 @@ def get_specs(template_data: dict) -> dict[str, str]:
     return template_data.get("weapon", template_data.get("specs", {}))
 
 
-def build_id_for_role(template_data: dict, role_key: str) -> int | None:
-    """Build imposé pour ce rôle par une compo du site (clés "builds" / "builds_pf2"),
-    ou None. role_key = "TANK" ou "PF2:TANK"."""
+def build_ids_for_role(template_data: dict, role_key: str) -> list[int]:
+    """Builds proposés pour ce rôle par une compo du site (clés "builds" / "builds_pf2") :
+    {rôle: id} (ancien format, un build imposé) ou {rôle: [id, id…]} (plusieurs builds au choix).
+    role_key = "TANK" ou "PF2:TANK". Liste vide = pas de build."""
     if role_key.startswith("PF2:"):
         builds, role = template_data.get("builds_pf2") or {}, role_key[4:]
     else:
         builds, role = template_data.get("builds") or {}, role_key
-    build_id = builds.get(role)
-    return int(build_id) if build_id is not None else None
+    value = builds.get(role)
+    if value is None:
+        return []
+    return [int(v) for v in (value if isinstance(value, list) else [value])]
+
+
+def build_id_for_role(template_data: dict, role_key: str) -> int | None:
+    """Premier build proposé pour ce rôle, ou None."""
+    ids = build_ids_for_role(template_data, role_key)
+    return ids[0] if ids else None
 
 
 # ── CONSTRUCTION DE L'EMBED ──────────────────────────────────────────────────
@@ -861,16 +870,18 @@ class RoleSelect(discord.ui.Select):
         else:
             hint_spec = get_specs(tdata).get(chosen_role, "")
 
-        # Compo du site : le rôle a un build imposé → inscription directe au
-        # choix du rôle (ni liste d'armes ni saisie de spé), le build fait office d'arme.
-        if build_id_for_role(tdata, chosen_role) is not None:
+        # Compo du site : un seul build imposé → inscription directe au choix du rôle,
+        # le build fait office d'arme. Plusieurs builds au choix → le hint les liste
+        # (« Def tank (×2) · Main tank (×2) ») : on passe par le menu de choix d'arme ci-dessous.
+        if len(build_ids_for_role(tdata, chosen_role)) == 1:
             build_name = hint_spec or chosen_role
             await interaction.response.defer(ephemeral=True)
             await _register_player(interaction, self.activity_id, chosen_role, build_name)
             return
 
-        if type_acti == "PVP" and hint_spec and not tdata.get("no_spec"):
-            if tdata.get("free_pick"):
+        several_builds = len(build_ids_for_role(tdata, chosen_role)) > 1
+        if (type_acti == "PVP" or several_builds) and hint_spec and not tdata.get("no_spec"):
+            if tdata.get("free_pick") and not several_builds:
                 await interaction.response.send_modal(
                     WeaponAndSpecModal(self.activity_id, chosen_role, hint_spec)
                 )

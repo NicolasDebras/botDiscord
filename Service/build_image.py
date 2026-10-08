@@ -327,11 +327,14 @@ def compo_rows(template_data: dict) -> list[tuple[str, str, int, int]]:
     rows = []
     for party, count_key, builds_key in (("Party 1", "pf_1", "builds"), ("Party 2", "pf_2", "builds_pf2")):
         builds = template_data.get(builds_key) or {}
-        party_rows = [
-            (party, role, int(count), int(builds[role]))
-            for role, count in (template_data.get(count_key) or {}).items()
-            if builds.get(role) is not None
-        ]
+        party_rows = []
+        for role, count in (template_data.get(count_key) or {}).items():
+            value = builds.get(role)
+            if value is None:
+                continue
+            # {rôle: id} ou {rôle: [id, id…]} (plusieurs builds au choix → une ligne par build)
+            for bid in (value if isinstance(value, list) else [value]):
+                party_rows.append((party, role, int(count), int(bid)))
         rows.extend(sorted(party_rows, key=lambda r: _role_rank(r[1])))   # tri stable
     return rows
 

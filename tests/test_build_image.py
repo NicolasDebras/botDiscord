@@ -219,3 +219,26 @@ def test_compo_image_widens_for_swaps():
     plain = _open(render_compo_image("X", _compo_rows(), {}))
     wide = _open(render_compo_image("X", [("Party 1", "TANK", 1, with_swaps)], {}))
     assert wide.width > plain.width == COMPO_WIDTH
+
+
+# ── Plusieurs builds au choix pour un rôle ───────────────────────────────────
+
+MULTI = {"pf_1": {"TANK": 2, "HEAL": 1}, "builds": {"TANK": [12, 13], "HEAL": 15}}
+
+
+def test_build_ids_for_role_reads_old_and_new_format():
+    from Service.activites import build_ids_for_role
+    assert build_ids_for_role(MULTI, "TANK") == [12, 13]
+    assert build_ids_for_role(MULTI, "HEAL") == [15]
+    assert build_ids_for_role(MULTI, "DPS") == []
+    assert build_id_for_role(MULTI, "TANK") == 12
+
+
+def test_massup_sends_the_build_each_player_chose():
+    slots = {"TANK": [(1, "A", "Main tank"), (2, "B", "Inconnu")], "HEAL": [(3, "C", "")]}
+    out = build_recipients(slots, MULTI, {12: "Def tank", 13: "Main tank", 15: "Heal"})
+    assert out == {13: [(1, "TANK")], 12: [(2, "TANK")], 15: [(3, "HEAL")]}
+
+
+def test_compo_rows_one_line_per_proposed_build():
+    assert [(r, b) for _, r, _, b in compo_rows(MULTI)] == [("TANK", 12), ("TANK", 13), ("HEAL", 15)]

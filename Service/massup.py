@@ -7,7 +7,7 @@ from discord import app_commands
 
 import db
 from config import MEMBRE_ROLE_NAME
-from Service.activites import activities, _acti_label, _is_creator, build_id_for_role, load_all_templates
+from Service.activites import activities, _acti_label, _is_creator, build_ids_for_role, load_all_templates
 from Service.build_image import build_image
 from Service.utils import ActivitySelect, is_caller_or_admin, is_membre, log_error
 
@@ -82,16 +82,23 @@ def _build_raid_ava_lines(data: dict) -> list[str]:
 
 
 # ── Builds imposés (compos du site) : qui reçoit quel build en MP ─────────────
-def build_recipients(slots: dict[str, list], template_data: dict) -> dict[int, list[tuple[int, str]]]:
+def build_recipients(slots: dict[str, list], template_data: dict,
+                     names: dict[int, str] | None = None) -> dict[int, list[tuple[int, str]]]:
     """{build_id: [(user_id, libellé du rôle), ...]} pour les rôles qui ont un build.
+    Rôle à plusieurs builds au choix : chaque joueur reçoit le build qu'il a choisi à
+    l'inscription (sa « spé » = nom du build, `names` = {id: nom}), sinon le premier.
     Les rôles sans build (et le Fill) ne reçoivent rien."""
+    names = names or {}
     out: dict[int, list[tuple[int, str]]] = {}
     for role_key, members in slots.items():
-        build_id = build_id_for_role(template_data, role_key)
-        if build_id is None:
+        ids = build_ids_for_role(template_data, role_key)
+        if not ids:
             continue
         label = f"{role_key[4:]} (PF2)" if role_key.startswith("PF2:") else role_key
-        out.setdefault(build_id, []).extend((int(entry[0]), label) for entry in members)
+        for entry in members:
+            spec = entry[2] if len(entry) > 2 else ""
+            chosen = next((i for i in ids if names.get(i) and names[i] == spec), ids[0])
+            out.setdefault(chosen, []).append((int(entry[0]), label))
     return out
 
 
@@ -101,11 +108,14 @@ async def send_build_dms(
     """Envoie à chaque joueur l'image du build de son rôle. Retourne (nb envoyés, ids aux MP fermés)."""
     template = data.get("template")
     tdata = load_all_templates(data.get("guild_id", 0)).get(template, {}) if template else {}
-    recipients = build_recipients(data["slots"], tdata)
+    guild_id = data.get("guild_id", 0)
+    all_ids = {i for role_key in data["slots"] for i in build_ids_for_role(tdata, role_key)}
+    builds = {i: b for i in all_ids if (b := await db.get_build_by_id(i, guild_id))}
+    recipients = build_recipients(data["slots"], tdata, {i: b["name"] for i, b in builds.items()})
     sent, closed = 0, []
 
     for build_id, players in recipients.items():
-        build = await db.get_build_by_id(build_id, data.get("guild_id", 0))
+        build = builds.get(build_id)
         if not build:
             continue
         try:
