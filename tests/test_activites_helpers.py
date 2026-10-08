@@ -174,3 +174,20 @@ def test_parse_silver_rejects_negative_garbage_and_absurd():
     assert parse_silver("") is None
     assert parse_silver("²") is None
     assert parse_silver(str(MAX_SILVER + 1)) is None
+
+
+# ── Plusieurs lignes du même rôle (2 tanks avec builds différents) ───────────
+
+def test_base_role_strips_party_build_name_and_duplicate_number():
+    from Service.activites import base_role
+    assert base_role("TANK") == "TANK"
+    assert base_role("TANK · Main tank") == "TANK"
+    assert base_role("PF2:HEAL · Heal sacré") == "HEAL"
+    assert base_role("DPS 2") == "DPS"
+    assert base_role("RAID 2") == "RAID 2"          # pas un rôle connu : on ne touche pas
+    assert base_role("SCOOT") == "SCOOT"
+
+
+def test_compo_image_sorts_duplicate_roles_with_their_base_role():
+    from Service.build_image import _role_rank
+    assert _role_rank("TANK · Main tank") == _role_rank("TANK") < _role_rank("HEAL · X") < _role_rank("DPS 2")

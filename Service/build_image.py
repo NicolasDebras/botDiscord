@@ -318,7 +318,12 @@ ROLE_ORDER = ("TANK", "HEAL", "DPS", "SUPPORT")
 
 
 def _role_rank(role: str) -> int:
-    return ROLE_ORDER.index(role) if role in ROLE_ORDER else len(ROLE_ORDER)
+    """Ordre TANK, HEAL, DPS, SUPPORT puis le reste ; « TANK · Main tank » se range avec TANK."""
+    base = role.split(" · ", 1)[0].strip()
+    unnumbered = re.sub(r" \d+$", "", base)          # « TANK 2 » (ligne libre en double)
+    if unnumbered in ROLE_ORDER:
+        base = unnumbered
+    return ROLE_ORDER.index(base) if base in ROLE_ORDER else len(ROLE_ORDER)
 
 
 def compo_rows(template_data: dict) -> list[tuple[str, str, int, int]]:

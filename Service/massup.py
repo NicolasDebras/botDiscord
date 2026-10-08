@@ -7,7 +7,7 @@ from discord import app_commands
 
 import db
 from config import MEMBRE_ROLE_NAME
-from Service.activites import activities, _acti_label, _is_creator, build_ids_for_role, load_all_templates
+from Service.activites import activities, _acti_label, _is_creator, base_role, build_ids_for_role, load_all_templates
 from Service.build_image import build_image
 from Service.utils import ActivitySelect, is_caller_or_admin, is_membre, log_error
 
@@ -57,7 +57,10 @@ _DPS_ROLES = {"DPS", "FAUX"}
 
 
 def _build_raid_ava_lines(data: dict) -> list[str]:
-    slots = data["slots"]
+    # Plusieurs lignes du même rôle (« TANK · Def tank », « TANK · Main tank ») : regroupées par rôle de base
+    slots: dict[str, list] = {}
+    for key, members in data["slots"].items():
+        slots.setdefault(base_role(key), []).extend(members)
     lines = []
     seen  = set()
     for role in _RAID_AVA_ORDER:

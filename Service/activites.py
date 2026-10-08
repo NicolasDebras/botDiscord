@@ -104,6 +104,23 @@ def _player_weapon(spec: str) -> str:
     return re.sub(r"\s*\(\d+\)\s*$", "", spec).strip()
 
 
+# ── HELPER : rôle de base d'une clé de slot ─────────────────────────────────
+# Une compo du site peut avoir plusieurs lignes du même rôle (ex. 2 tanks avec des builds
+# différents) : leurs clés deviennent « TANK · Def tank », « TANK · Main tank » (ou « TANK 2 »
+# pour une ligne libre). Emoji, couleur, tri, paie et loot se basent sur le rôle de base.
+_DUP_SUFFIX = re.compile(r"^(.*\S) \d+$")
+
+
+def base_role(key: str) -> str:
+    """« PF2:TANK · Main tank » → « TANK » ; « DPS 2 » → « DPS » (si DPS est un rôle connu)."""
+    role = key[4:] if key.startswith("PF2:") else key
+    role = role.split(" · ", 1)[0].strip()
+    m = _DUP_SUFFIX.match(role)
+    if m and m.group(1) in ROLES:
+        return m.group(1)
+    return role
+
+
 # ── HELPER : tri des rôles — PF1 d'abord, PF2 ensuite, SCOOT toujours en dernier
 def _sort_roles(roles: list[str]) -> list[str]:
     pf1   = [r for r in roles if not r.startswith("PF2:") and r != "SCOOT"]
@@ -224,7 +241,7 @@ def build_embed(data: dict) -> discord.Embed:
             continue
         is_pf2    = role_key.startswith("PF2:")
         role_name = role_key[4:] if is_pf2 else role_key
-        emoji     = ROLES.get(role_name, "🔹")
+        emoji     = ROLES.get(base_role(role_name), "🔹")
         members   = slots.get(role_key, [])
 
         if is_pf2:
@@ -829,7 +846,7 @@ class RoleSelect(discord.ui.Select):
             desc  = f"PF2 — S'inscrire en {role_name}" if is_pf2 else f"S'inscrire en tant que {role_name}"
             options.append(discord.SelectOption(
                 label=label[:100],
-                emoji=ROLES.get(role_name, "🔹"),
+                emoji=ROLES.get(base_role(role_name), "🔹"),
                 description=desc[:100],
                 value=role_key,
             ))
@@ -870,18 +887,16 @@ class RoleSelect(discord.ui.Select):
         else:
             hint_spec = get_specs(tdata).get(chosen_role, "")
 
-        # Compo du site : un seul build imposé → inscription directe au choix du rôle,
-        # le build fait office d'arme. Plusieurs builds au choix → le hint les liste
-        # (« Def tank (×2) · Main tank (×2) ») : on passe par le menu de choix d'arme ci-dessous.
-        if len(build_ids_for_role(tdata, chosen_role)) == 1:
+        # Compo du site : le rôle a un build imposé → inscription directe au
+        # choix du rôle (ni liste d'armes ni saisie de spé), le build fait office d'arme.
+        if build_id_for_role(tdata, chosen_role) is not None:
             build_name = hint_spec or chosen_role
             await interaction.response.defer(ephemeral=True)
             await _register_player(interaction, self.activity_id, chosen_role, build_name)
             return
 
-        several_builds = len(build_ids_for_role(tdata, chosen_role)) > 1
-        if (type_acti == "PVP" or several_builds) and hint_spec and not tdata.get("no_spec"):
-            if tdata.get("free_pick") and not several_builds:
+        if type_acti == "PVP" and hint_spec and not tdata.get("no_spec"):
+            if tdata.get("free_pick"):
                 await interaction.response.send_modal(
                     WeaponAndSpecModal(self.activity_id, chosen_role, hint_spec)
                 )
@@ -1122,10 +1137,11 @@ class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
 
             # Liste des membres payés avec leur multiplicateur (uid, name, role, mult)
             paying = [
-                (entry[0], entry[1], role, float(self.role_multipliers.get(role, 1.0)))
+                (entry[0], entry[1], role,
+                 float(self.role_multipliers.get(role, self.role_multipliers.get(base_role(role), 1.0))))
                 for role, members in data["slots"].items()
                 for entry in members
-                if role != "SCOOT" and role not in self.zero_pay_roles
+                if role != "SCOOT" and role not in self.zero_pay_roles and base_role(role) not in self.zero_pay_roles
             ]
             total_weight = sum(m[3] for m in paying)
             part_base    = int(remaining / total_weight) if total_weight > 0 else 0
@@ -1196,7 +1212,7 @@ class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
             if self.has_scoot:
                 summary += f"🏃 Scoot ({nb_scoot} joueur(s)) : **{fmt_silver(scoot_amount)} silver/joueur**\n"
             for (role, mult), members in bonus_groups.items():
-                emoji  = ROLES.get(role, "🔹")
+                emoji  = ROLES.get(base_role(role), "🔹")
                 pay_r  = int(part_base * mult)
                 summary += f"{emoji} {role} (×{mult}) : **{fmt_silver(pay_r)} silver/joueur** ({len(members)} joueur(s))\n"
             if self.has_scoot:
@@ -1768,14 +1784,14 @@ class Activites(commands.Cog):
             lines = []
             # PF1
             for role, n in pf1.items():
-                emoji    = ROLES.get(role, "🔹")
+                emoji    = ROLES.get(base_role(role), "🔹")
                 spec_str = f"  `{specs[role]}`" if role in specs else ""
                 lines.append(f"{emoji} **{role}** ×{n}{spec_str}")
             # PF2
             if pf2:
                 lines.append("🔶 **PF2**")
                 for role, n in pf2.items():
-                    emoji    = ROLES.get(role, "🔹")
+                    emoji    = ROLES.get(base_role(role), "🔹")
                     spec_str = f"  `{specs_pf2[role]}`" if role in specs_pf2 else ""
                     lines.append(f"{emoji} **{role}** ×{n}{spec_str}")
 

@@ -12,10 +12,10 @@ VERSION = "2026.10.09.1"
 CHANGELOG: list[dict] = [
     {
         "version": "2026.10.09.1",
-        "title": "🛡️ Plusieurs builds au choix pour un rôle",
+        "title": "🛡️ Plusieurs lignes pour un même rôle",
         "items": [
-            "Une compo du site peut proposer plusieurs builds pour un même rôle (ex. TANK : Def tank ou Main tank).",
-            "À l'inscription `/acti`, choisis ton rôle puis ton build ; `/massup` t'envoie en MP l'image du build que tu as choisi.",
+            "Une compo du site peut avoir plusieurs lignes du même rôle avec des builds différents (ex. 1 Def tank + 1 Main tank).",
+            "Dans `/acti`, chacune est un rôle séparé (« TANK · Def tank », « TANK · Main tank ») avec ses places et son build envoyé en MP par `/massup`.",
         ],
     },
     {
