@@ -235,9 +235,29 @@ def _draw_cell(img: Image.Image, draw: ImageDraw.ImageDraw, x: int, y: int,
         _centered_text(draw, (x, y + CELL - 22, x + CELL, y + CELL - 4), f"{n} au choix", _font(13, "SemiBold"), LILAC)
 
 
+SWAPS_KEY = "swaps"     # dans items : objets de rechange (n'importe quel emplacement)
+SWAPS_MAX = 6
+SWAP_CELL, SWAP_GAP = 64, 8
+
+
+def _draw_swaps_column(img: Image.Image, draw: ImageDraw.ImageDraw, x: int, top: int,
+                       swaps: list[str], icons: dict[str, bytes | None]) -> None:
+    """Colonne « Swaps » à droite de la grille : une petite case par objet de rechange."""
+    draw.text((x, top - 26), "Swaps", font=_font(14, "SemiBold"), fill=MUTED)
+    for i, item_id in enumerate(swaps):
+        y = top + i * (SWAP_CELL + SWAP_GAP)
+        draw.rounded_rectangle((x, y, x + SWAP_CELL, y + SWAP_CELL), radius=10, fill=SURFACE, outline=LILAC, width=2)
+        icon = _open_icon(icons.get(item_id), SWAP_CELL - 8)
+        if icon:
+            img.paste(icon, (x + 4, y + 4), icon)
+        else:
+            _centered_text(draw, (x, y, x + SWAP_CELL, y + SWAP_CELL), "?", _font(24), LILAC)
+
+
 def render_build_image(build: dict, icons: dict[str, bytes | None]) -> bytes:
-    """PNG du build : titre, rôle, grille façon inventaire, précisions en bas."""
+    """PNG du build : titre, rôle, grille façon inventaire (+ colonne Swaps à droite), précisions en bas."""
     items = normalize_items(build.get("items"))
+    swaps = [s for s in items.pop(SWAPS_KEY, []) if s != FREE_CHOICE][:SWAPS_MAX]
     footer = [t for t in (build.get("weapon", ""), build.get("notes", "")) if t and t.strip()]
     footer_lines: list[str] = []
     for block in footer:
@@ -249,10 +269,11 @@ def render_build_image(build: dict, icons: dict[str, bytes | None]) -> bytes:
     footer_h = (len(footer_lines) * 22 + 24) if footer_lines else 0
     height = HEADER_H + grid_h + footer_h + MARGIN
 
-    img = Image.new("RGBA", (WIDTH, height), BG)
+    width = WIDTH + (SWAP_CELL + GAP) if swaps else WIDTH
+    img = Image.new("RGBA", (width, height), BG)
     draw = ImageDraw.Draw(img)
     title_font = _font(30, "Bold")
-    draw.text((MARGIN, 22), fit_text(build.get("name") or "Build", title_font, WIDTH - 2 * MARGIN),
+    draw.text((MARGIN, 22), fit_text(build.get("name") or "Build", title_font, width - 2 * MARGIN),
               font=title_font, fill=LILAC)
     subtitle = " · ".join(t for t in (build.get("role", ""), build.get("type_acti", "")) if t)
     draw.text((MARGIN, 60), subtitle, font=_font(18), fill=MUTED)
@@ -264,6 +285,9 @@ def render_build_image(build: dict, icons: dict[str, bytes | None]) -> bytes:
             x = MARGIN + c * (CELL + GAP)
             y = HEADER_H + r * (CELL + LABEL_H + GAP)
             _draw_cell(img, draw, x, y, slot, items.get(slot, []), icons)
+
+    if swaps:
+        _draw_swaps_column(img, draw, WIDTH - MARGIN + GAP, HEADER_H + 22, swaps, icons)
 
     y = HEADER_H + grid_h + 16
     for line in footer_lines:
@@ -357,10 +381,12 @@ def render_compo_image(name: str, rows: list[tuple[str, str, int, dict]], icons:
     """rows = [(party, rôle, nombre, build)] → PNG : fond lilas, une carte sombre par build
     (rôle × nombre, nom du build, icônes des 8 emplacements). Au plus COMPO_MAX_ROWS lignes."""
     rows = rows[:COMPO_MAX_ROWS]
+    max_swaps = max((len(normalize_items(r[3].get("items")).get(SWAPS_KEY, [])[:SWAPS_MAX]) for r in rows), default=0)
+    width = COMPO_WIDTH + (14 + max_swaps * (C_ICON + C_ICON_GAP) if max_swaps else 0)
     parties = list(dict.fromkeys(r[0] for r in rows))
     multi_party = len(parties) > 1
     height = C_HEADER + len(rows) * (C_ROW_H + 10) + (len(parties) * 34 if multi_party else 0) + MARGIN
-    img = _lilac_background(COMPO_WIDTH, height)
+    img = _lilac_background(width, height)
     draw = ImageDraw.Draw(img)
 
     # Pas de titre : le nom de l'acti est déjà dans l'embed juste au-dessus.
@@ -373,7 +399,7 @@ def render_compo_image(name: str, rows: list[tuple[str, str, int, dict]], icons:
             draw.text((MARGIN, y), party.upper(), font=_font(16, "Bold"), fill=INK)
             y += 34
         for _, role, count, build in (r for r in rows if r[0] == party):
-            draw.rounded_rectangle((MARGIN, y, COMPO_WIDTH - MARGIN, y + C_ROW_H), radius=14, fill=BG)
+            draw.rounded_rectangle((MARGIN, y, width - MARGIN, y + C_ROW_H), radius=14, fill=BG)
             # Rôle et nom du build : tout l'espace avant les icônes, coupés proprement avec « … »
             text_w = C_LEFT - 18 - 12
             draw.text((MARGIN + 18, y + 12), fit_text(f"{role}  ×{count}", _font(20, "Bold"), text_w),
@@ -385,6 +411,13 @@ def render_compo_image(name: str, rows: list[tuple[str, str, int, dict]], icons:
             for slot in COMPO_SLOTS:
                 _draw_small_slot(img, draw, ix, y + (C_ROW_H - C_ICON) // 2, items.get(slot, []), icons)
                 ix += C_ICON + C_ICON_GAP
+            swaps = [s for s in items.get(SWAPS_KEY, []) if s != FREE_CHOICE][:SWAPS_MAX]
+            if swaps:   # swaps à droite des 8 cases, après un trait lilas
+                draw.line((ix + 4, y + 14, ix + 4, y + C_ROW_H - 14), fill=LILAC, width=2)
+                ix += 14
+                for item_id in swaps:
+                    _draw_small_slot(img, draw, ix, y + (C_ROW_H - C_ICON) // 2, [item_id], icons)
+                    ix += C_ICON + C_ICON_GAP
             y += C_ROW_H + 10
 
     out = io.BytesIO()

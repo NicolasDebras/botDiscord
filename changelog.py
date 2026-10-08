@@ -7,9 +7,17 @@ Pour annoncer une nouvelle fonctionnalité : incrémenter VERSION et ajouter
 une entrée en tête de CHANGELOG (ordre du plus récent au plus ancien).
 """
 
-VERSION = "2026.10.08"
+VERSION = "2026.10.09"
 
 CHANGELOG: list[dict] = [
+    {
+        "version": "2026.10.09",
+        "title": "🔁 Swaps dans les builds",
+        "items": [
+            "Un build du site peut indiquer jusqu'à 6 **swaps** (objets de rechange, tous emplacements).",
+            "Ils apparaissent à droite de l'équipement sur l'image du build envoyée en MP par `/massup` et sur l'image de la compo.",
+        ],
+    },
     {
         "version": "2026.10.08",
         "title": "🔒 Sécurité renforcée",

@@ -200,3 +200,22 @@ def test_render_compo_image_height_is_capped():
     capped = _open(render_compo_image("X", _compo_rows(n_pf2=COMPO_MAX_ROWS), {}))
     huge = _open(render_compo_image("X", _compo_rows(n_pf2=5000), {}))
     assert huge.height == capped.height
+
+
+# ── Swaps (objets de rechange, à droite) ─────────────────────────────────────
+
+def test_swaps_are_downloaded_and_widen_build_image_on_the_right():
+    from Service.build_image import SWAP_CELL, SWAPS_MAX
+    build = {**BUILD, "items": {**BUILD["items"], "swaps": [f"S{i}" for i in range(SWAPS_MAX + 2)]}}
+    assert "S0" in item_ids(build["items"])
+    img = _open(render_build_image(build, {}))
+    plain = _open(render_build_image(BUILD, {}))
+    assert img.width > plain.width and img.width - plain.width == SWAP_CELL + 14
+    assert img.height == plain.height
+
+
+def test_compo_image_widens_for_swaps():
+    with_swaps = {"name": "B", "items": {"mainhand": ["A"], "swaps": ["X", "Y"]}}
+    plain = _open(render_compo_image("X", _compo_rows(), {}))
+    wide = _open(render_compo_image("X", [("Party 1", "TANK", 1, with_swaps)], {}))
+    assert wide.width > plain.width == COMPO_WIDTH
