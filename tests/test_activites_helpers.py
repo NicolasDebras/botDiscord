@@ -216,3 +216,42 @@ def test_weapon_sub_limit_still_applies_without_build():
     data = {"slots": {}}
     _place_player(data, 1, "J1", "DPS", "Arc")
     assert "Plus de place pour **Arc**" in registration_error(data, tdata, 2, "DPS", "Arc")
+
+
+# ── Historique des activités (stats d'activité du site) ──────────────────────
+
+def test_activity_log_row_snapshot():
+    from datetime import datetime, timezone
+    from Service.activites import activity_log_row
+    created = datetime(2026, 10, 8, 20, 0, tzinfo=timezone.utc)
+    data = {"guild_id": 111, "template": "ZvZ", "creator_id": 42, "max_players": 6, "created_at": created,
+            "slots": {"TANK": [(1, "A", ""), (2, "B", "")], "HEAL": [], "PF2:DPS": [(3, "C", "")]}}
+    tdata = {"type_acti": "PVP", "pf_1": {"TANK": 2, "HEAL": 1}, "pf_2": {"DPS": 3}}
+    row = activity_log_row(data, tdata, "finacti")
+    assert row["slots"] == {"TANK": ["1", "2"], "PF2:DPS": ["3"]}           # rôles vides omis
+    assert row["capacity"] == {"TANK": 2, "HEAL": 1, "PF2:DPS": 3}
+    assert row["creator_id"] == "42" and row["type_acti"] == "PVP" and row["outcome"] == "finacti"
+    assert activity_log_row({"slots": {}}, {}, "annulée")["capacity"] == {}
+
+
+def test_remove_activity_logs_then_deletes_and_survives_log_errors(monkeypatch):
+    import asyncio
+    from Service import activites
+    calls = []
+
+    async def fake_log(row):
+        calls.append(("log", row["outcome"]))
+        raise RuntimeError("base indisponible")
+
+    async def fake_delete(msg_id):
+        calls.append(("delete", msg_id))
+
+    async def fake_error(*a, **k):
+        calls.append(("error",))
+
+    monkeypatch.setattr(activites.db, "add_activity_log", fake_log, raising=False)
+    monkeypatch.setattr(activites.db, "delete_activity", fake_delete)
+    monkeypatch.setattr("Service.utils.log_error", fake_error)
+    activites.activities[5] = {"guild_id": 1, "template": "", "slots": {}}
+    asyncio.run(activites.remove_activity(5, "fin"))
+    assert calls == [("log", "fin"), ("error",), ("delete", 5)] and 5 not in activites.activities

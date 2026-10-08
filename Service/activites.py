@@ -68,10 +68,36 @@ async def save_activities(only: int | None = None) -> None:
             await db.save_activity(msg_id, data)
 
 
-async def remove_activity(msg_id: int) -> None:
-    """Supprime une activité de la mémoire ET de la DB."""
-    activities.pop(msg_id, None)
+async def remove_activity(msg_id: int, outcome: str | None = None) -> None:
+    """Supprime une activité de la mémoire ET de la DB. `outcome` ('finacti' | 'fin' | 'annulée') :
+    l'activité terminée est d'abord copiée dans activity_log (stats d'activité du site) —
+    une erreur d'historique ne doit jamais empêcher la fin de l'acti."""
+    data = activities.pop(msg_id, None)
+    if data and outcome:
+        try:
+            tdata = load_all_templates(data.get("guild_id", 0)).get(data.get("template") or "", {})
+            await db.add_activity_log(activity_log_row(data, tdata, outcome))
+        except Exception as e:
+            from Service.utils import log_error
+            await log_error("activites.activity_log", e, guild_id=data.get("guild_id"))
     await db.delete_activity(msg_id)
+
+
+def activity_log_row(data: dict, tdata: dict, outcome: str) -> dict:
+    """Instantané d'une activité terminée : qui était inscrit où, et combien de places il y avait."""
+    capacity = {**get_pf1(tdata), **{f"PF2:{r}": n for r, n in get_pf2(tdata).items()}} if tdata else {}
+    created = data.get("created_at")
+    return {
+        "guild_id":    int(data.get("guild_id") or 0),
+        "created_at":  created if isinstance(created, datetime) else None,
+        "template":    data.get("template") or "",
+        "type_acti":   tdata.get("type_acti", "") if tdata else "",
+        "creator_id":  str(data.get("creator_id") or ""),
+        "max_players": int(data.get("max_players") or 0),
+        "slots":       {role: [str(e[0]) for e in members] for role, members in data.get("slots", {}).items() if members},
+        "capacity":    {role: int(n) for role, n in capacity.items()},
+        "outcome":     outcome,
+    }
 
 
 # ── HELPERS FORMAT ARMES ─────────────────────────────────────────────────────
@@ -1181,7 +1207,7 @@ class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
             ])
 
             # Supprimer l'activité (mémoire + DB)
-            await remove_activity(self.activity_id)
+            await remove_activity(self.activity_id, "finacti")
 
             fin_embed       = build_embed(data)
             fin_embed.title = f"🏁 FIN  ·  {fin_embed.title}"
@@ -1370,7 +1396,7 @@ class FinActiButton(discord.ui.Button):
             if all_ids:
                 await db.increment_acti_count(all_ids, guild_id=interaction.guild.id)
 
-            await remove_activity(self.activity_id)
+            await remove_activity(self.activity_id, "fin")
             try:
                 channel = interaction.client.get_channel(data["channel_id"])
                 msg     = await channel.fetch_message(self.activity_id)
@@ -1410,7 +1436,7 @@ class CancelButton(discord.ui.Button):
             return
 
         await interaction.response.defer(ephemeral=True)
-        await remove_activity(self.activity_id)
+        await remove_activity(self.activity_id, "annulée")
         embed = discord.Embed(
             title="🚫 Activité annulée",
             description=f"L'activité a été annulée par {interaction.user.display_name}.",

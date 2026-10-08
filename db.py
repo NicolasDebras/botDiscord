@@ -415,6 +415,27 @@ async def init_db(database_url: str) -> None:
             "CREATE INDEX IF NOT EXISTS public_compos_source ON public_compos (source_guild_id)"
         )
 
+        # ── Historique des activités terminées (stats d'activité du site) ─────
+        # Une ligne par fin d'acti (/finacti, fin libre, annulation) ; gardé 6 mois.
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS activity_log (
+                id           SERIAL      PRIMARY KEY,
+                guild_id     BIGINT      NOT NULL,
+                ended_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                created_at   TIMESTAMPTZ,
+                template     TEXT        NOT NULL DEFAULT '',
+                type_acti    TEXT        NOT NULL DEFAULT '',
+                creator_id   TEXT        NOT NULL DEFAULT '',
+                max_players  INT         NOT NULL DEFAULT 0,
+                slots        JSONB       NOT NULL DEFAULT '{}',
+                capacity     JSONB       NOT NULL DEFAULT '{}',
+                outcome      TEXT        NOT NULL
+            )
+        """)
+        await conn.execute(
+            "CREATE INDEX IF NOT EXISTS activity_log_guild_ended ON activity_log (guild_id, ended_at)"
+        )
+
 
 # ── ACTIVITIES ────────────────────────────────────────────────────────────────
 
@@ -568,6 +589,20 @@ async def set_bal(user_id: str, amount: int, guild_id: int = 0) -> None:
             INSERT INTO bal (user_id, guild_id, amount) VALUES ($1, $2, $3)
             ON CONFLICT (user_id, guild_id) DO UPDATE SET amount = EXCLUDED.amount
         """, user_id, guild_id, amount)
+
+
+# ── ACTIVITY LOG (activités terminées, lues par la page Admin du site) ────────
+
+async def add_activity_log(row: dict) -> None:
+    async with _pool.acquire() as conn:
+        await conn.execute("""
+            INSERT INTO activity_log (guild_id, created_at, template, type_acti, creator_id, max_players,
+                                      slots, capacity, outcome)
+            VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9)
+        """, row["guild_id"], row["created_at"], row["template"], row["type_acti"], row["creator_id"],
+            row["max_players"], json.dumps(row["slots"], ensure_ascii=False),
+            json.dumps(row["capacity"], ensure_ascii=False), row["outcome"])
+        await conn.execute("DELETE FROM activity_log WHERE ended_at < NOW() - INTERVAL '6 months'")
 
 
 # ── BAL LOG ───────────────────────────────────────────────────────────────────

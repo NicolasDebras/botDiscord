@@ -5,7 +5,7 @@ Règles communes (invariants, workflow git, lecture économe) : `../CLAUDE.md`.
 ## Carte
 - `bot.py` — démarrage, cogs, `allowed_mentions` par défaut, liste blanche `ALLOWED_GUILD_IDS`, handler d'erreurs
 - `config.py` — env, noms de rôles (Officier, Maitre de guilde, Membre, Caller), ROLES, DEFAULT_TEMPLATES
-- `db.py` — schéma (`init_db`) + toutes les requêtes ; tables du site : `builds`, `custom_templates`, `web_staff_config`, `web_admins`, `public_compos`
+- `db.py` — schéma (`init_db`) + toutes les requêtes ; tables du site : `builds`, `custom_templates`, `web_staff_config`, `web_admins`, `public_compos`, `activity_log`
 - `Service/utils.py` — permissions (`is_admin`, `is_membre`…, `role_grant_refusal`, `kick_refusal`), `log_error`
 - `Service/activites.py` — /acti, inscriptions, `/finacti` (`FinActiModal`), cache templates (2 min)
 - `Service/bal.py` — commandes BAL ; `Service/massup.py` + `build_image.py` — ping + images de build/compo
