@@ -18,6 +18,12 @@ def fmt_fame(n: int) -> str:
     return str(n)
 
 
+def find_exact_player(players: list[dict], pseudo: str) -> dict | None:
+    """Joueur dont le nom correspond exactement à `pseudo` (casse ignorée), sinon None."""
+    wanted = pseudo.strip().lower()
+    return next((p for p in players if p.get("Name", "").lower() == wanted), None)
+
+
 async def fetch_albion_fame(pseudo: str) -> dict | None:
     """Retourne {'pve': int, 'pvp': int, 'name': str} ou None si introuvable."""
     async with aiohttp.ClientSession(timeout=_TIMEOUT) as session:
@@ -31,7 +37,11 @@ async def fetch_albion_fame(pseudo: str) -> dict | None:
         if not players:
             return None
 
-        match = next((p for p in players if p["Name"].lower() == pseudo.lower()), players[0])
+        # Pseudo exact uniquement (casse ignorée) : pas de repli sur le premier résultat,
+        # sinon « Naej » pourrait être enregistré sous le pseudo d'un autre joueur.
+        match = find_exact_player(players, pseudo)
+        if match is None:
+            return None
 
         # 2. Détails joueur — /players/{id} (pas /players/{id}/stats)
         async with session.get(f"{_BASE}/players/{match['Id']}") as resp:

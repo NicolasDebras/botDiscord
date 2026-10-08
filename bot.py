@@ -5,7 +5,7 @@ from discord import app_commands
 from discord.ext import commands
 import asyncio
 
-from config import TOKEN
+from config import ALLOWED_GUILD_IDS, TOKEN
 import db
 
 # ── INTENTS ──────────────────────────────────────────────────────────────────
@@ -13,7 +13,12 @@ intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
 
-bot = commands.Bot(command_prefix="!", intents=intents)
+# Par défaut : jamais de ping @everyone/@here ni de rôle, même si un texte saisi par un joueur en contient
+# (/massup message, pseudos…). Les pings de rôle voulus passent allowed_mentions explicitement.
+bot = commands.Bot(
+    command_prefix="!", intents=intents,
+    allowed_mentions=discord.AllowedMentions(everyone=False, roles=False, users=True, replied_user=True),
+)
 
 # ── LISTE DES COGS À CHARGER ─────────────────────────────────────────────────
 EXTENSIONS = [
@@ -56,7 +61,12 @@ async def on_app_command_error(interaction: discord.Interaction, error: app_comm
     except Exception as e:
         print(f"[slash command error] Impossible d'enregistrer l'erreur en base : {e}")
 
-    message = f"❌ Erreur dans `/{cmd_name}` : `{type(original).__name__}: {original}`"
+    # Erreur interne (exception dans la commande) : pas de détail technique aux joueurs, il est dans /errors.
+    # Les autres (paramètre invalide, check…) sont des messages discord.py destinés à l'utilisateur.
+    if isinstance(error, app_commands.CommandInvokeError):
+        message = f"❌ Erreur dans `/{cmd_name}` — détail enregistré pour le staff (`/errors`)."
+    else:
+        message = f"❌ Erreur dans `/{cmd_name}` : {error}"
     try:
         if interaction.response.is_done():
             await interaction.followup.send(message, ephemeral=True)
@@ -67,8 +77,26 @@ async def on_app_command_error(interaction: discord.Interaction, error: app_comm
 
 
 # ── EVENTS ───────────────────────────────────────────────────────────────────
+def _guild_allowed(guild: discord.Guild) -> bool:
+    return not ALLOWED_GUILD_IDS or guild.id in ALLOWED_GUILD_IDS
+
+
+@bot.event
+async def on_guild_join(guild: discord.Guild):
+    if not _guild_allowed(guild):
+        print(f"   ⛔ Serveur non autorisé {guild.name} ({guild.id}) — le bot le quitte.")
+        await guild.leave()
+
+
 @bot.event
 async def on_ready():
+    for guild in list(bot.guilds):
+        if not _guild_allowed(guild):
+            print(f"   ⛔ Serveur non autorisé {guild.name} ({guild.id}) — le bot le quitte.")
+            await guild.leave()
+    if not ALLOWED_GUILD_IDS:
+        print("   🌍 Bot public : accepté sur tous les serveurs (ALLOWED_GUILD_IDS non défini).")
+
     # Sync des commandes sur tous les serveurs où le bot est installé
     for guild in bot.guilds:
         g = discord.Object(id=guild.id)

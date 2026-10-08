@@ -21,6 +21,18 @@ RECRUTEUR_ROLE_ID  = 1473779038106685568
 # ── GUILD ID (serveur principal — historique/legacy, migrations DB) ───────────
 GUILD_ID              = int(os.environ["DISCORD_GUILD_ID"])
 
+
+def parse_guild_ids(raw: str) -> frozenset[int]:
+    """« 123, 456 » → {123, 456} ; vide → ensemble vide (= pas de restriction)."""
+    return frozenset(int(x) for x in raw.replace(";", ",").split(",") if x.strip())
+
+
+# ── SERVEURS AUTORISÉS (optionnel) ─────────────────────────────────────────────
+# Si renseigné, le bot quitte tout autre serveur (au démarrage et à l'invitation) :
+# sans ça, le propriétaire de n'importe quel serveur où le bot est ajouté peut
+# se nommer admin du site pour son serveur.
+ALLOWED_GUILD_IDS = parse_guild_ids(os.environ.get("ALLOWED_GUILD_IDS", ""))
+
 # ── RÔLES avec emojis ────────────────────────────────────────────────────────
 ROLES: dict[str, str] = {
     "TANK":    "🛡️",

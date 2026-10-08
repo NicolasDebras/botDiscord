@@ -2,7 +2,8 @@ import discord
 from discord.ext import commands
 
 import db
-from Service.utils import log_error
+from config import CALLER_ROLE_NAME, MEMBRE_ROLE_NAME
+from Service.utils import log_error, role_grant_refusal, STAFF_ROLE_NAMES
 
 # ── CACHE EN MÉMOIRE {message_id: {channel_id, guild_id, roles}} ───────────────
 _menus: dict[int, dict] = {}
@@ -40,6 +41,21 @@ class RoleToggleButton(discord.ui.Button):
         role = interaction.guild.get_role(self.role_id)
         if not role:
             await interaction.response.send_message("❌ Ce rôle n'existe plus.", ephemeral=True)
+            return
+
+        # Revérifié au clic (à l'ajout seulement) : un rôle a pu gagner des permissions depuis la création du menu
+        refusal = None
+        if role not in interaction.user.roles:
+            web_staff = await db.get_web_staff_role(interaction.guild.id)
+            refusal = role_grant_refusal(
+                role, protected_names=STAFF_ROLE_NAMES + (MEMBRE_ROLE_NAME, CALLER_ROLE_NAME),
+                protected_ids=(web_staff,) if web_staff else (),
+            )
+        if refusal:
+            await interaction.response.send_message(
+                f"⛔ Ce rôle ne peut plus être pris en libre-service ({refusal}). Préviens un officier.",
+                ephemeral=True,
+            )
             return
 
         member = interaction.user

@@ -1,4 +1,4 @@
-from albion_api import fmt_fame
+from albion_api import find_exact_player, fmt_fame
 
 
 def test_fmt_fame_under_thousand_unchanged():
@@ -23,3 +23,12 @@ def test_fmt_fame_billions_uses_b_suffix():
 
 def test_fmt_fame_zero():
     assert fmt_fame(0) == "0"
+
+
+def test_find_exact_player_ignores_case():
+    players = [{"Name": "Naej2", "Id": "b"}, {"Name": "Naej", "Id": "a"}]
+    assert find_exact_player(players, "naej")["Id"] == "a"
+
+
+def test_find_exact_player_no_fallback_on_first_result():
+    assert find_exact_player([{"Name": "NaejLeVrai", "Id": "x"}], "Naej") is None

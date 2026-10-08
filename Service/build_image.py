@@ -13,6 +13,7 @@ pure qui reçoit les icônes déjà téléchargées → testable sans réseau.
 import asyncio
 import io
 import json
+import re
 import textwrap
 from functools import lru_cache
 from pathlib import Path
@@ -51,6 +52,9 @@ _FONT_FILE = Path(__file__).resolve().parent.parent / "assets" / "fonts" / "Inte
 ICONS_DIR = Path(__file__).resolve().parent.parent / "assets" / "icons"
 _ICON_URL ="https://render.albiononline.com/v1/item/T{tier}_{item_id}.png?size=128"
 _icon_cache: dict[str, bytes | None] = {}
+ICON_CACHE_MAX = 2000             # entrées : vidé au-delà (les ids viennent de la base)
+ICON_MAX_BYTES = 2 * 1024 * 1024  # une icône de 128 px fait ~20 Ko : au-delà, réponse ignorée
+_ITEM_ID_RE    = re.compile(r"^[A-Z0-9_@]{1,80}$")  # format des ids Albion (ex. 2H_HOLYSTAFF_HELL@2)
 
 
 def normalize_items(items: dict | str | None) -> dict[str, list[str]]:
@@ -99,7 +103,8 @@ async def _get_icon(session: aiohttp.ClientSession, url: str) -> tuple[bool, byt
         try:
             async with session.get(url, timeout=aiohttp.ClientTimeout(total=ICON_REQUEST_TIMEOUT)) as resp:
                 if resp.status == 200:
-                    return True, await resp.read()
+                    data = await resp.content.read(ICON_MAX_BYTES + 1)
+                    return True, (data if len(data) <= ICON_MAX_BYTES else None)
                 if resp.status == 404:
                     return True, None
         except (aiohttp.ClientError, asyncio.TimeoutError):
@@ -113,6 +118,10 @@ async def fetch_icon(session: aiohttp.ClientSession, item_id: str) -> bytes | No
     une lenteur passagère du CDN ne doit pas marquer l'icône comme absente."""
     if item_id in _icon_cache:
         return _icon_cache[item_id]
+    if not _ITEM_ID_RE.match(item_id or ""):
+        return None
+    if len(_icon_cache) >= ICON_CACHE_MAX:
+        _icon_cache.clear()
     local = local_icon(item_id)
     if local is not None:
         _icon_cache[item_id] = local
@@ -341,9 +350,13 @@ def _draw_small_slot(img: Image.Image, draw: ImageDraw.ImageDraw, x: int, y: int
             _centered_text(draw, (bx, by, bx + C_MINI, by + C_MINI), "?", _font(12, "Bold"), LILAC)
 
 
+COMPO_MAX_ROWS = 40  # la hauteur de l'image suit le nombre de lignes : au-delà, mémoire (image de plusieurs Go)
+
+
 def render_compo_image(name: str, rows: list[tuple[str, str, int, dict]], icons: dict[str, bytes | None]) -> bytes:
     """rows = [(party, rôle, nombre, build)] → PNG : fond lilas, une carte sombre par build
-    (rôle × nombre, nom du build, icônes des 8 emplacements)."""
+    (rôle × nombre, nom du build, icônes des 8 emplacements). Au plus COMPO_MAX_ROWS lignes."""
+    rows = rows[:COMPO_MAX_ROWS]
     parties = list(dict.fromkeys(r[0] for r in rows))
     multi_party = len(parties) > 1
     height = C_HEADER + len(rows) * (C_ROW_H + 10) + (len(parties) * 34 if multi_party else 0) + MARGIN

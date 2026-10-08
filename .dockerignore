@@ -1,0 +1,20 @@
+# Jamais de secret ni de donnée locale dans l'image
+.env
+.env.*
+*.json.bak
+bal.json
+bal_log.json
+
+# Inutile à l'exécution
+.git
+.gitignore
+.claude
+.pytest_cache
+__pycache__
+*.pyc
+tests
+requirements-dev.txt
+pytest.ini
+scripts
+README.md
+CLAUDE.md

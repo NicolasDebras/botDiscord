@@ -40,7 +40,7 @@ async def init_db(database_url: str) -> None:
 
             CREATE TABLE IF NOT EXISTS bal (
                 user_id  TEXT PRIMARY KEY,
-                amount   INT  NOT NULL DEFAULT 0
+                amount   BIGINT NOT NULL DEFAULT 0
             );
 
             CREATE TABLE IF NOT EXISTS bal_log (
@@ -145,6 +145,14 @@ async def init_db(database_url: str) -> None:
         if [r['column_name'] for r in pk_cols] == ['user_id']:
             await conn.execute("ALTER TABLE bal DROP CONSTRAINT bal_pkey")
             await conn.execute("ALTER TABLE bal ADD PRIMARY KEY (user_id, guild_id)")
+
+        # bal.amount INT → BIGINT (INT déborde à 2,1 milliards de silver)
+        amount_type = await conn.fetchval("""
+            SELECT data_type FROM information_schema.columns
+            WHERE table_name = 'bal' AND column_name = 'amount'
+        """)
+        if amount_type == "integer":
+            await conn.execute("ALTER TABLE bal ALTER COLUMN amount TYPE BIGINT")
 
         # ── Migration guild_id sur bal_log ────────────────────────────────────
         await conn.execute(
@@ -509,6 +517,27 @@ async def increment_bal_batch(deltas: dict[str, int], guild_id: int = 0) -> dict
                 """, user_id, guild_id, delta)
                 results[user_id] = row["amount"]
     return results
+
+
+async def transfer_bal(sender_id: str, receiver_id: str, amount: int, guild_id: int = 0) -> tuple[int, int] | None:
+    """Transfert atomique : débite l'expéditeur seulement s'il a assez (verrou de ligne),
+    crédite le destinataire dans la même transaction. Retourne (new_sender, new_receiver),
+    ou None si solde insuffisant — deux transferts simultanés ne peuvent pas dupliquer la BAL."""
+    async with _pool.acquire() as conn:
+        async with conn.transaction():
+            new_sender = await conn.fetchval("""
+                UPDATE bal SET amount = amount - $3
+                WHERE user_id = $1 AND guild_id = $2 AND amount >= $3
+                RETURNING amount
+            """, sender_id, guild_id, amount)
+            if new_sender is None:
+                return None
+            new_receiver = await conn.fetchval("""
+                INSERT INTO bal (user_id, guild_id, amount) VALUES ($1, $2, $3)
+                ON CONFLICT (user_id, guild_id) DO UPDATE SET amount = bal.amount + EXCLUDED.amount
+                RETURNING amount
+            """, receiver_id, guild_id, amount)
+    return new_sender, new_receiver
 
 
 async def set_bal(user_id: str, amount: int, guild_id: int = 0) -> None:

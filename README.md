@@ -45,11 +45,14 @@ Créer un fichier `.env` à la racine :
 DISCORD_TOKEN=ton_token_discord
 DISCORD_GUILD_ID=ton_guild_id          # Serveur principal — utilisé pour les migrations DB (legacy)
 DATABASE_URL=postgresql://user:password@host:5432/dbname
+ALLOWED_GUILD_IDS=123,456              # Optionnel : si renseigné, le bot quitte tout autre serveur (bot privé)
 ```
 
 > Sur **Railway**, `DATABASE_URL` est injecté automatiquement par le plugin PostgreSQL. Pas besoin de le définir manuellement.
 
 > Le bot n'a besoin d'aucune autre configuration pour être multi-serveur : à chaque démarrage, il synchronise ses commandes sur **tous** les serveurs où il est installé (`bot.guilds`). `DISCORD_GUILD_ID` ne sert plus qu'à identifier le serveur principal pour les anciennes données (migrations DB) et certaines fonctionnalités historiques (voir plus bas).
+
+> 🌍 **Bot public** : le bot peut être invité sur n'importe quel serveur. Chaque serveur a ses propres données et ses propres admins du site (`/webadmin`), strictement cloisonnés par `guild_id` côté bot et côté site. Les abus sont limités par des quotas (500 builds et 100 compos par serveur, tailles de compo bornées). Pour un bot privé, renseigner `ALLOWED_GUILD_IDS` : le bot quitte alors tout autre serveur, au démarrage et à l'invitation.
 
 ### Lancement
 
@@ -80,7 +83,7 @@ pytest
 |---|---|---|
 | `/acti` | Membre | Créer une activité de guilde |
 | `/templates` | Membre | Afficher les templates disponibles |
-| `/massup [message]` | Membre | Ping tous les inscrits d'une activité ; avec une compo du site, envoie aussi à chacun **l'image de son build en MP** |
+| `/massup [message]` | Créateur de l'activité, Caller, Officier | Ping tous les inscrits d'une activité (une fois toutes les 2 min par activité ; le message ne peut pas pinger @everyone ni un rôle) ; avec une compo du site, envoie aussi à chacun **l'image de son build en MP** |
 
 **Paramètres de `/acti` :**
 - `nametemplate` — Template de composition (optionnel)
@@ -223,6 +226,7 @@ Système de candidature en libre-service, **configurable indépendamment sur cha
 - Le bot poste un embed avec **un bouton par rôle** ; cliquer sur un bouton **attribue** le rôle s'il ne l'a pas, ou le **retire** s'il l'a déjà (toggle)
 - **🗑️ Supprimer un message** — choisis un message existant dans le menu pour le retirer de la config et supprimer le message Discord
 - Plusieurs messages de rôles possibles par serveur (ex : un pour les jeux, un pour les fuseaux horaires…)
+- 🔒 **Rôles refusés** (ici, pour le rôle d'arrivée et pour le rôle de validation de candidature) : @everyone, rôles d'intégration, rôles de staff (Officier, Maitre de guilde, rôle staff du site ; Membre et Caller aussi sauf pour la validation), rôles avec une permission sensible (administrateur, gérer les rôles/le serveur/les salons/les messages, expulser, bannir, exclure, mentionner @everyone) et rôles pas strictement sous le rôle le plus haut de l'officier qui configure. Le contrôle est refait au clic et à l'arrivée d'un membre.
 - Les boutons restent fonctionnels après un redémarrage du bot (vue persistante)
 
 **📢 Annonces de mises à jour**
@@ -236,10 +240,10 @@ Système de candidature en libre-service, **configurable indépendamment sur cha
 
 | Commande | Accès | Description |
 |---|---|---|
-| `/info @joueur` | Tous | Voir le profil d'un joueur : pseudo IG, fame Albion, activités terminées |
+| `/info @joueur` | Membre | Voir le profil d'un joueur : pseudo IG, fame Albion, activités terminées (réponses de candidature visibles seulement par les Recruteurs/Officiers) |
 | `/ancien @joueur` | Recruteur, Officier | Basculer le statut Nouveau joueur ↔ Membre |
 | `/reporter @joueur` | Recruteur, Officier | Repousser le suivi d'un nouveau joueur d'une semaine (vacances, maladie…) |
-| `/kick @joueur` | Maitre de guilde | Passer un joueur en AFK — retire tous ses rôles, ajoute le rôle Absent, envoie un DM |
+| `/kick @joueur` | Recruteur, Officier | Passer un joueur en AFK — retire tous ses rôles, ajoute le rôle Absent, envoie un DM. Impossible sur un Officier, le Maitre de guilde, le propriétaire, un bot ou quelqu'un dont le rôle le plus haut est ≥ au sien |
 | `/recap` | Recruteur, Officier | Relancer manuellement le récap recrutement — purge immédiate des profils des partis |
 
 L'embed `/info` affiche :
@@ -402,7 +406,7 @@ Le bot recharge le cache des templates custom **toutes les 2 minutes** : une com
 1. Push le repo sur GitHub
 2. Créer un projet Railway depuis le repo
 3. Ajouter le plugin **PostgreSQL** → les variables `DATABASE_URL` et `PGXXX` sont injectées automatiquement
-4. Ajouter les variables d'environnement `DISCORD_TOKEN` et `DISCORD_GUILD_ID`
+4. Ajouter les variables d'environnement `DISCORD_TOKEN`, `DISCORD_GUILD_ID` (et `ALLOWED_GUILD_IDS` seulement pour un bot privé)
 5. Inviter le bot sur autant de serveurs Discord que nécessaire — aucune configuration supplémentaire n'est requise, la synchronisation des commandes se fait automatiquement au démarrage
 6. Railway build et démarre le bot — les tables sont créées au premier démarrage
 

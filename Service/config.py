@@ -4,10 +4,22 @@ from discord import app_commands
 
 import changelog
 import db
-from config import ADMIN_ROLE_NAME
-from Service.utils import is_admin
+from config import ADMIN_ROLE_NAME, CALLER_ROLE_NAME, MEMBRE_ROLE_NAME
+from Service.utils import is_admin, role_grant_refusal, STAFF_ROLE_NAMES
 from Service import vocal_temp, bienvenue, self_roles
 from Service.utils import log_error
+
+
+# Rôles qu'on ne distribue jamais automatiquement (en plus des permissions sensibles)
+_NO_AUTO_GRANT = STAFF_ROLE_NAMES + (MEMBRE_ROLE_NAME, CALLER_ROLE_NAME)
+
+
+async def _grant_refusal(interaction: discord.Interaction, role: discord.Role,
+                         protected_names=_NO_AUTO_GRANT) -> str | None:
+    """Refus (message) si `role` ne peut pas être distribué automatiquement — rôle staff du site compris."""
+    web_staff = await db.get_web_staff_role(interaction.guild.id)
+    return role_grant_refusal(role, interaction.user, protected_names,
+                              protected_ids=(web_staff,) if web_staff else ())
 
 
 # ── EMBEDS ────────────────────────────────────────────────────────────────────
@@ -411,6 +423,9 @@ class DefaultRoleView(discord.ui.View):
 
     @discord.ui.select(cls=discord.ui.RoleSelect, placeholder="Choisis le rôle attribué à l'arrivée")
     async def role_select(self, interaction: discord.Interaction, select: discord.ui.RoleSelect):
+        if refusal := await _grant_refusal(interaction, select.values[0]):
+            await interaction.response.send_message(f"⛔ {refusal}.", ephemeral=True)
+            return
         await bienvenue.set_default_role(self.guild_id, select.values[0].id)
         await interaction.response.send_message(
             f"✅ Rôle par défaut : {select.values[0].mention}", ephemeral=True
@@ -497,6 +512,11 @@ class ValidatedRoleView(discord.ui.View):
 
     @discord.ui.select(cls=discord.ui.RoleSelect, placeholder="Choisis le rôle attribué à la validation")
     async def role_select(self, interaction: discord.Interaction, select: discord.ui.RoleSelect):
+        # Le rôle Membre est autorisé ici : c'est justement le rôle donné à la validation
+        refusal = await _grant_refusal(interaction, select.values[0], STAFF_ROLE_NAMES + (CALLER_ROLE_NAME,))
+        if refusal:
+            await interaction.response.send_message(f"⛔ {refusal}.", ephemeral=True)
+            return
         await db.set_recruitment_validated_role(self.guild_id, select.values[0].id)
         await interaction.response.send_message(
             f"✅ Rôle de validation : {select.values[0].mention}", ephemeral=True
@@ -521,7 +541,13 @@ class WebStaffRoleView(discord.ui.View):
 
     @discord.ui.select(cls=discord.ui.RoleSelect, placeholder="Choisis le rôle staff du site web")
     async def role_select(self, interaction: discord.Interaction, select: discord.ui.RoleSelect):
-        await db.set_web_staff_role(self.guild_id, select.values[0].id)
+        role = select.values[0]
+        if role.is_default() or role.managed:
+            await interaction.response.send_message(
+                "⛔ Choisis un vrai rôle de staff (pas @everyone ni un rôle d'intégration).", ephemeral=True
+            )
+            return
+        await db.set_web_staff_role(self.guild_id, role.id)
         await interaction.response.send_message(
             f"✅ Rôle staff du site web : {select.values[0].mention}", ephemeral=True
         )
@@ -554,6 +580,13 @@ class CreateAutoRoleView(discord.ui.View):
     @discord.ui.select(cls=discord.ui.RoleSelect, placeholder="2️⃣ Rôles proposés (jusqu'à 25)",
                         min_values=1, max_values=25)
     async def role_select(self, interaction: discord.Interaction, select: discord.ui.RoleSelect):
+        refusals = [r for r in [await _grant_refusal(interaction, role) for role in select.values] if r]
+        if refusals:
+            self.roles = []
+            await interaction.response.send_message(
+                "⛔ Rôles refusés :\n" + "\n".join(f"• {r}" for r in refusals), ephemeral=True
+            )
+            return
         self.roles = [(r.id, r.name) for r in select.values]
         await interaction.response.defer(ephemeral=True)
 

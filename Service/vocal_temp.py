@@ -147,7 +147,8 @@ class VocalTemp(commands.Cog):
 
             overwrites = dict(category.overwrites) if isinstance(category, discord.CategoryChannel) else {}
             member_overwrite = overwrites.get(member, discord.PermissionOverwrite())
-            member_overwrite.update(manage_channels=True, move_members=True, mute_members=True, deafen_members=True)
+            # Pas de mute/deafen : un mute serveur suit la personne dans tous les salons (abus possible sur un officier)
+            member_overwrite.update(manage_channels=True, move_members=True)
             overwrites[member] = member_overwrite
 
             try:

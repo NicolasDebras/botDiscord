@@ -354,9 +354,14 @@ class Bal(commands.Cog):
             await interaction.response.send_message("ℹ️ Aucune activité en cours.", ephemeral=True)
             return
 
-        by = interaction.user.display_name
+        by   = interaction.user.display_name
+        paid = False  # un /paybal = un seul paiement (la liste reste cliquable 60 s)
 
         async def on_select(inter: discord.Interaction, value: str):
+            nonlocal paid
+            if paid:
+                await inter.response.send_message("ℹ️ Paiement déjà effectué — relance `/paybal` si besoin.", ephemeral=True)
+                return
             if value == "none":
                 await inter.response.send_message("ℹ️ Aucune activité disponible.", ephemeral=True)
                 return
@@ -383,7 +388,13 @@ class Bal(commands.Cog):
                 await inter.response.send_message("ℹ️ Aucun participant inscrit à cette activité.", ephemeral=True)
                 return
 
+            paid = True  # posé avant tout await : un second clic est refusé
+            view.stop()
             await inter.response.defer()
+            try:
+                await interaction.edit_original_response(view=None)
+            except discord.HTTPException:
+                pass
             deltas      = {str(uid): montant for uid, _ in participants}
             new_totals  = await db.increment_bal_batch(deltas, guild_id=inter.guild.id)
             log_entries = [
@@ -439,17 +450,16 @@ class Bal(commands.Cog):
         sender_key   = str(interaction.user.id)
         receiver_key = str(joueur.id)
 
-        solde_sender = await db.get_bal(sender_key, guild_id=interaction.guild.id)
-        if solde_sender < montant:
+        old_receiver = await db.get_bal(receiver_key, guild_id=interaction.guild.id)
+        result = await db.transfer_bal(sender_key, receiver_key, montant, guild_id=interaction.guild.id)
+        if result is None:
+            solde_sender = await db.get_bal(sender_key, guild_id=interaction.guild.id)
             await interaction.followup.send(
                 f"❌ Solde insuffisant. Tu as **{solde_sender:,} silver** de BAL, tu veux en transférer **{montant:,}**."
                 .replace(",", " "), ephemeral=True
             )
             return
-
-        old_receiver = await db.get_bal(receiver_key, guild_id=interaction.guild.id)
-        new_sender   = await db.increment_bal(sender_key, -montant, guild_id=interaction.guild.id)
-        new_receiver = await db.increment_bal(receiver_key, montant, guild_id=interaction.guild.id)
+        new_sender, new_receiver = result
 
         await append_bal_log("transferbal", interaction.user.display_name, [
             {"uid": sender_key,   "name": interaction.user.display_name, "delta": -montant,  "total": new_sender},

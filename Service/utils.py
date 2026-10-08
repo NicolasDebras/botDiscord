@@ -90,6 +90,47 @@ def is_caller_or_admin(member: discord.Member) -> bool:
     )
 
 
+# ── HELPER : un rôle peut-il être distribué automatiquement ? ────────────────
+# (rôles auto-attribuables, rôle d'arrivée, rôle de validation de candidature)
+DANGEROUS_PERMS = (
+    "administrator", "manage_guild", "manage_roles", "manage_channels", "manage_webhooks",
+    "manage_messages", "kick_members", "ban_members", "moderate_members", "mention_everyone",
+)
+STAFF_ROLE_NAMES = (ADMIN_ROLE_NAME, GM_ROLE_NAME)
+
+
+def role_grant_refusal(role, actor=None, protected_names=STAFF_ROLE_NAMES, protected_ids=()) -> str | None:
+    """Raison du refus si `role` ne doit pas être distribué automatiquement, sinon None.
+    `actor` (celui qui configure) : le rôle doit être sous son rôle le plus haut
+    (sauf propriétaire du serveur) — sinon un Officier pourrait distribuer un rôle supérieur au sien."""
+    if role.is_default():
+        return "@everyone ne peut pas être distribué"
+    if role.managed:
+        return f"**{role.name}** est géré par une intégration (bot, boost…)"
+    if role.name in protected_names or role.id in protected_ids:
+        return f"**{role.name}** est un rôle de staff"
+    bad = [p for p in DANGEROUS_PERMS if getattr(role.permissions, p, False)]
+    if bad:
+        return f"**{role.name}** a des permissions sensibles ({', '.join(bad)})"
+    if actor is not None and actor.id != actor.guild.owner_id and role.position >= actor.top_role.position:
+        return f"**{role.name}** n'est pas en dessous de ton rôle le plus haut"
+    return None
+
+
+# ── HELPER : /kick (passage AFK) — qui peut viser qui ────────────────────────
+def kick_refusal(actor, target) -> str | None:
+    """Raison du refus si `actor` ne peut pas retirer les rôles de `target`, sinon None."""
+    if target.bot:
+        return "Impossible de passer un bot AFK."
+    if target.id == target.guild.owner_id:
+        return "Impossible de passer le propriétaire du serveur AFK."
+    if is_admin(target) or can_manage_web_admins(target):
+        return "Impossible de passer un officier ou le maître de guilde AFK."
+    if actor.id != actor.guild.owner_id and target.top_role.position >= actor.top_role.position:
+        return "Ce joueur a un rôle égal ou supérieur au tien."
+    return None
+
+
 # ── HELPERS : settings persistants (taux de rachat, etc.) ────────────────────
 async def load_settings(guild_id: int = 0) -> dict:
     rate = await db.get_bal_rate(guild_id)
@@ -170,7 +211,7 @@ class ActivitySelect(discord.ui.Select):
                 guild_id=interaction.guild.id if interaction.guild else None,
                 user_id=interaction.user.id if interaction.user else None,
             )
-            msg = f"❌ Erreur inattendue : {type(e).__name__}: {e}"
+            msg = "❌ Erreur inattendue — détail enregistré pour le staff (`/errors`)."
             if interaction.response.is_done():
                 await interaction.followup.send(msg, ephemeral=True)
             else:

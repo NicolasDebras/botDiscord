@@ -6,13 +6,18 @@ import pytest
 from Service import build_image
 
 
+class FakeStream:
+    def __init__(self, body):
+        self._body = body
+
+    async def read(self, n=-1):
+        return self._body if n < 0 else self._body[:n]
+
+
 class FakeResponse:
     def __init__(self, status, body=b"png"):
         self.status = status
-        self._body = body
-
-    async def read(self):
-        return self._body
+        self.content = FakeStream(body)
 
     async def __aenter__(self):
         return self
@@ -39,6 +44,8 @@ class FakeSession:
                     await asyncio.sleep(session.delay)
                 if isinstance(step, BaseException):
                     raise step
+                if isinstance(step, tuple):  # (statut, corps)
+                    return FakeResponse(*step)
                 return FakeResponse(step)
 
             async def __aexit__(self, *exc):
@@ -117,6 +124,20 @@ def test_fetch_icon_unknown_item_is_cached_as_missing():
     assert asyncio.run(build_image.fetch_icon(session, "INCONNU")) is None
     assert build_image._icon_cache["INCONNU"] is None
     assert len(session.calls) == 8  # T8 → T1
+
+
+def test_fetch_icon_ignores_oversized_body():
+    """Une réponse anormalement grosse n'est ni chargée en entier ni gardée."""
+    big = b"x" * (build_image.ICON_MAX_BYTES + 10)
+    session = FakeSession({url(8, "A"): [(200, big)]})
+    assert asyncio.run(build_image.fetch_icon(session, "A")) is None
+
+
+def test_fetch_icon_rejects_malformed_item_id_without_network():
+    session = FakeSession({})
+    for bad in ("../../x", "A?size=99999", "a b", "", "A/B"):
+        assert asyncio.run(build_image.fetch_icon(session, bad)) is None
+    assert session.calls == []
 
 
 def test_fetch_icons_never_raises_and_limits_concurrency(monkeypatch):

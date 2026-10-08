@@ -10,6 +10,9 @@ from config import ADMIN_ROLE_NAME
 from albion_api import fetch_albion_fame, fmt_fame
 from Service.utils import log_error
 
+# Candidatures en cours de traitement (anti double envoi → deux salons)
+_submitting: set[tuple[int, int]] = set()
+
 
 def _slugify(text: str) -> str:
     """Nettoie un nom de salon Discord (minuscules, tirets, sans caractères spéciaux)."""
@@ -67,6 +70,17 @@ class QuestionnaireModal(discord.ui.Modal, title="📋 Questionnaire de candidat
     )
 
     async def on_submit(self, interaction: discord.Interaction):
+        key = (interaction.guild.id, interaction.user.id)
+        if key in _submitting:
+            await interaction.response.send_message("⏳ Ta candidature est déjà en cours d'envoi.", ephemeral=True)
+            return
+        _submitting.add(key)
+        try:
+            await self._submit(interaction)
+        finally:
+            _submitting.discard(key)
+
+    async def _submit(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
 
         guild = interaction.guild
@@ -159,7 +173,10 @@ class QuestionnaireModal(discord.ui.Modal, title="📋 Questionnaire de candidat
         if recruitment_role:
             mentions += f" {recruitment_role.mention}"
 
-        await channel.send(content=mentions, embed=embed, view=ValidateCandidatureView())
+        await channel.send(
+            content=mentions, embed=embed, view=ValidateCandidatureView(),
+            allowed_mentions=discord.AllowedMentions(roles=[recruitment_role] if recruitment_role else False, users=True),
+        )
 
         if fame:
             demande = (

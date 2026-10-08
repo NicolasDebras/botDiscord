@@ -2,7 +2,8 @@ import discord
 from discord.ext import commands
 
 import db
-from Service.utils import log_error
+from config import CALLER_ROLE_NAME, MEMBRE_ROLE_NAME
+from Service.utils import log_error, role_grant_refusal, STAFF_ROLE_NAMES
 
 # ── CACHE EN MÉMOIRE {guild_id: {welcome_channel_id, welcome_message, goodbye_channel_id, goodbye_message}} ─
 _configs: dict[int, dict] = {}
@@ -62,8 +63,13 @@ class Bienvenue(commands.Cog):
 
         if cfg["default_role_id"]:
             role = member.guild.get_role(cfg["default_role_id"])
+            refusal = role and role_grant_refusal(
+                role, protected_names=STAFF_ROLE_NAMES + (MEMBRE_ROLE_NAME, CALLER_ROLE_NAME)
+            )
             if not role:
                 print(f"[bienvenue] Rôle par défaut introuvable (ID {cfg['default_role_id']}) sur {member.guild.name}.")
+            elif refusal:
+                print(f"[bienvenue] ⛔ Rôle par défaut non attribué sur {member.guild.name} : {refusal}.")
             else:
                 try:
                     await member.add_roles(role, reason="Rôle par défaut à l'arrivée")

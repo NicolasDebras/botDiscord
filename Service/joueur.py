@@ -9,7 +9,7 @@ from discord import app_commands
 import db
 from albion_api import fetch_albion_fame, fmt_fame
 from config import ADMIN_ROLE_NAME, RECRUTEUR_ROLE_ID, MEMBRE_ROLE_NAME, GUILD_ID as _MAIN_GUILD_ID
-from Service.utils import fmt_silver, log_error, split_message
+from Service.utils import fmt_silver, is_membre as has_membre_role, kick_refusal, log_error, split_message
 
 _PARIS          = ZoneInfo("Europe/Paris")
 _RAPPEL_HEURE   = datetime.time(hour=22, minute=0, tzinfo=_PARIS)
@@ -109,8 +109,9 @@ class Joueur(commands.Cog):
             f"**Joueurs qui ont rejoint la guilde il y a moins de 2 semaines :**\n{fmt_section(moins_2s)}\n\n"
             f"**Joueurs à valider via `/ancien` (plus de 2 semaines dans la guilde) :**\n{fmt_section(a_valider)}"
         )
+        ping_recruteurs = discord.AllowedMentions(roles=[discord.Object(recruteur_role_id)], users=True)
         for part in split_message(recap):  # beaucoup de recrues → plusieurs messages (limite 2000)
-            await channel.send(part)
+            await channel.send(part, allowed_mentions=ping_recruteurs)
 
         # ── 3. Stats silver depuis lundi ──────────────────────────────────────
         days_since_monday = max(1, now_paris.weekday() + 1)
@@ -247,6 +248,10 @@ class Joueur(commands.Cog):
             )
             return
 
+        if refusal := kick_refusal(interaction.user, joueur):
+            await interaction.response.send_message(f"⛔ {refusal}", ephemeral=True)
+            return
+
         await interaction.response.defer(ephemeral=True)
 
         cfg = await db.get_recruitment_config(interaction.guild.id)
@@ -315,6 +320,11 @@ class Joueur(commands.Cog):
     @app_commands.command(name="info", description="Voir le profil d'un joueur (fame Albion, activités)")
     @app_commands.describe(joueur="Le joueur à consulter")
     async def info(self, interaction: discord.Interaction, joueur: discord.Member):
+        if not has_membre_role(interaction.user):
+            await interaction.response.send_message(
+                "⛔ Commande réservée aux membres de la guilde.", ephemeral=True
+            )
+            return
         await interaction.response.defer(ephemeral=True)
 
         profile = await db.get_player_profile(str(joueur.id), guild_id=interaction.guild.id)
@@ -375,7 +385,8 @@ class Joueur(commands.Cog):
                 embed.add_field(name="Fame Albion", value="*Indisponible — aucune donnée en cache*", inline=False)
 
         # ── Infos recrutement ─────────────────────────────────────────────────
-        if recruitment_info:
+        # Réponses du questionnaire de candidature : réservées aux recruteurs / officiers
+        if recruitment_info and _is_recruteur_or_admin(interaction.user):
             embed.add_field(name="📋 Infos recrutement", value=recruitment_info, inline=False)
 
         if joined_at:

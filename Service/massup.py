@@ -1,4 +1,5 @@
 import io
+import time
 
 import discord
 from discord.ext import commands
@@ -6,9 +7,13 @@ from discord import app_commands
 
 import db
 from config import MEMBRE_ROLE_NAME
-from Service.activites import activities, _acti_label, build_id_for_role, load_all_templates
+from Service.activites import activities, _acti_label, _is_creator, build_id_for_role, load_all_templates
 from Service.build_image import build_image
-from Service.utils import ActivitySelect, is_membre, log_error
+from Service.utils import ActivitySelect, is_caller_or_admin, is_membre, log_error
+
+# Anti-spam : un massup par activité toutes les MASSUP_COOLDOWN secondes
+MASSUP_COOLDOWN = 120
+_last_massup: dict[int, float] = {}
 
 # ── Loot RAID AVA par rôle ────────────────────────────────────────────────────
 _LOOT_FIXE: dict[str, str] = {
@@ -164,6 +169,20 @@ class MassUp(commands.Cog):
                 await inter.response.send_message("❌ Activité introuvable.", ephemeral=True)
                 return
 
+            if not (_is_creator(inter.user, data) or is_caller_or_admin(inter.user)):
+                await inter.response.send_message(
+                    "⛔ Seul le créateur de l'activité ou un Caller peut la convoquer.", ephemeral=True
+                )
+                return
+
+            now = time.monotonic()
+            wait = MASSUP_COOLDOWN - (now - _last_massup.get(msg_id, -MASSUP_COOLDOWN))
+            if wait > 0:
+                await inter.response.send_message(
+                    f"⏳ Cette activité vient d'être convoquée — réessaie dans {int(wait) + 1} s.", ephemeral=True
+                )
+                return
+
             participants = [entry[0] for members in data["slots"].values() for entry in members]
             if not participants:
                 await inter.response.send_message("ℹ️ Aucun joueur inscrit à cette activité.", ephemeral=True)
@@ -183,6 +202,7 @@ class MassUp(commands.Cog):
             else:
                 body = " ".join(f"<@{uid}>" for uid in participants)
 
+            _last_massup[msg_id] = now
             await inter.response.send_message(intro + body)
 
             # Compo du site : chaque joueur reçoit l'image du build de son rôle en MP.

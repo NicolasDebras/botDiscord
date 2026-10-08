@@ -2,7 +2,7 @@ from Service import activites
 from Service.activites import (
     _parse_weapon_slots, _player_weapon, _sort_roles,
     get_pf1, get_pf2, get_specs, load_all_templates,
-    _acti_label, _is_creator,
+    _acti_label, _is_creator, parse_silver, MAX_SILVER, MAX_WEAPON_SLOTS,
 )
 from tests.fakes import fake_member
 
@@ -149,8 +149,28 @@ def test_is_creator_by_id_when_creator_id_present():
     assert _is_creator(user, {"creator_id": 99, "creator": "AutreNom"}) is False
 
 
-def test_is_creator_by_display_name_legacy_activities():
-    """Vieilles activités créées avant l'ajout de creator_id : comparaison par pseudo."""
+def test_is_creator_never_by_display_name():
+    """Sans creator_id (vieilles activités), personne n'est créateur : un pseudo s'usurpe
+    (n'importe qui peut prendre le même display_name). Les officiers gardent la main."""
     user = fake_member(display_name="Naej")
-    assert _is_creator(user, {"creator": "Naej"}) is True
-    assert _is_creator(user, {"creator": "AutreJoueur"}) is False
+    assert _is_creator(user, {"creator": "Naej"}) is False
+
+
+def test_parse_weapon_slots_caps_huge_count():
+    """« (×999999999) » ne doit pas générer un milliard de lignes à l'affichage."""
+    assert _parse_weapon_slots("Arc (×999999999)") == [("Arc (×999999999)", "Arc", MAX_WEAPON_SLOTS)]
+
+
+def test_parse_silver_accepts_separators():
+    assert parse_silver("1 200 000") == 1_200_000
+    assert parse_silver("1,200,000") == 1_200_000
+    assert parse_silver("1.200.000") == 1_200_000
+    assert parse_silver("0") == 0
+
+
+def test_parse_silver_rejects_negative_garbage_and_absurd():
+    assert parse_silver("-500000") is None
+    assert parse_silver("abc") is None
+    assert parse_silver("") is None
+    assert parse_silver("²") is None
+    assert parse_silver(str(MAX_SILVER + 1)) is None

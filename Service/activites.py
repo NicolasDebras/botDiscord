@@ -25,6 +25,22 @@ _image_overrides: dict[int, dict[str, str]] = {}
 _description_overrides: dict[int, dict[str, str]] = {}
 
 
+# Activités en cours de clôture (anti double /finacti)
+_finishing: set[int] = set()
+
+MAX_SILVER = 1_000_000_000_000
+
+
+def parse_silver(raw: str) -> int | None:
+    """Montant saisi (« 1 200 000 », « 1,200,000 », « 1.200.000 ») → int.
+    None si invalide, négatif ou absurde (> MAX_SILVER)."""
+    cleaned = raw.strip().replace(" ", "").replace(",", "").replace(".", "")
+    if not (cleaned.isascii() and cleaned.isdigit()):
+        return None
+    value = int(cleaned)
+    return value if value <= MAX_SILVER else None
+
+
 async def refresh_templates_cache() -> None:
     global _templates_cache
     _templates_cache = await db.get_custom_templates()
@@ -60,9 +76,12 @@ async def remove_activity(msg_id: int) -> None:
 
 # ── HELPERS FORMAT ARMES ─────────────────────────────────────────────────────
 
+MAX_WEAPON_SLOTS = 50  # au-delà, un « (×N) » géant ferait générer N lignes à chaque affichage (mémoire)
+
+
 def _parse_weapon_slots(hint: str) -> list[tuple[str, str, int | None]]:
     """Parse '1H Masse (×2) · Brassards (×infini)' → [(display, clean_name, count|None), ...]
-    count=None = illimité.
+    count=None = illimité ; un compteur > MAX_WEAPON_SLOTS est ramené à MAX_WEAPON_SLOTS.
     """
     result = []
     for part in hint.split("·"):
@@ -74,7 +93,7 @@ def _parse_weapon_slots(hint: str) -> list[tuple[str, str, int | None]]:
             clean = re.sub(r"\s*\(×(?:infini|∞)\)", "", part, flags=re.IGNORECASE).strip()
         else:
             m     = re.search(r"\(×(\d+)\)", part)
-            count = int(m.group(1)) if m else 1
+            count = min(int(m.group(1)), MAX_WEAPON_SLOTS) if m else 1
             clean = re.sub(r"\s*\(×\d+\)", "", part).strip()
         result.append((part.strip(), clean, count))
     return result
@@ -327,9 +346,8 @@ def _acti_label(data: dict) -> str:
 
 # ── HELPER : vérification créateur ──────────────────────────────────────────
 def _is_creator(user: discord.User | discord.Member, data: dict) -> bool:
-    if data.get("creator_id"):
-        return user.id == data["creator_id"]
-    return user.display_name == data["creator"]
+    # Pas de repli sur le pseudo : n'importe qui pourrait prendre le même display_name
+    return bool(data.get("creator_id")) and user.id == data["creator_id"]
 
 
 # ── HELPER : logique d'inscription mutualisée ────────────────────────────────
@@ -1026,42 +1044,54 @@ class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
     async def on_submit(self, interaction: discord.Interaction):
 
         # Valider les montants AVANT le defer (encore dans les 3s)
-        try:
-            total = int(self.recettes.value.replace(" ", "").replace(",", "").replace(".", ""))
-        except ValueError:
+        total = parse_silver(self.recettes.value)
+        if total is None:
             await interaction.response.send_message("❌ Montant recettes invalide.", ephemeral=True)
             return
 
         carte_cost = 0
         if self.cout_carte.value.strip():
-            try:
-                carte_cost = int(self.cout_carte.value.replace(" ", "").replace(",", "").replace(".", ""))
-            except ValueError:
+            carte_cost = parse_silver(self.cout_carte.value)
+            if carte_cost is None:
                 label_err = "Coût de la carte" if self.is_pve else "Prix des réparations"
                 await interaction.response.send_message(f"❌ {label_err} invalide.", ephemeral=True)
                 return
+        if carte_cost > total:
+            await interaction.response.send_message("❌ Les coûts dépassent les recettes.", ephemeral=True)
+            return
 
         sac_pieces = 0
         if self.sac_pieces.value.strip():
-            try:
-                sac_pieces = int(self.sac_pieces.value.replace(" ", "").replace(",", "").replace(".", ""))
-            except ValueError:
+            sac_pieces = parse_silver(self.sac_pieces.value)
+            if sac_pieces is None:
                 await interaction.response.send_message("❌ Montant pièces coffre invalide.", ephemeral=True)
                 return
 
         scoot_amount = 0
         if self.has_scoot:
-            try:
-                scoot_amount = int(self.scoot_pay.value.replace(" ", "").replace(",", "").replace(".", ""))
-            except ValueError:
+            scoot_amount = parse_silver(self.scoot_pay.value)
+            if scoot_amount is None:
                 await interaction.response.send_message("❌ Montant Scoot invalide.", ephemeral=True)
                 return
 
+        # Anti double paiement : une seule clôture à la fois, et seulement si l'activité existe encore
+        # (pas d'await entre le test et l'ajout → atomique pour la boucle asyncio)
+        if self.activity_id in _finishing or self.activity_id not in activities:
+            await interaction.response.send_message("❌ Cette activité est déjà clôturée.", ephemeral=True)
+            return
+        _finishing.add(self.activity_id)
+        try:
+            await self._finish(interaction, total, carte_cost, sac_pieces, scoot_amount)
+        finally:
+            _finishing.discard(self.activity_id)
+
+    async def _finish(self, interaction: discord.Interaction, total: int, carte_cost: int,
+                      sac_pieces: int, scoot_amount: int):
         # Defer pour éviter le timeout Discord pendant les appels DB
         await interaction.response.defer()
 
         try:
-            data     = self.data
+            data     = activities.get(self.activity_id, self.data)
             settings = await load_settings(guild_id=interaction.guild.id)
             rate     = self.template_tax if self.template_tax is not None else settings.get("bal_rate", 85)
 
@@ -1072,6 +1102,12 @@ class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
             nb_scoot      = len(scoot_members)
             scoot_total   = scoot_amount * nb_scoot
             remaining     = distributable - scoot_total
+            if remaining < 0:
+                await interaction.followup.send(
+                    f"❌ Le paiement Scoot ({fmt_silver(scoot_total)} silver) dépasse le distribuable "
+                    f"({fmt_silver(distributable)} silver). Rien n'a été crédité.", ephemeral=True
+                )
+                return
 
             # Liste des membres payés avec leur multiplicateur (uid, name, role, mult)
             paying = [
@@ -1168,7 +1204,7 @@ class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
         except Exception as e:
             await log_error("activites.FinActiModal", e, guild_id=interaction.guild.id, user_id=interaction.user.id)
             await interaction.followup.send(
-                f"❌ **Erreur FinActi** : `{type(e).__name__}: {e}`", ephemeral=True
+                "❌ **Erreur FinActi** — détail enregistré pour le staff (`/errors`).", ephemeral=True
             )
 
 
@@ -1283,7 +1319,7 @@ class FinActiButton(discord.ui.Button):
                 return
         except Exception as e:
             await log_error("activites.FinActiButton", e, guild_id=interaction.guild.id, user_id=interaction.user.id)
-            msg = f"❌ **Erreur FinActi** : `{type(e).__name__}: {e}`"
+            msg = "❌ **Erreur FinActi** — détail enregistré pour le staff (`/errors`)."
             try:
                 if not interaction.response.is_done():
                     await interaction.response.send_message(msg, ephemeral=True)
@@ -1316,7 +1352,7 @@ class FinActiButton(discord.ui.Button):
         except Exception as e:
             await log_error("activites.FinActiButton_libre", e, guild_id=interaction.guild.id, user_id=interaction.user.id)
             await interaction.followup.send(
-                f"❌ **Erreur FinActi** : `{type(e).__name__}: {e}`", ephemeral=True
+                "❌ **Erreur FinActi** — détail enregistré pour le staff (`/errors`).", ephemeral=True
             )
 
 

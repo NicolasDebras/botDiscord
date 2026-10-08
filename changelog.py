@@ -7,9 +7,25 @@ Pour annoncer une nouvelle fonctionnalité : incrémenter VERSION et ajouter
 une entrée en tête de CHANGELOG (ordre du plus récent au plus ancien).
 """
 
-VERSION = "2026.10.03.1"
+VERSION = "2026.10.08"
 
 CHANGELOG: list[dict] = [
+    {
+        "version": "2026.10.08",
+        "title": "🔒 Sécurité renforcée",
+        "items": [
+            "`/transferbal`, `/finacti` et `/paybal` ne peuvent plus payer deux fois (double clic, envois simultanés).",
+            "`/finacti` refuse les montants négatifs, des coûts supérieurs aux recettes et un paiement Scoot supérieur au distribuable.",
+            "`/massup` est réservé au créateur de l'activité, aux Callers et aux Officiers, une fois toutes les 2 minutes par activité.",
+            "Le bot ne pingue plus jamais @everyone, @here ni un rôle à partir d'un texte saisi par un joueur.",
+            "`/kick` ne peut plus viser un Officier, le Maitre de guilde ni quelqu'un de rang égal ou supérieur.",
+            "Les rôles de staff et les rôles à permissions sensibles ne peuvent plus être distribués par les rôles à la carte, le rôle d'arrivée ou le rôle de validation.",
+            "`/info` est réservé aux membres ; les réponses de candidature ne sont visibles que par les Recruteurs et Officiers.",
+            "Le pseudo Albion doit correspondre exactement (majuscules ignorées) pour `/register` et la candidature.",
+            "Le propriétaire d'un vocal temporaire ne peut plus rendre muet ou sourd un autre joueur.",
+            "Les erreurs internes ne sont plus affichées aux joueurs (le détail reste dans `/errors`).",
+        ],
+    },
     {
         "version": "2026.10.03.1",
         "title": "🧹 Rôles simplifiés + image de compo rangée",

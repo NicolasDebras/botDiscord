@@ -192,3 +192,11 @@ def test_render_compo_image_grows_with_rows_and_second_party():
     one = _open(render_compo_image("X", _compo_rows(), {}))
     two = _open(render_compo_image("X", _compo_rows(n_pf2=1), {}))
     assert two.height > one.height
+
+
+def test_render_compo_image_height_is_capped():
+    """Une compo géante (5 000 lignes) ne doit pas produire une image de plusieurs Go."""
+    from Service.build_image import COMPO_MAX_ROWS
+    capped = _open(render_compo_image("X", _compo_rows(n_pf2=COMPO_MAX_ROWS), {}))
+    huge = _open(render_compo_image("X", _compo_rows(n_pf2=5000), {}))
+    assert huge.height == capped.height
