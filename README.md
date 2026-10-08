@@ -394,6 +394,7 @@ Ce qu'ils partagent, c'est uniquement **la base PostgreSQL**, dont le bot reste 
 - `builds` (dont la colonne `items` = équipement Albion) — lue par `/massup` pour envoyer l'image du build en MP ;
 - `custom_templates` — les compos du site y sont écrites au même format que `/addtemplate` (+ `builds` / `builds_pf2`), et utilisées par `/acti` ;
 - `web_staff_config` (`/config` → 🌐 Rôle staff du site web) et `web_admins` (`/webadmin`) — les droits du site, gérés depuis Discord.
+- `public_compos` — modèles de compos publics de la bibliothèque du site (partagés entre tous les serveurs, avec leurs builds figés) ; créée ici, écrite uniquement par le site.
 
 Le bot recharge le cache des templates custom **toutes les 2 minutes** : une compo créée sur le site est utilisable dans `/acti` sans redémarrage.
 

@@ -393,6 +393,28 @@ async def init_db(database_url: str) -> None:
             )
         """)
 
+        # ── Modèles de compos publics (bibliothèque du site, partagés entre serveurs) ─
+        # Écrits par le site uniquement ; `data` = compo au format template avec ses builds
+        # « figés » (nom, rôle, équipement…), puisque les builds sont propres à chaque serveur.
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS public_compos (
+                id               SERIAL      PRIMARY KEY,
+                name             TEXT        NOT NULL,
+                description      TEXT        NOT NULL DEFAULT '',
+                type_acti        TEXT        NOT NULL DEFAULT 'PVP',
+                image            TEXT        NOT NULL DEFAULT '',
+                data             JSONB       NOT NULL,
+                source_guild_id  BIGINT      NOT NULL,
+                author_id        TEXT        NOT NULL,
+                author_name      TEXT        NOT NULL DEFAULT '',
+                created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                imports          INT         NOT NULL DEFAULT 0
+            )
+        """)
+        await conn.execute(
+            "CREATE INDEX IF NOT EXISTS public_compos_source ON public_compos (source_guild_id)"
+        )
+
 
 # ── ACTIVITIES ────────────────────────────────────────────────────────────────
 
