@@ -8,8 +8,11 @@ from discord import app_commands
 import db
 from config import MEMBRE_ROLE_NAME
 from Service.activites import activities, _acti_label, _is_creator, base_role, build_ids_for_role, load_all_templates
-from Service.build_image import build_image
+from Service.build_image import build_image, has_tiered_gear
 from Service.utils import ActivitySelect, is_caller_or_admin, is_membre, log_error
+
+# Ajouté au MP quand le build impose des tiers (pastilles « 8.1 » sur l'image)
+TIERS_NOTE = "\n⚔️ Tiers indiqués = minimum : un équivalent convient (8.1 = 7.2 = 6.3)."
 
 # Anti-spam : un massup par activité toutes les MASSUP_COOLDOWN secondes
 MASSUP_COOLDOWN = 120
@@ -127,12 +130,13 @@ async def send_build_dms(
             await log_error("massup.build_image", e, guild_id=data.get("guild_id"))
             continue
 
+        tiers_note = TIERS_NOTE if has_tiered_gear(build.get("items")) else ""
         for user_id, role_label in players:
             try:
                 user = inter.guild.get_member(user_id) or await inter.client.fetch_user(user_id)
                 await user.send(
                     f"📢 **{label}** — tu es convoqué en **{role_label}**.\n"
-                    f"Ton build : **{build['name']}**",
+                    f"Ton build : **{build['name']}**{tiers_note}",
                     file=discord.File(io.BytesIO(png), filename="build.png"),
                 )
                 sent += 1

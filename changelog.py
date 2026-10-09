@@ -7,9 +7,18 @@ Pour annoncer une nouvelle fonctionnalité : incrémenter VERSION et ajouter
 une entrée en tête de CHANGELOG (ordre du plus récent au plus ancien).
 """
 
-VERSION = "2026.10.09.2"
+VERSION = "2026.10.09.3"
 
 CHANGELOG: list[dict] = [
+    {
+        "version": "2026.10.09.3",
+        "title": "⚔️ Tier et enchantement dans les builds",
+        "items": [
+            "Un build du site peut imposer, objet par objet, un tier (T6, T7, T8) et un enchantement (.0 à .4).",
+            "Sur l'image du build en MP (`/massup`) et sur l'image de la compo : icône du bon tier et pastille « 8.1 » colorée selon l'enchantement.",
+            "Le tier est un minimum : un équivalent convient (8.1 = 7.2 = 6.3), rappelé dans le MP.",
+        ],
+    },
     {
         "version": "2026.10.09.2",
         "title": "🗂️ Rôles regroupés par catégorie",

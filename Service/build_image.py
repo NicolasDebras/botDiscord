@@ -4,7 +4,8 @@ Service/build_image.py — Image PNG d'un build (envoyée en MP par /massup).
 Un build vient du site lilium-site (table builds, colonne items) :
     {"mainhand": ["2H_HOLYSTAFF", "2H_HOLYSTAFF_HELL"], "cape": ["*"], "food": ["MEAL_STEW"], ...}
 chaque case = 1 à 3 objets au choix, ["*"] = au choix du joueur. L'ancien
-format {"mainhand": "ID"} est aussi accepté.
+format {"mainhand": "ID"} est aussi accepté. Un objet peut imposer un tier minimum
+et un enchantement au format du jeu : "T8_MAIN_SWORD@1" (8.1) ; l'id nu = tier libre.
 
 L'image reprend la disposition de l'inventaire du jeu (grille 3×3) avec les
 icônes officielles d'Albion. Le rendu (render_build_image) est une fonction
@@ -42,6 +43,8 @@ LILAC_2  = (167, 123, 243)   # lilas foncé (bas du dégradé)
 INK      = (20, 15, 31)      # texte sombre sur fond lilas
 TEXT     = (236, 232, 245)
 MUTED    = (157, 149, 179)
+# Bord de la pastille « 8.1 » selon l'enchantement, comme en jeu (.0 neutre, .1 vert, .2 bleu, .3 violet, .4 or)
+ENCHANT_COLORS = {0: (157, 149, 179), 1: (92, 201, 112), 2: (88, 160, 255), 3: (184, 120, 255), 4: (255, 200, 80)}
 
 CELL, LABEL_H, GAP, MARGIN, HEADER_H = 128, 22, 14, 28, 96
 WIDTH = MARGIN * 2 + CELL * 3 + GAP * 2
@@ -55,6 +58,25 @@ _icon_cache: dict[str, bytes | None] = {}
 ICON_CACHE_MAX = 2000             # entrées : vidé au-delà (les ids viennent de la base)
 ICON_MAX_BYTES = 2 * 1024 * 1024  # une icône de 128 px fait ~20 Ko : au-delà, réponse ignorée
 _ITEM_ID_RE    = re.compile(r"^[A-Z0-9_@]{1,80}$")  # format des ids Albion (ex. 2H_HOLYSTAFF_HELL@2)
+_ICON_URL_EXACT = "https://render.albiononline.com/v1/item/{item_id}.png?size=128"
+# Tier + enchantement imposés : « T8_MAIN_SWORD@1 » (même règle que catalog.py du site)
+_TIERED_RE     = re.compile(r"^T([1-8])_([A-Z0-9_]+?)(?:@([1-4]))?$")
+TIER_FREE_SLOTS = ("food", "potion")   # l'enchantement y change l'effet, pas la puissance : pas d'équivalence
+
+
+def split_tier(item_id: str) -> tuple[str, int | None, int]:
+    """« T8_MAIN_SWORD@1 » → ("MAIN_SWORD", 8, 1) ; « MAIN_SWORD » (tier libre) → ("MAIN_SWORD", None, 0)."""
+    match = _TIERED_RE.match(item_id or "")
+    if not match:
+        return item_id, None, 0
+    return match.group(2), int(match.group(1)), int(match.group(3) or 0)
+
+
+def has_tiered_gear(items: dict | str | None) -> bool:
+    """Vrai si au moins un équipement (hors bouffe/potion) impose un tier."""
+    return any(split_tier(c)[1] is not None
+               for slot, choices in normalize_items(items).items() if slot not in TIER_FREE_SLOTS
+               for c in choices)
 
 
 def normalize_items(items: dict | str | None) -> dict[str, list[str]]:
@@ -122,12 +144,20 @@ async def fetch_icon(session: aiohttp.ClientSession, item_id: str) -> bytes | No
         return None
     if len(_icon_cache) >= ICON_CACHE_MAX:
         _icon_cache.clear()
-    local = local_icon(item_id)
+    base, tier, _ = split_tier(item_id)
+    if tier is not None:   # tier imposé : icône exacte (chiffre du tier, lueur d'enchantement), sinon celle de base
+        sure, data = await _get_icon(session, _ICON_URL_EXACT.format(item_id=item_id))
+        if not sure:
+            return None
+        if data is not None:
+            _icon_cache[item_id] = data
+            return data
+    local = local_icon(base)
     if local is not None:
         _icon_cache[item_id] = local
         return local
-    for tier in range(8, 0, -1):
-        sure, data = await _get_icon(session, _ICON_URL.format(tier=tier, item_id=item_id))
+    for t in range(8, 0, -1):
+        sure, data = await _get_icon(session, _ICON_URL.format(tier=t, item_id=base))
         if not sure:
             return None
         if data is not None:
@@ -206,6 +236,19 @@ def _centered_text(draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int], te
     draw.text((x0 + (x1 - x0 - w) / 2, y0 + (y1 - y0 - font.size) / 2), text, font=font, fill=fill)
 
 
+def _draw_tier_badge(draw: ImageDraw.ImageDraw, x: int, bottom: int, item_id: str, size: int = 13) -> None:
+    """Pastille « 8.1 » posée au coin bas-gauche d'une icône (x, bottom) ; rien si le tier est libre."""
+    _, tier, enchant = split_tier(item_id)
+    if tier is None:
+        return
+    text, font = f"{tier}.{enchant}", _font(size, "Bold")
+    pad, h = 4, size + 6
+    w = draw.textlength(text, font=font) + 2 * pad
+    draw.rounded_rectangle((x, bottom - h, x + w, bottom), radius=h // 2, fill=BG,
+                           outline=ENCHANT_COLORS.get(enchant, MUTED), width=2)
+    draw.text((x + pad, bottom - h + (h - size) / 2 - 1), text, font=font, fill=TEXT)
+
+
 def _draw_cell(img: Image.Image, draw: ImageDraw.ImageDraw, x: int, y: int,
                slot: str, choices: list[str], icons: dict[str, bytes | None]) -> None:
     filled = bool(choices)
@@ -231,6 +274,7 @@ def _draw_cell(img: Image.Image, draw: ImageDraw.ImageDraw, x: int, y: int,
             img.paste(icon, (ix, top), icon)
         else:
             _centered_text(draw, (ix, top, ix + size, top + size), "?", _font(size // 2), LILAC)
+        _draw_tier_badge(draw, ix + 2, top + size - 2, item_id, 14 if n == 1 else 11)
     if n > 1:
         _centered_text(draw, (x, y + CELL - 22, x + CELL, y + CELL - 4), f"{n} au choix", _font(13, "SemiBold"), LILAC)
 
@@ -252,6 +296,7 @@ def _draw_swaps_column(img: Image.Image, draw: ImageDraw.ImageDraw, x: int, top:
             img.paste(icon, (x + 4, y + 4), icon)
         else:
             _centered_text(draw, (x, y, x + SWAP_CELL, y + SWAP_CELL), "?", _font(24), LILAC)
+        _draw_tier_badge(draw, x + 3, y + SWAP_CELL - 3, item_id, 11)
 
 
 def render_build_image(build: dict, icons: dict[str, bytes | None]) -> bytes:
@@ -370,6 +415,7 @@ def _draw_small_slot(img: Image.Image, draw: ImageDraw.ImageDraw, x: int, y: int
         img.paste(icon, (x, y), icon)
     else:
         _centered_text(draw, (x, y, x + C_ICON, y + C_ICON), "?", _font(24, "Bold"), LILAC)
+    _draw_tier_badge(draw, x + 1, y + C_ICON - 1, choices[0], 10)
     # Autres choix possibles : mini-icônes cerclées de lilas dans le coin bas-droit.
     by = y + C_ICON - C_MINI + 4
     for i, alt in enumerate(choices[1:]):

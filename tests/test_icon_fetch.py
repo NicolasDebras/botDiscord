@@ -119,6 +119,33 @@ def test_fetch_icon_transient_failure_is_not_cached():
     assert "A" not in build_image._icon_cache
 
 
+def test_split_tier_and_tiered_gear():
+    assert build_image.split_tier("T8_MAIN_SWORD@1") == ("MAIN_SWORD", 8, 1)
+    assert build_image.split_tier("T7_2H_HOLYSTAFF") == ("2H_HOLYSTAFF", 7, 0)
+    assert build_image.split_tier("MAIN_SWORD") == ("MAIN_SWORD", None, 0)
+    assert build_image.has_tiered_gear({"mainhand": ["T8_MAIN_SWORD@1"]})
+    assert build_image.has_tiered_gear({"swaps": ["T7_OFF_SHIELD"]})
+    assert not build_image.has_tiered_gear({"mainhand": ["MAIN_SWORD"], "food": ["T8_MEAL_STEW@1"]})
+
+
+def test_tiered_item_uses_exact_icon_first(tmp_path):
+    (tmp_path / "MAIN_SWORD.png").write_bytes(b"local")
+    exact = build_image._ICON_URL_EXACT.format(item_id="T7_MAIN_SWORD@2")
+    session = FakeSession({exact: [(200, b"t72")]})
+    assert asyncio.run(build_image.fetch_icon(session, "T7_MAIN_SWORD@2")) == b"t72"
+    assert session.calls == [exact]
+    assert build_image._icon_cache["T7_MAIN_SWORD@2"] == b"t72"
+
+
+def test_tiered_item_missing_on_cdn_falls_back_to_base_icon(tmp_path):
+    (tmp_path / "MAIN_SWORD.png").write_bytes(b"local")
+    session = FakeSession({})   # 404 sur l'URL exacte
+    assert asyncio.run(build_image.fetch_icon(session, "T6_MAIN_SWORD@4")) == b"local"
+    session = FakeSession({url(8, "OFF_SHIELD"): [200]})
+    assert asyncio.run(build_image.fetch_icon(session, "T6_OFF_SHIELD@1")) == b"png"
+    assert session.calls[-1] == url(8, "OFF_SHIELD")
+
+
 def test_fetch_icon_unknown_item_is_cached_as_missing():
     session = FakeSession({})
     assert asyncio.run(build_image.fetch_icon(session, "INCONNU")) is None

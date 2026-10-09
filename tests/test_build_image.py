@@ -115,6 +115,21 @@ def test_render_draws_icon_pixels():
     assert (255, 0, 0) in {img.getpixel((x, y)) for x in range(0, img.width, 4) for y in range(0, img.height, 4)}
 
 
+def test_render_draws_tier_badge_with_enchant_color():
+    """« T8_ARMOR_X@1 » : pastille 8.1 bordée de la couleur de l'enchantement .1 ; rien pour un tier libre."""
+    from Service.build_image import ENCHANT_COLORS
+    green = ENCHANT_COLORS[1]
+    icon = _png((0, 0, 255))
+    tiered = _open(render_build_image({"name": "X", "items": {"armor": ["T8_ARMOR_X@1"], "swaps": ["T7_CAPE_X@1"]}},
+                                      {"T8_ARMOR_X@1": icon, "T7_CAPE_X@1": icon})).convert("RGB")
+    plain = _open(render_build_image({"name": "X", "items": {"armor": ["ARMOR_X"]}}, {"ARMOR_X": icon})).convert("RGB")
+    assert green in set(tiered.get_flattened_data())
+    assert green not in set(plain.get_flattened_data())
+    compo = render_compo_image("X", [("Party 1", "TANK", 1, {"name": "T", "items": {"head": ["T8_HEAD_X@1"]}})],
+                               {"T8_HEAD_X@1": icon})
+    assert green in set(_open(compo).convert("RGB").get_flattened_data())
+
+
 # ── Image de la compo (/acti) ────────────────────────────────────────────────
 
 from Service.build_image import COMPO_WIDTH, LILAC, compo_rows, render_compo_image  # noqa: E402
