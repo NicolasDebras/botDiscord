@@ -198,6 +198,60 @@ def build_id_for_role(template_data: dict, role_key: str) -> int | None:
     return ids[0] if ids else None
 
 
+# ── HELPER : lignes d'un créneau de rôle dans l'embed ───────────────────────
+def _slot_lines(members: list, role_spec: str, tdata: dict, type_acti: str, grouped: bool) -> list[str]:
+    """Lignes affichées pour un créneau (jamais vide). grouped = le créneau est un sous-bloc
+    d'une catégorie (ex. 2 lignes TANK) : joueurs indentés, place libre en « -— »."""
+    empty = "　-—" if grouped else "*Personne*"
+
+    # ── Format PVP avec specs : sous-groupes par arme ─────────────────────
+    if type_acti == "PVP" and role_spec and not tdata.get("no_spec"):
+        # Mode compact (free_pick) : hint sur une ligne + joueur par ligne
+        if tdata.get("free_pick"):
+            lines = [f"*{role_spec}*"]
+            for entry in members:
+                uid    = entry[0]
+                spec   = entry[2] if len(entry) > 2 else ""
+                weapon = _player_weapon(spec) if spec else ""
+                level  = re.search(r"\((\d+)\)", spec) if spec else None
+                if weapon:
+                    lines.append(f"{weapon} — <@{uid}>{f' — {level.group(1)}' if level else ''}")
+                else:
+                    lines.append(f"<@{uid}>")
+            return lines if members else [*lines, empty]
+
+        lines = []
+        matched_uids: set[int] = set()
+        for display, clean_name, n_slots in _parse_weapon_slots(role_spec):
+            lines.append(f"**{display}**")
+            matched = [e for e in members if _player_weapon(e[2]) == clean_name]
+            for entry in matched:
+                uid   = entry[0]
+                level = re.search(r"\((\d+)\)", entry[2])
+                lines.append(f"　-<@{uid}>{f'  ({level.group(1)})' if level else ''}")
+                matched_uids.add(uid)
+            if n_slots is not None:
+                for _ in range(max(0, n_slots - len(matched))):
+                    lines.append("　-—")
+        for entry in members:
+            if entry[0] not in matched_uids:
+                uid  = entry[0]
+                spec = entry[2] if len(entry) > 2 else ""
+                lines.append(f"<@{uid}>{f'  —  {spec}' if spec else ''}")
+        return lines or [empty]
+
+    # ── Format PVE / sans spec : liste simple ────────────────────────────
+    lines = []
+    if role_spec and tdata.get("no_spec"):
+        lines.append(f"*{role_spec}*")
+    indent = "　-" if grouped else ""
+    for entry in members:
+        uid         = entry[0]
+        player_spec = entry[2] if len(entry) > 2 else ""
+        lines.append(f"{indent}<@{uid}>{f'  —  {player_spec}' if player_spec else ''}")
+    return lines if members else [*lines, empty]
+
+
 # ── CONSTRUCTION DE L'EMBED ──────────────────────────────────────────────────
 def build_embed(data: dict) -> discord.Embed:
     template = data.get("template")
@@ -261,85 +315,52 @@ def build_embed(data: dict) -> discord.Embed:
         for role in pf1 if pf1.get(role, 0) > 0
     )
 
-    pf2_header_done = False
+    # Créneaux regroupés par catégorie (PF, rôle de base) : « TANK » et « TANK · Main tank »
+    # s'affichent sous un seul en-tête 🛡️ TANK, chaque créneau en sous-bloc.
+    groups: dict[tuple[bool, str], list[str]] = {}
     for role_key in roles_to_show:
         if role_key in ("Fill", "PF2:Fill"):
             continue
-        is_pf2    = role_key.startswith("PF2:")
-        role_name = role_key[4:] if is_pf2 else role_key
-        emoji     = ROLES.get(base_role(role_name), "🔹")
-        members   = slots.get(role_key, [])
+        groups.setdefault((role_key.startswith("PF2:"), base_role(role_key)), []).append(role_key)
 
-        if is_pf2:
-            if not pf2_header_done:
-                if pf1_has_any_full:
-                    pf2_label = "─────────────────────────\n🔶  PF2"
-                else:
-                    pf2_label = "─────────────────────────\n🔒  PF2  —  disponible quand un rôle PF1 est complet"
-                embed.add_field(name=pf2_label, value="\u200b", inline=False)
-                pf2_header_done = True
-            max_r     = pf2.get(role_name, "∞")
-            role_spec = specs_pf2.get(role_name, "")
-        else:
-            max_r     = pf1.get(role_key, "∞") if pf1 else "∞"
-            role_spec = specs.get(role_key, "")
-
-        count      = f"{len(members)}/{max_r}" if isinstance(max_r, int) else str(len(members))
-        label      = f"{role_name} PF2" if is_pf2 else role_name
-        field_name = f"{emoji} {label}  [{count}]"
-
-        # ── Format PVP avec specs : sous-groupes par arme ─────────────────
-        if type_acti == "PVP" and role_spec and not tdata.get("no_spec"):
-            # Mode compact (free_pick) : hint sur une ligne + joueur par ligne
-            if tdata.get("free_pick"):
-                lines = [f"*{role_spec}*"]
-                for entry in members:
-                    uid    = entry[0]
-                    spec   = entry[2] if len(entry) > 2 else ""
-                    weapon = _player_weapon(spec) if spec else ""
-                    level  = re.search(r"\((\d+)\)", spec) if spec else None
-                    if weapon:
-                        lines.append(f"{weapon} — <@{uid}>{f' — {level.group(1)}' if level else ''}")
-                    else:
-                        lines.append(f"<@{uid}>")
-                value = "\n".join(lines) if members else f"*{role_spec}*\n*Personne*"
+    pf2_header_done = False
+    for (is_pf2, base), keys in groups.items():
+        if is_pf2 and not pf2_header_done:
+            if pf1_has_any_full:
+                pf2_label = "─────────────────────────\n🔶  PF2"
             else:
-                weapon_groups = _parse_weapon_slots(role_spec)
-                lines = []
-                matched_uids: set[int] = set()
+                pf2_label = "─────────────────────────\n🔒  PF2  —  disponible quand un rôle PF1 est complet"
+            embed.add_field(name=pf2_label, value="​", inline=False)
+            pf2_header_done = True
 
-                for display, clean_name, n_slots in weapon_groups:
-                    lines.append(f"**{display}**")
-                    matched = [e for e in members if _player_weapon(e[2]) == clean_name]
-                    for entry in matched:
-                        uid   = entry[0]
-                        level = re.search(r"\((\d+)\)", entry[2])
-                        lines.append(f"　-<@{uid}>{f'  ({level.group(1)})' if level else ''}")
-                        matched_uids.add(uid)
-                    if n_slots is not None:
-                        for _ in range(max(0, n_slots - len(matched))):
-                            lines.append("　-—")
+        grouped       = len(keys) > 1
+        blocks        = []
+        filled, total = 0, 0
+        for role_key in keys:
+            role_name = role_key[4:] if is_pf2 else role_key
+            members   = slots.get(role_key, [])
+            if is_pf2:
+                max_r     = pf2.get(role_name, "∞")
+                role_spec = specs_pf2.get(role_name, "")
+            else:
+                max_r     = pf1.get(role_key, "∞") if pf1 else "∞"
+                role_spec = specs.get(role_key, "")
+            filled += len(members)
+            total   = total + max_r if isinstance(total, int) and isinstance(max_r, int) else "∞"
 
-                for entry in members:
-                    if entry[0] not in matched_uids:
-                        uid  = entry[0]
-                        spec = entry[2] if len(entry) > 2 else ""
-                        lines.append(f"<@{uid}>{f'  —  {spec}' if spec else ''}")
+            lines = _slot_lines(members, role_spec, tdata, type_acti, grouped)
+            if grouped:
+                # Sous-titre du créneau, sauf si son arme (déjà en gras) le porte déjà
+                sub = role_name.split(" · ", 1)[1].strip() if " · " in role_name else ""
+                if not lines[0].startswith("**") or (sub and sub.lower() not in lines[0].lower()):
+                    lines.insert(0, f"**{sub or role_name}**")
+            blocks.append("\n".join(lines))
 
-                value = "\n".join(lines) if lines else "*Personne*"
-
-        # ── Format PVE / sans spec : liste simple ────────────────────────
-        else:
-            lines = []
-            if role_spec and tdata.get("no_spec"):
-                lines.append(f"*{role_spec}*")
-            for entry in members:
-                uid         = entry[0]
-                player_spec = entry[2] if len(entry) > 2 else ""
-                lines.append(f"<@{uid}>{f'  —  {player_spec}' if player_spec else ''}")
-            value = "\n".join(lines) if lines else "*Personne*"
-
-        embed.add_field(name=field_name[:256], value=value[:1024], inline=False)
+        label      = base if grouped else (keys[0][4:] if is_pf2 else keys[0])
+        label      = f"{label} PF2" if is_pf2 else label
+        count      = f"{filled}/{total}" if isinstance(total, int) else str(filled)
+        field_name = f"{ROLES.get(base, '🔹')} {label}  [{count}]"
+        embed.add_field(name=field_name[:256], value="\n".join(blocks)[:1024], inline=False)
 
     fill_members = slots.get("Fill", [])
     if fill_members:

@@ -7,9 +7,16 @@ Pour annoncer une nouvelle fonctionnalité : incrémenter VERSION et ajouter
 une entrée en tête de CHANGELOG (ordre du plus récent au plus ancien).
 """
 
-VERSION = "2026.10.09.1"
+VERSION = "2026.10.09.2"
 
 CHANGELOG: list[dict] = [
+    {
+        "version": "2026.10.09.2",
+        "title": "🗂️ Rôles regroupés par catégorie",
+        "items": [
+            "Dans l'embed `/acti`, les lignes d'un même rôle (ex. 2 tanks avec des builds différents) sont regroupées sous une seule catégorie 🛡️ TANK, avec un compteur cumulé.",
+        ],
+    },
     {
         "version": "2026.10.09.1",
         "title": "🛡️ Plusieurs lignes pour un même rôle",

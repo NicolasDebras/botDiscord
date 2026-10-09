@@ -326,6 +326,28 @@ def test_embed_shows_pending_and_validation_line(acti):
     assert any("Inscriptions sur validation" in v for v in fields.values())
 
 
+def test_embed_groups_same_role_slots_under_one_category(acti, monkeypatch):
+    tpl = {
+        "type_acti": "PVP",
+        "pf_1": {"TANK": 1, "TANK · Tank": 1, "DPS": 2},
+        "weapon": {"TANK": "ROLE DE TEST", "TANK · Tank": "Tank"},
+    }
+    monkeypatch.setattr(activites, "load_all_templates", lambda gid: {"T": tpl})
+    acti["slots"] = {"TANK": [(PLAYER, "Bob", "ROLE DE TEST")], "TANK · Tank": [], "DPS": []}
+    fields = [(f.name, f.value) for f in build_embed(acti).fields]
+    assert fields[0] == ("🛡️ TANK  [1/2]", f"**ROLE DE TEST**\n　-<@{PLAYER}>\n**Tank**\n　-—")
+    assert fields[1] == ("⚔️ DPS  [0/2]", "*Personne*")
+
+
+def test_embed_grouped_slot_without_spec_gets_its_label(acti, monkeypatch):
+    tpl = {"type_acti": "PVE", "pf_1": {"TANK · Main": 1, "TANK · Off": 1}}
+    monkeypatch.setattr(activites, "load_all_templates", lambda gid: {"T": tpl})
+    acti["slots"] = {"TANK · Main": [], "TANK · Off": [(PLAYER, "Bob", "")]}
+    name, value = (embed := build_embed(acti)).fields[0].name, embed.fields[0].value
+    assert name == "🛡️ TANK  [1/2]"
+    assert value == f"**Main**\n　-—\n**Off**\n　-<@{PLAYER}>"
+
+
 def test_activity_view_has_pending_button_only_with_validation(acti):
     async def build():
         return activites.ActivityView(ACTI)
