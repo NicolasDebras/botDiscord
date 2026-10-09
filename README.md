@@ -295,7 +295,7 @@ Un `id` unique est attribué à chaque location — visible dans `/recaplocation
 | Commande | Accès | Description |
 |---|---|---|
 | `/kickacti @joueur` | Organisateur, Officier ou Caller | Retirer un joueur d'une activité |
-| `/addacti @joueur role` | Officier ou Caller | Ajouter ou déplacer un joueur dans une activité |
+| `/addacti @joueur role` | Officier ou Caller | Ajouter ou déplacer un joueur dans une activité — l'autocomplétion propose les rôles des activités en cours du serveur (lignes de compo du site comme « TANK · Main tank », rôles PF2, rôles perso) ; rôle avec build imposé : inscription directe |
 | `/addtemplate` | Officier | Ajouter un template custom (format JSON) |
 | `/deltemplate nom` | Officier | Supprimer un template custom |
 | `/setimage nom [url]` | Officier | Modifier l'image d'un template (laisser url vide pour retirer) |
@@ -381,7 +381,7 @@ Un template par défaut peut être restreint à certains serveurs via la clé `"
 | DPS | ⚔️ |
 | SUPPORT | 🔮 |
 
-> Liste volontairement réduite à ces 4 rôles (proposés par l'autocomplétion de `/addtemplate`, `/addacti` et le site). Un ancien template qui utiliserait un autre nom de rôle fonctionne toujours, avec l'emoji 🔹. Copie à garder synchro dans `lilium-site/api/app/constants.py`.
+> Liste volontairement réduite à ces 4 rôles (proposés par l'autocomplétion de `/addtemplate` et le site ; `/addacti` propose ceux des activités en cours). Un ancien template qui utiliserait un autre nom de rôle fonctionne toujours, avec l'emoji 🔹. Copie à garder synchro dans `lilium-site/api/app/constants.py`.
 
 Sur l'image de la compo postée par `/acti`, les builds sont rangés par party (PF1 puis PF2) et, dans chaque party, par rôle : TANK, HEAL, DPS, SUPPORT.
 

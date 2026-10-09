@@ -7,9 +7,18 @@ Pour annoncer une nouvelle fonctionnalité : incrémenter VERSION et ajouter
 une entrée en tête de CHANGELOG (ordre du plus récent au plus ancien).
 """
 
-VERSION = "2026.10.09.4"
+VERSION = "2026.10.09.5"
 
 CHANGELOG: list[dict] = [
+    {
+        "version": "2026.10.09.5",
+        "title": "🧑‍✈️ /addacti et les rôles des compos",
+        "items": [
+            "`/addacti` propose les vrais rôles des activités en cours (ex. « TANK · Main tank », rôles PF2, rôles perso), plus seulement TANK/HEAL/DPS/SUPPORT.",
+            "Correctif : un rôle comme « TANK · Main tank » était refusé (mis en majuscules) ; « TANK » tout court suffit s'il n'y a qu'une ligne tank.",
+            "Rôle avec build imposé (compo du site) : le joueur est inscrit directement, sans fausse liste d'armes.",
+        ],
+    },
     {
         "version": "2026.10.09.4",
         "title": "🛠️ Icônes des builds",

@@ -10,19 +10,45 @@ from Service.activites import (
     load_all_templates, save_activities, refresh_templates_cache, refresh_image_overrides,
     refresh_description_overrides, template_autocomplete,
     _parse_weapon_slots, _player_weapon, _is_creator, _acti_label,
+    _place_player, _role_label, _sort_roles, base_role, build_id_for_role,
 )
 from Service.utils import is_admin, is_membre, is_caller_or_admin, ActivitySelect, load_settings, save_settings, append_bal_log, fmt_silver
 
 
-# ── AUTOCOMPLÉTION : rôles disponibles ───────────────────────────────────────
+# ── AUTOCOMPLÉTION : rôles des activités en cours du serveur ─────────────────
+def guild_role_keys(guild_id: int) -> list[str]:
+    """Rôles (clés de slots) des activités en cours du serveur, sans doublon : « TANK · Main tank »,
+    « PF2:DPS », rôles perso des compos… Rôles par défaut s'il n'y a aucune activité."""
+    keys: list[str] = []
+    for data in activities.values():
+        if data.get("guild_id") == guild_id:
+            keys.extend(k for k in data.get("slots", {}) if k not in keys)
+    return _sort_roles(keys) if keys else list(ROLES)
+
+
+def resolve_role(slots: dict, typed: str) -> str | None:
+    """Rôle de l'activité désigné par ce qui a été tapé / choisi : clé exacte, puis sans tenir compte
+    des majuscules (clé ou libellé « DPS PF2 »), puis rôle de base s'il n'y a qu'une ligne (« TANK »
+    → « TANK · Main tank »). None si inconnu ou ambigu."""
+    if typed in slots:
+        return typed
+    low = typed.strip().lower()
+    for key in slots:
+        if low in (key.lower(), _role_label(key).lower(), _role_label(key).lower().replace(" pf2", " (pf2)")):
+            return key
+    same_base = [k for k in slots if not k.startswith("PF2:") and base_role(k).lower() == low]
+    return same_base[0] if len(same_base) == 1 else None
+
+
 async def role_autocomplete(
-    _interaction: discord.Interaction,
+    interaction: discord.Interaction,
     current: str,
 ) -> list[app_commands.Choice[str]]:
+    keys = guild_role_keys(interaction.guild_id or 0)
     return [
-        app_commands.Choice(name=role, value=role)
-        for role in ROLES
-        if current.lower() in role.lower()
+        app_commands.Choice(name=_role_label(key)[:100], value=key[:100])
+        for key in keys
+        if current.lower() in key.lower() or current.lower() in _role_label(key).lower()
     ][:25]
 
 
@@ -58,17 +84,8 @@ class AdminSpecLevelModal(discord.ui.Modal):
 
         spec  = f"{self.chosen_weapon} ({level})"
         data  = self.data
-        slots = data["slots"]
-
-        action = "ajouté"
-        for r, members in slots.items():
-            for entry in members[:]:
-                if entry[0] == self.target_id:
-                    members.remove(entry)
-                    action = "déplacé"
-                    break
-
-        slots.setdefault(self.chosen_role, []).append((self.target_id, self.target_name, spec))
+        action = "déplacé" if any(e[0] == self.target_id for m in data["slots"].values() for e in m) else "ajouté"
+        _place_player(data, self.target_id, self.target_name, self.chosen_role, spec)
         await interaction.response.defer(ephemeral=True)
         await save_activities()
 
@@ -79,9 +96,8 @@ class AdminSpecLevelModal(discord.ui.Modal):
         except Exception:
             pass
 
-        label = f"{self.chosen_role[4:]} PF2" if self.chosen_role.startswith("PF2:") else self.chosen_role
         await interaction.followup.send(
-            f"✅ **{self.target_name}** {action} en **{label}**  —  {spec} !", ephemeral=True
+            f"✅ **{self.target_name}** {action} en **{_role_label(self.chosen_role)}**  —  {spec} !", ephemeral=True
         )
 
 
@@ -239,7 +255,6 @@ class Admin(commands.Cog):
 
         target_id   = joueur.id
         target_name = joueur.display_name
-        chosen_role = role.upper()
 
         async def on_select(inter: discord.Interaction, value: str):
             if value == "none":
@@ -256,12 +271,15 @@ class Admin(commands.Cog):
             max_p    = data["max_players"]
             template = data.get("template")
 
-            if chosen_role not in slots:
-                roles_dispo = ", ".join(f"`{r}`" for r in slots)
+            # Rôle propre à CETTE activité (« TANK · Main tank », « PF2:DPS », rôle perso d'une compo…)
+            chosen_role = resolve_role(slots, role)
+            if chosen_role is None:
+                roles_dispo = ", ".join(f"`{_role_label(r)}`" for r in slots)
                 await inter.response.send_message(
-                    f"❌ Rôle **{chosen_role}** inconnu.\nRôles disponibles : {roles_dispo}", ephemeral=True
+                    f"❌ Rôle **{role}** absent de cette activité.\nRôles disponibles : {roles_dispo}", ephemeral=True
                 )
                 return
+            label = _role_label(chosen_role)
 
             total      = sum(len(v) for v in slots.values())
             already_in = any(e[0] == target_id for members in slots.values() for e in members)
@@ -277,46 +295,39 @@ class Admin(commands.Cog):
             in_role  = [e[0] for e in slots.get(chosen_role, [])]
             if len(in_role) >= max_role and target_id not in in_role:
                 await inter.response.send_message(
-                    f"⛔ Plus de place en **{chosen_role}** ({max_role} max).", ephemeral=True
+                    f"⛔ Plus de place en **{label}** ({max_role} max).", ephemeral=True
                 )
                 return
 
             for entry in slots.get(chosen_role, []):
                 if entry[0] == target_id:
                     await inter.response.send_message(
-                        f"ℹ️ **{target_name}** est déjà en **{chosen_role}**.", ephemeral=True
+                        f"ℹ️ **{target_name}** est déjà en **{label}**.", ephemeral=True
                     )
                     return
 
-            # PVP avec armes → dropdown arme → modal niveau
-            type_acti = tdata.get("type_acti", "")
-            if type_acti == "PVP":
-                hint_spec = (
-                    tdata.get("weapon_pf2", tdata.get("specs_pf2", {})).get(rn, "")
-                    if is_pf2 else
-                    tdata.get("weapon", tdata.get("specs", {})).get(chosen_role, "")
-                )
-                if hint_spec:
-                    weapons_list = [w.strip() for w in hint_spec.split("·") if w.strip()]
-                    if weapons_list:
-                        label = f"{rn} (PF2)" if is_pf2 else chosen_role
-                        await inter.response.send_message(
-                            f"⚔️ **{label}** pour **{target_name}** — Quelle arme ?",
-                            view=AdminWeaponSelectView(msg_id, target_id, target_name, chosen_role, weapons_list, data),
-                            ephemeral=True,
-                        )
-                        return
+            hint_spec = (
+                tdata.get("weapon_pf2", tdata.get("specs_pf2", {})).get(rn, "")
+                if is_pf2 else
+                tdata.get("weapon", tdata.get("specs", {})).get(chosen_role, "")
+            )
+            # Compo du site : build imposé → inscription directe (le build fait office d'arme,
+            # comme à l'inscription normale). Sinon, en PVP avec armes : choix de l'arme puis niveau.
+            has_build = build_id_for_role(tdata, chosen_role) is not None
+            spec = (hint_spec or chosen_role) if has_build else ""
+            if not has_build and tdata.get("type_acti", "") == "PVP" and hint_spec:
+                weapons_list = [w.strip() for w in hint_spec.split("·") if w.strip()]
+                if weapons_list:
+                    await inter.response.send_message(
+                        f"⚔️ **{label}** pour **{target_name}** — Quelle arme ?",
+                        view=AdminWeaponSelectView(msg_id, target_id, target_name, chosen_role, weapons_list, data),
+                        ephemeral=True,
+                    )
+                    return
 
-            # PVE ou pas d'armes → inscription directe
-            action = "ajouté"
-            for r, members in slots.items():
-                for entry in members[:]:
-                    if entry[0] == target_id:
-                        members.remove(entry)
-                        action = "déplacé"
-                        break
-
-            slots[chosen_role].append((target_id, target_name, ""))
+            # PVE, pas d'armes ou build imposé → inscription directe
+            action = "déplacé" if already_in else "ajouté"
+            _place_player(data, target_id, target_name, chosen_role, spec)
             await inter.response.defer(ephemeral=True)
             try:
                 channel = inter.client.get_channel(data["channel_id"])
@@ -326,13 +337,13 @@ class Admin(commands.Cog):
                 pass
             await save_activities()
             await inter.followup.send(
-                f"✅ **{target_name}** {action} en **{chosen_role}** dans **{_acti_label(data)}** !", ephemeral=True
+                f"✅ **{target_name}** {action} en **{label}** dans **{_acti_label(data)}** !", ephemeral=True
             )
 
         view = discord.ui.View(timeout=60)
         view.add_item(ActivitySelect(on_select, "🗡️ Dans quelle activité l'ajouter ?", guild_id=interaction.guild.id))
         await interaction.response.send_message(
-            f"Choisis l'activité où ajouter **{target_name}** en **{chosen_role}** :",
+            f"Choisis l'activité où ajouter **{target_name}** en **{_role_label(role)}** :",
             view=view, ephemeral=True,
         )
 
