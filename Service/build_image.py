@@ -125,8 +125,15 @@ async def _get_icon(session: aiohttp.ClientSession, url: str) -> tuple[bool, byt
         try:
             async with session.get(url, timeout=aiohttp.ClientTimeout(total=ICON_REQUEST_TIMEOUT)) as resp:
                 if resp.status == 200:
-                    data = await resp.content.read(ICON_MAX_BYTES + 1)
-                    return True, (data if len(data) <= ICON_MAX_BYTES else None)
+                    # read(n) rend ce qui est déjà arrivé (au plus n octets), pas tout le corps :
+                    # on lit jusqu'à la fin, en abandonnant au-delà de ICON_MAX_BYTES.
+                    chunks, size = [], 0
+                    while chunk := await resp.content.read(64 * 1024):
+                        size += len(chunk)
+                        if size > ICON_MAX_BYTES:
+                            return True, None
+                        chunks.append(chunk)
+                    return True, b"".join(chunks)
                 if resp.status == 404:
                     return True, None
         except (aiohttp.ClientError, asyncio.TimeoutError):
@@ -415,7 +422,8 @@ def _draw_small_slot(img: Image.Image, draw: ImageDraw.ImageDraw, x: int, y: int
         img.paste(icon, (x, y), icon)
     else:
         _centered_text(draw, (x, y, x + C_ICON, y + C_ICON), "?", _font(24, "Bold"), LILAC)
-    _draw_tier_badge(draw, x + 1, y + C_ICON - 1, choices[0], 10)
+    # En haut à gauche (sur le chiffre du tier) : le bas est pris par les mini-icônes des autres choix
+    _draw_tier_badge(draw, x + 1, y + 17, choices[0], 10)
     # Autres choix possibles : mini-icônes cerclées de lilas dans le coin bas-droit.
     by = y + C_ICON - C_MINI + 4
     for i, alt in enumerate(choices[1:]):

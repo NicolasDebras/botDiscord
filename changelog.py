@@ -7,9 +7,17 @@ Pour annoncer une nouvelle fonctionnalité : incrémenter VERSION et ajouter
 une entrée en tête de CHANGELOG (ordre du plus récent au plus ancien).
 """
 
-VERSION = "2026.10.09.3"
+VERSION = "2026.10.09.4"
 
 CHANGELOG: list[dict] = [
+    {
+        "version": "2026.10.09.4",
+        "title": "🛠️ Icônes des builds",
+        "items": [
+            "Correctif : les icônes téléchargées depuis Albion (objets avec tier/enchantement, objets récents) étaient tronquées et s'affichaient « ? » sur les images de build et de compo.",
+            "Sur l'image de la compo, la pastille « 8.1 » passe en haut de la case pour ne plus être cachée par les autres choix.",
+        ],
+    },
     {
         "version": "2026.10.09.3",
         "title": "⚔️ Tier et enchantement dans les builds",

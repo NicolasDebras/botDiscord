@@ -7,11 +7,18 @@ from Service import build_image
 
 
 class FakeStream:
+    """Comme aiohttp : read(n) rend ce qui est arrivé (paquets de NET_CHUNK octets max), b"" à la fin."""
+    NET_CHUNK = 4096
+
     def __init__(self, body):
         self._body = body
+        self._pos = 0
 
     async def read(self, n=-1):
-        return self._body if n < 0 else self._body[:n]
+        size = self.NET_CHUNK if n < 0 else min(n, self.NET_CHUNK)
+        chunk = self._body[self._pos:self._pos + size]
+        self._pos += len(chunk)
+        return chunk
 
 
 class FakeResponse:
@@ -158,6 +165,13 @@ def test_fetch_icon_ignores_oversized_body():
     big = b"x" * (build_image.ICON_MAX_BYTES + 10)
     session = FakeSession({url(8, "A"): [(200, big)]})
     assert asyncio.run(build_image.fetch_icon(session, "A")) is None
+
+
+def test_icon_larger_than_one_network_chunk_is_read_entirely():
+    """Régression : read(n) seul ne rendait que le 1er paquet → PNG tronqué, dessiné « ? »."""
+    body = bytes(range(256)) * 100   # 25,6 Ko, comme une vraie icône 128 px
+    session = FakeSession({build_image._ICON_URL_EXACT.format(item_id="T6_2H_CROSSBOW@4"): [(200, body)]})
+    assert asyncio.run(build_image.fetch_icon(session, "T6_2H_CROSSBOW@4")) == body
 
 
 def test_fetch_icon_rejects_malformed_item_id_without_network():
