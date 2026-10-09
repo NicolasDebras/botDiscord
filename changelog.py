@@ -7,9 +7,16 @@ Pour annoncer une nouvelle fonctionnalité : incrémenter VERSION et ajouter
 une entrée en tête de CHANGELOG (ordre du plus récent au plus ancien).
 """
 
-VERSION = "2026.10.09.5"
+VERSION = "2026.10.09.6"
 
 CHANGELOG: list[dict] = [
+    {
+        "version": "2026.10.09.6",
+        "title": "⚔️ Tiers T4 et T5",
+        "items": [
+            "Un build du site peut maintenant imposer un tier de T4 à T8 (plus seulement T6–T8), avec son enchantement et sa pastille sur les images.",
+        ],
+    },
     {
         "version": "2026.10.09.5",
         "title": "🧑‍✈️ /addacti et les rôles des compos",
