@@ -348,6 +348,18 @@ def test_embed_grouped_slot_without_spec_gets_its_label(acti, monkeypatch):
     assert value == f"**Main**\n　-—\n**Off**\n　-<@{PLAYER}>"
 
 
+def test_embed_bare_first_site_line_shows_its_build_name(acti, monkeypatch):
+    # Compo du site : la 1re ligne du rôle garde la clé « TANK », son nom de build est le hint.
+    tpl = {"type_acti": "PVE", "pf_1": {"TANK": 1, "TANK · Def tank": 1},
+           "weapon": {"TANK": "Main tank", "TANK · Def tank": "Def tank"},
+           "builds": {"TANK": 12, "TANK · Def tank": 13}}
+    monkeypatch.setattr(activites, "load_all_templates", lambda gid: {"T": tpl})
+    acti["slots"] = {"TANK": [], "TANK · Def tank": []}
+    value = build_embed(acti).fields[0].value
+    assert value.startswith("**Main tank**")
+    assert "**TANK**" not in value
+
+
 def test_activity_view_has_pending_button_only_with_validation(acti):
     async def build():
         return activites.ActivityView(ACTI)

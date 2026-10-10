@@ -350,10 +350,11 @@ def build_embed(data: dict) -> discord.Embed:
 
             lines = _slot_lines(members, role_spec, tdata, type_acti, grouped)
             if grouped:
-                # Sous-titre du créneau, sauf si son arme (déjà en gras) le porte déjà
-                sub = role_name.split(" · ", 1)[1].strip() if " · " in role_name else ""
-                if not lines[0].startswith("**") or (sub and sub.lower() not in lines[0].lower()):
-                    lines.insert(0, f"**{sub or role_name}**")
+                # Sous-titre du créneau (nom du build, même pour la 1re ligne à clé nue « TANK »),
+                # sauf si son arme (déjà en gras) le porte déjà
+                sub = slot_title(tdata, role_key)
+                if not lines[0].startswith("**") or (sub != role_name and sub.lower() not in lines[0].lower()):
+                    lines.insert(0, f"**{sub}**")
             blocks.append("\n".join(lines))
 
         label      = base if grouped else (keys[0][4:] if is_pf2 else keys[0])
@@ -902,10 +903,28 @@ def group_role_keys(keys: list[str]) -> dict[str, list[str]]:
     return groups
 
 
-def build_label(role_key: str) -> str:
-    """Nom du build d'une clé de rôle (« DPS · Weeping » → « Weeping »), sinon la clé sans PF2."""
+def build_label(role_key: str, hint: str = "") -> str:
+    """Nom du build d'une clé de rôle (« DPS · Weeping » → « Weeping »). La 1re ligne d'un rôle
+    dans une compo du site garde la clé nue (« TANK ») : son nom est alors le hint (nom du build).
+    À défaut, la clé sans PF2."""
     role = role_key[4:] if role_key.startswith("PF2:") else role_key
-    return role.split(" · ", 1)[1].strip() if " · " in role else role
+    if " · " in role:
+        return role.split(" · ", 1)[1].strip()
+    return hint.strip() or role
+
+
+def role_hint(tdata: dict, role_key: str) -> str:
+    """Hint (arme / nom du build) d'une clé de rôle, PF1 ou PF2."""
+    if role_key.startswith("PF2:"):
+        return tdata.get("weapon_pf2", tdata.get("specs_pf2", {})).get(role_key[4:], "")
+    return get_specs(tdata).get(role_key, "")
+
+
+def slot_title(tdata: dict, role_key: str) -> str:
+    """Titre d'un créneau dans l'embed et le menu des builds : nom du build (hint d'une ligne
+    à build), sinon suffixe de la clé, sinon la clé (une liste d'armes n'est pas un titre)."""
+    has_build = build_id_for_role(tdata, role_key) is not None
+    return build_label(role_key, role_hint(tdata, role_key) if has_build else "")
 
 
 def _activity_tdata(data: dict) -> dict:
@@ -929,6 +948,9 @@ class RoleSelect(discord.ui.Select):
                 role_name = key[4:] if is_pf2 else key
                 label = f"{role_name} (PF2)" if is_pf2 else role_name
                 desc  = f"PF2 — S'inscrire en {role_name}" if is_pf2 else f"S'inscrire en tant que {role_name}"
+                title = slot_title(tdata, key)
+                if title != role_name and title.lower() not in role_name.lower():
+                    desc = f"{desc} — {title}"
                 value = key
             else:
                 role_name = group[4:] if is_pf2 else group
@@ -999,7 +1021,7 @@ class BuildSelectView(discord.ui.View):
             max_r = pf2.get(key[4:]) if key.startswith("PF2:") else pf1.get(key)
             taken = len(data.get("slots", {}).get(key, []))
             options.append(discord.SelectOption(
-                label=build_label(key)[:100],
+                label=slot_title(tdata, key)[:100],
                 emoji=ROLES.get(base_role(key), "🔹"),
                 description=f"Places : {taken}/{max_r}" if max_r is not None else None,
                 value=key[:100],
@@ -1030,10 +1052,7 @@ async def _choose_role(interaction: discord.Interaction, activity_id: int, chose
     tdata     = _activity_tdata(data)
     type_acti = tdata.get("type_acti", "")
 
-    if chosen_role.startswith("PF2:"):
-        hint_spec = tdata.get("weapon_pf2", tdata.get("specs_pf2", {})).get(chosen_role[4:], "")
-    else:
-        hint_spec = get_specs(tdata).get(chosen_role, "")
+    hint_spec = role_hint(tdata, chosen_role)
 
     # Compo du site : le rôle a un build imposé → inscription directe au
     # choix du rôle (ni liste d'armes ni saisie de spé), le build fait office d'arme.

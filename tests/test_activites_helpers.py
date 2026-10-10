@@ -207,6 +207,18 @@ def test_build_label_keeps_only_the_build_name():
     assert build_label("PF2:DPS · Weeping") == "Weeping"
     assert build_label("DPS 2") == "DPS 2"
     assert build_label("PF2:HEAL") == "HEAL"
+    assert build_label("TANK", "Main tank") == "Main tank"       # 1re ligne : clé nue
+    assert build_label("TANK · Def tank", "Autre") == "Def tank"
+
+
+def test_slot_title_uses_build_name_for_bare_first_line_only_when_it_has_a_build():
+    from Service.activites import slot_title
+    tdata = {"pf_1": {"TANK": 1, "TANK · Def tank": 1, "DPS": 2},
+             "weapon": {"TANK": "Main tank", "TANK · Def tank": "Def tank", "DPS": "Arcane · Curse"},
+             "builds": {"TANK": 12, "TANK · Def tank": 13}}
+    assert slot_title(tdata, "TANK") == "Main tank"
+    assert slot_title(tdata, "TANK · Def tank") == "Def tank"
+    assert slot_title(tdata, "DPS") == "DPS"          # liste d'armes, pas un nom de build
 
 
 def test_available_role_keys_hides_full_roles_and_pf2_until_a_pf1_role_is_full():
