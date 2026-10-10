@@ -369,13 +369,61 @@ COMPO_WIDTH = MARGIN * 2 + C_LEFT + len(COMPO_SLOTS) * (C_ICON + C_ICON_GAP)
 ROLE_ORDER = ("TANK", "HEAL", "DPS", "SUPPORT")
 
 
+def _base_role(role: str) -> str:
+    """« TANK · Main tank » → « TANK » ; « TANK 2 » (ligne libre en double) → « TANK »."""
+    base = role.split(" · ", 1)[0].strip()
+    unnumbered = re.sub(r" \d+$", "", base)
+    return unnumbered if unnumbered in ROLE_ORDER else base
+
+
 def _role_rank(role: str) -> int:
     """Ordre TANK, HEAL, DPS, SUPPORT puis le reste ; « TANK · Main tank » se range avec TANK."""
-    base = role.split(" · ", 1)[0].strip()
-    unnumbered = re.sub(r" \d+$", "", base)          # « TANK 2 » (ligne libre en double)
-    if unnumbered in ROLE_ORDER:
-        base = unnumbered
+    base = _base_role(role)
     return ROLE_ORDER.index(base) if base in ROLE_ORDER else len(ROLE_ORDER)
+
+
+# Couleurs des rôles = celles du site (--role-tank, --role-heal… dans styles.scss)
+ROLE_COLORS = {"TANK": (57, 135, 229), "HEAL": (25, 158, 112), "DPS": (217, 89, 38), "SUPPORT": (144, 133, 233)}
+ROLE_OTHER_COLOR = (98, 92, 120)
+
+
+def _role_icon(role: str, size: int) -> Image.Image:
+    """Pictogramme blanc du rôle (épées croisées, bouclier, croix, étoile ; pastille sinon),
+    dessiné 4× plus grand puis réduit pour des bords lissés."""
+    c = 64
+    img = Image.new("RGBA", (c, c), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    white = (255, 255, 255, 255)
+    if role == "DPS":
+        for flip in (False, True):
+            fx = (lambda x: c - x) if flip else (lambda x: x)
+            d.line((fx(16), 48, fx(58), 6), fill=white, width=7)    # lame
+            d.line((fx(8), 38, fx(26), 56), fill=white, width=7)    # garde
+            d.line((fx(4), 60, fx(16), 48), fill=white, width=8)    # poignée
+    elif role == "TANK":
+        d.polygon([(8, 8), (32, 2), (56, 8), (54, 34), (32, 62), (10, 34)], fill=white)
+    elif role == "HEAL":
+        d.rounded_rectangle((24, 4, 40, 60), radius=4, fill=white)
+        d.rounded_rectangle((4, 24, 60, 40), radius=4, fill=white)
+    elif role == "SUPPORT":
+        d.polygon([(32, 0), (41, 23), (64, 32), (41, 41), (32, 64), (23, 41), (0, 32), (23, 23)], fill=white)
+    else:
+        d.ellipse((16, 16, 48, 48), fill=white)
+    return img.resize((size, size), Image.LANCZOS)
+
+
+def _draw_role_badge(img: Image.Image, draw: ImageDraw.ImageDraw, x: int, y: int, role: str) -> int:
+    """Pastille « [icône] RÔLE » de la couleur du rôle ; renvoie l'abscisse de son bord droit."""
+    base = _base_role(role)
+    font = _font(15, "Bold")
+    label = fit_text(base, font, 130)
+    h, icon_s = 28, 16
+    w = 10 + icon_s + 6 + int(draw.textlength(label, font=font)) + 12
+    draw.rounded_rectangle((x, y, x + w, y + h), radius=h // 2, fill=ROLE_COLORS.get(base, ROLE_OTHER_COLOR))
+    icon = _role_icon(base, icon_s)
+    img.paste(icon, (x + 10, y + (h - icon_s) // 2), icon)
+    draw.text((x + 10 + icon_s + 6, y + (h - 15) / 2 - 2), label, font=font, fill=(255, 255, 255))
+    return x + w
 
 
 def compo_rows(template_data: dict) -> list[tuple[str, str, int, int]]:
@@ -499,12 +547,13 @@ def render_compo_image(name: str, rows: list[tuple[str, str, int, dict]], icons:
             draw.rounded_rectangle((MARGIN, y, width - MARGIN, y + C_ROW_H), radius=14,
                                    fill=_mix(BG, accent, .10), outline=_mix(BG, accent, .55), width=2)
             draw.rounded_rectangle((MARGIN + 10, y + 12, MARGIN + 15, y + C_ROW_H - 12), radius=3, fill=accent)
-            # Rôle et nom du build : tout l'espace avant les icônes, coupés proprement avec « … »
+            # Pastille du rôle (sa couleur + pictogramme) et « ×N », puis le nom du build
+            # dans la couleur du build : tout l'espace avant les icônes, coupé proprement avec « … »
             text_w = C_LEFT - 26 - 12
-            draw.text((MARGIN + 26, y + 12), fit_text(f"{role}  ×{count}", _font(20, "Bold"), text_w),
-                      font=_font(20, "Bold"), fill=accent)
-            draw.text((MARGIN + 26, y + 42), fit_text(build.get("name") or "", _font(16), text_w),
-                      font=_font(16), fill=TEXT)
+            right = _draw_role_badge(img, draw, MARGIN + 26, y + 10, role)
+            draw.text((right + 8, y + 12), f"×{count}", font=_font(18, "Bold"), fill=TEXT)
+            draw.text((MARGIN + 26, y + 46), fit_text(build.get("name") or "", _font(16, "SemiBold"), text_w),
+                      font=_font(16, "SemiBold"), fill=accent)
             items = normalize_items(build.get("items"))
             ix = MARGIN + C_LEFT
             for slot in COMPO_SLOTS:

@@ -259,6 +259,14 @@ def test_compo_rows_one_line_per_proposed_build():
     assert [(r, b) for _, r, _, b in compo_rows(MULTI)] == [("TANK", 12), ("TANK", 13), ("HEAL", 15)]
 
 
+def test_compo_badge_uses_base_role_and_its_color():
+    from Service.build_image import ROLE_COLORS, ROLE_OTHER_COLOR, _base_role
+    assert _base_role("TANK · Def tank") == "TANK"
+    assert _base_role("SUPPORT 2") == "SUPPORT"
+    assert _base_role("CALLER") == "CALLER"
+    assert ROLE_COLORS.get(_base_role("CALLER"), ROLE_OTHER_COLOR) == ROLE_OTHER_COLOR
+
+
 def test_build_colors_one_color_per_distinct_build():
     from Service.build_image import BUILD_COLORS, build_colors
     builds = [{"id": 1}, {"id": 2}, {"id": 1}, {"id": 3}]
