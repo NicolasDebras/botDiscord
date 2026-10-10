@@ -438,11 +438,44 @@ def _draw_small_slot(img: Image.Image, draw: ImageDraw.ImageDraw, x: int, y: int
 
 COMPO_MAX_ROWS = 40  # la hauteur de l'image suit le nombre de lignes : au-delà, mémoire (image de plusieurs Go)
 
+# Couleur d'accent par build (lisibles sur la carte sombre) : bande, contour, rôle et fond teinté.
+BUILD_COLORS = (
+    (200, 162, 255),  # lilas
+    (94, 214, 196),   # turquoise
+    (255, 186, 92),   # ambre
+    (255, 122, 138),  # corail
+    (110, 176, 255),  # bleu ciel
+    (140, 220, 100),  # vert
+    (255, 130, 210),  # rose
+    (255, 150, 80),   # orange
+    (225, 225, 110),  # jaune
+    (150, 140, 255),  # pervenche
+)
+
+
+def build_colors(builds: list[dict]) -> list[tuple[int, int, int]]:
+    """Couleur de chaque ligne : une par build distinct, dans l'ordre d'apparition (en boucle
+    au-delà de la palette). Un même build en Party 1 et Party 2 garde sa couleur."""
+    assigned: dict = {}
+    colors = []
+    for build in builds:
+        key = build.get("id", build.get("name"))
+        if key not in assigned:
+            assigned[key] = BUILD_COLORS[len(assigned) % len(BUILD_COLORS)]
+        colors.append(assigned[key])
+    return colors
+
+
+def _mix(a: tuple[int, int, int], b: tuple[int, int, int], t: float) -> tuple[int, int, int]:
+    return tuple(round(x + (y - x) * t) for x, y in zip(a, b))
+
 
 def render_compo_image(name: str, rows: list[tuple[str, str, int, dict]], icons: dict[str, bytes | None]) -> bytes:
     """rows = [(party, rôle, nombre, build)] → PNG : fond lilas, une carte sombre par build
-    (rôle × nombre, nom du build, icônes des 8 emplacements). Au plus COMPO_MAX_ROWS lignes."""
+    (rôle × nombre, nom du build, icônes des 8 emplacements), une couleur d'accent par build.
+    Au plus COMPO_MAX_ROWS lignes."""
     rows = rows[:COMPO_MAX_ROWS]
+    accents = build_colors([r[3] for r in rows])
     max_swaps = max((len(normalize_items(r[3].get("items")).get(SWAPS_KEY, [])[:SWAPS_MAX]) for r in rows), default=0)
     width = COMPO_WIDTH + (14 + max_swaps * (C_ICON + C_ICON_GAP) if max_swaps else 0)
     parties = list(dict.fromkeys(r[0] for r in rows))
@@ -460,13 +493,17 @@ def render_compo_image(name: str, rows: list[tuple[str, str, int, dict]], icons:
         if multi_party:
             draw.text((MARGIN, y), party.upper(), font=_font(16, "Bold"), fill=INK)
             y += 34
-        for _, role, count, build in (r for r in rows if r[0] == party):
-            draw.rounded_rectangle((MARGIN, y, width - MARGIN, y + C_ROW_H), radius=14, fill=BG)
+        for (row_party, role, count, build), accent in zip(rows, accents):
+            if row_party != party:
+                continue
+            draw.rounded_rectangle((MARGIN, y, width - MARGIN, y + C_ROW_H), radius=14,
+                                   fill=_mix(BG, accent, .10), outline=_mix(BG, accent, .55), width=2)
+            draw.rounded_rectangle((MARGIN + 10, y + 12, MARGIN + 15, y + C_ROW_H - 12), radius=3, fill=accent)
             # Rôle et nom du build : tout l'espace avant les icônes, coupés proprement avec « … »
-            text_w = C_LEFT - 18 - 12
-            draw.text((MARGIN + 18, y + 12), fit_text(f"{role}  ×{count}", _font(20, "Bold"), text_w),
-                      font=_font(20, "Bold"), fill=LILAC)
-            draw.text((MARGIN + 18, y + 42), fit_text(build.get("name") or "", _font(16), text_w),
+            text_w = C_LEFT - 26 - 12
+            draw.text((MARGIN + 26, y + 12), fit_text(f"{role}  ×{count}", _font(20, "Bold"), text_w),
+                      font=_font(20, "Bold"), fill=accent)
+            draw.text((MARGIN + 26, y + 42), fit_text(build.get("name") or "", _font(16), text_w),
                       font=_font(16), fill=TEXT)
             items = normalize_items(build.get("items"))
             ix = MARGIN + C_LEFT
@@ -474,8 +511,8 @@ def render_compo_image(name: str, rows: list[tuple[str, str, int, dict]], icons:
                 _draw_small_slot(img, draw, ix, y + (C_ROW_H - C_ICON) // 2, items.get(slot, []), icons)
                 ix += C_ICON + C_ICON_GAP
             swaps = [s for s in items.get(SWAPS_KEY, []) if s != FREE_CHOICE][:SWAPS_MAX]
-            if swaps:   # swaps à droite des 8 cases, après un trait lilas
-                draw.line((ix + 4, y + 14, ix + 4, y + C_ROW_H - 14), fill=LILAC, width=2)
+            if swaps:   # swaps à droite des 8 cases, après un trait de la couleur du build
+                draw.line((ix + 4, y + 14, ix + 4, y + C_ROW_H - 14), fill=accent, width=2)
                 ix += 14
                 for item_id in swaps:
                     _draw_small_slot(img, draw, ix, y + (C_ROW_H - C_ICON) // 2, [item_id], icons)

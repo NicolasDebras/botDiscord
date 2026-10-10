@@ -257,3 +257,13 @@ def test_massup_sends_the_build_each_player_chose():
 
 def test_compo_rows_one_line_per_proposed_build():
     assert [(r, b) for _, r, _, b in compo_rows(MULTI)] == [("TANK", 12), ("TANK", 13), ("HEAL", 15)]
+
+
+def test_build_colors_one_color_per_distinct_build():
+    from Service.build_image import BUILD_COLORS, build_colors
+    builds = [{"id": 1}, {"id": 2}, {"id": 1}, {"id": 3}]
+    c = build_colors(builds)
+    assert c[0] == c[2]                      # même build en PF1 et PF2 → même couleur
+    assert len({c[0], c[1], c[3]}) == 3
+    many = build_colors([{"id": i} for i in range(len(BUILD_COLORS) + 1)])
+    assert many[-1] == BUILD_COLORS[0]       # palette en boucle
