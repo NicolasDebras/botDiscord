@@ -864,42 +864,82 @@ class WeaponSelectView(discord.ui.View):
         self.add_item(WeaponSelect(activity_id, chosen_role, weapons_list, current_members))
 
 
+# ── HELPERS : rôles encore ouverts, regroupés par rôle de base ───────────────
+def available_role_keys(data: dict, tdata: dict, roles: list[str]) -> list[str]:
+    """Clés de rôle encore proposables : rôles pleins masqués, PF2 masquée tant
+    qu'aucun rôle PF1 n'est complet."""
+    slots = data.get("slots", {})
+    pf1   = get_pf1(tdata) if tdata else {}
+    pf2   = get_pf2(tdata) if tdata else {}
+    pf1_has_any_full = pf1 and any(
+        len(slots.get(role, [])) >= pf1.get(role, 0)
+        for role in pf1 if pf1.get(role, 0) > 0
+    )
+    keys = []
+    for role_key in roles:
+        is_pf2    = role_key.startswith("PF2:")
+        role_name = role_key[4:] if is_pf2 else role_key
+        if is_pf2 and not pf1_has_any_full:
+            continue
+        max_r = pf2.get(role_name) if is_pf2 else (pf1.get(role_key) if pf1 else None)
+        if max_r is not None and len(slots.get(role_key, [])) >= max_r:
+            continue
+        keys.append(role_key)
+    return keys
+
+
+def role_group(role_key: str) -> str:
+    """« PF2:TANK · Main tank » → « PF2:TANK » ; « DPS · Weeping » → « DPS »."""
+    return ("PF2:" if role_key.startswith("PF2:") else "") + base_role(role_key)
+
+
+def group_role_keys(keys: list[str]) -> dict[str, list[str]]:
+    """Regroupe les clés par rôle de base (ordre conservé) : une compo du site à
+    plusieurs builds par rôle se choisit en deux temps, rôle puis build."""
+    groups: dict[str, list[str]] = {}
+    for key in keys:
+        groups.setdefault(role_group(key), []).append(key)
+    return groups
+
+
+def build_label(role_key: str) -> str:
+    """Nom du build d'une clé de rôle (« DPS · Weeping » → « Weeping »), sinon la clé sans PF2."""
+    role = role_key[4:] if role_key.startswith("PF2:") else role_key
+    return role.split(" · ", 1)[1].strip() if " · " in role else role
+
+
+def _activity_tdata(data: dict) -> dict:
+    template = data.get("template")
+    return load_all_templates(data.get("guild_id", 0)).get(template, {}) if template else {}
+
+
 # ── SELECT MENU ──────────────────────────────────────────────────────────────
 class RoleSelect(discord.ui.Select):
     def __init__(self, activity_id: int, roles: list[str]):
         self.activity_id = activity_id
-
-        data          = activities.get(activity_id, {})
-        slots         = data.get("slots", {})
-        template      = data.get("template")
-        all_templates = load_all_templates(data.get("guild_id", 0))
-        tdata         = all_templates.get(template, {}) if template else {}
-        pf1           = get_pf1(tdata) if tdata else {}
-        pf2           = get_pf2(tdata) if tdata else {}
-
-        pf1_has_any_full = pf1 and any(
-            len(slots.get(role, [])) >= pf1.get(role, 0)
-            for role in pf1 if pf1.get(role, 0) > 0
-        )
+        data  = activities.get(activity_id, {})
+        tdata = _activity_tdata(data)
 
         options = []
-        for role_key in roles:
-            is_pf2    = role_key.startswith("PF2:")
-            role_name = role_key[4:] if is_pf2 else role_key
-            # PF2 masquée tant qu'aucun rôle PF1 n'est complet
-            if is_pf2 and not pf1_has_any_full:
-                continue
-            # Masquer le rôle s'il est plein
-            max_r = pf2.get(role_name) if is_pf2 else (pf1.get(role_key) if pf1 else None)
-            if max_r is not None and len(slots.get(role_key, [])) >= max_r:
-                continue
-            label = f"{role_name} (PF2)" if is_pf2 else role_name
-            desc  = f"PF2 — S'inscrire en {role_name}" if is_pf2 else f"S'inscrire en tant que {role_name}"
+        for group, keys in group_role_keys(available_role_keys(data, tdata, roles)).items():
+            is_pf2 = group.startswith("PF2:")
+            if len(keys) == 1:
+                # Un seul choix pour ce rôle : inscription directe, comme avant.
+                key       = keys[0]
+                role_name = key[4:] if is_pf2 else key
+                label = f"{role_name} (PF2)" if is_pf2 else role_name
+                desc  = f"PF2 — S'inscrire en {role_name}" if is_pf2 else f"S'inscrire en tant que {role_name}"
+                value = key
+            else:
+                role_name = group[4:] if is_pf2 else group
+                label = f"{role_name} (PF2)" if is_pf2 else role_name
+                desc  = f"{len(keys)} builds au choix"
+                value = f"grp:{group}"
             options.append(discord.SelectOption(
                 label=label[:100],
-                emoji=ROLES.get(base_role(role_name), "🔹"),
+                emoji=ROLES.get(base_role(group), "🔹"),
                 description=desc[:100],
-                value=role_key,
+                value=value[:100],
             ))
 
         if not options:
@@ -909,7 +949,7 @@ class RoleSelect(discord.ui.Select):
             placeholder="📋  Choisis ton rôle...",
             min_values=1,
             max_values=1,
-            options=options,
+            options=options[:25],
             custom_id=f"roleselect_{activity_id}",
         )
 
@@ -917,60 +957,117 @@ class RoleSelect(discord.ui.Select):
         if self.values[0] == "__full__":
             await interaction.response.send_message("⛔ Toutes les places sont prises.", ephemeral=True)
             return
-        if not is_membre(interaction.user):
-            await interaction.response.send_message(
-                f"⛔ Tu dois avoir le rôle **{MEMBRE_ROLE_NAME}** pour t'inscrire.", ephemeral=True
-            )
+        if not self.values[0].startswith("grp:"):
+            await _choose_role(interaction, self.activity_id, self.values[0])
             return
-        data = activities.get(self.activity_id)
-        if not data:
-            await interaction.response.send_message("❌ Activité introuvable.", ephemeral=True)
+        if not await _can_register(interaction, self.activity_id):
             return
-
-        chosen_role   = self.values[0]
-        template      = data.get("template")
-        all_templates = load_all_templates(data.get("guild_id", 0))
-        tdata         = all_templates.get(template, {}) if template else {}
-        type_acti     = tdata.get("type_acti", "")
-
-        if chosen_role.startswith("PF2:"):
-            hint_spec = tdata.get("weapon_pf2", tdata.get("specs_pf2", {})).get(chosen_role[4:], "")
-        else:
-            hint_spec = get_specs(tdata).get(chosen_role, "")
-
-        # Compo du site : le rôle a un build imposé → inscription directe au
-        # choix du rôle (ni liste d'armes ni saisie de spé), le build fait office d'arme.
-        if build_id_for_role(tdata, chosen_role) is not None:
-            build_name = hint_spec or chosen_role
-            await interaction.response.defer(ephemeral=True)
-            await _register_player(interaction, self.activity_id, chosen_role, build_name)
+        group = self.values[0][4:]
+        view  = BuildSelectView(self.activity_id, group)
+        if not view.has_choices:
+            await interaction.response.send_message("⛔ Plus de place pour ce rôle.", ephemeral=True)
             return
+        role_display = f"{group[4:]} (PF2)" if group.startswith("PF2:") else group
+        await interaction.response.send_message(
+            f"{ROLES.get(base_role(group), '🔹')} **{role_display}** — Quel build joues-tu ?",
+            view=view, ephemeral=True,
+        )
 
-        if type_acti == "PVP" and hint_spec and not tdata.get("no_spec"):
-            if tdata.get("free_pick"):
-                await interaction.response.send_modal(
-                    WeaponAndSpecModal(self.activity_id, chosen_role, hint_spec)
-                )
-                return
-            weapons_list     = [w.strip() for w in hint_spec.split("·") if w.strip()]
-            current_members  = data["slots"].get(chosen_role, [])
-            if weapons_list:
-                role_display = (chosen_role[4:] + " (PF2)") if chosen_role.startswith("PF2:") else chosen_role
-                await interaction.response.send_message(
-                    f"⚔️ **{role_display}** — Quelle arme joues-tu ?",
-                    view=WeaponSelectView(self.activity_id, chosen_role, weapons_list, current_members),
-                    ephemeral=True,
-                )
-                return
 
-        if tdata.get("no_spec") and hint_spec and "*" in hint_spec:
-            await interaction.response.send_modal(
-                FreeWeaponModal(self.activity_id, chosen_role, hint_spec)
-            )
-            return
+# ── SELECT BUILD (2ᵉ étape quand un rôle a plusieurs builds) ─────────────────
+class BuildSelect(discord.ui.Select):
+    def __init__(self, activity_id: int, options: list[discord.SelectOption]):
+        self.activity_id = activity_id
+        super().__init__(placeholder="🛠️  Choisis ton build...", min_values=1, max_values=1,
+                         options=options[:25])
 
+    async def callback(self, interaction: discord.Interaction):
+        await _choose_role(interaction, self.activity_id, self.values[0])
+
+
+class BuildSelectView(discord.ui.View):
+    def __init__(self, activity_id: int, group: str):
+        super().__init__(timeout=120)
+        data  = activities.get(activity_id, {})
+        tdata = _activity_tdata(data)
+        pf1   = get_pf1(tdata) if tdata else {}
+        pf2   = get_pf2(tdata) if tdata else {}
+        roles = list(pf1.keys()) + [f"PF2:{r}" for r in pf2.keys()]
+        keys  = [k for k in available_role_keys(data, tdata, roles) if role_group(k) == group]
+        options = []
+        for key in keys:
+            max_r = pf2.get(key[4:]) if key.startswith("PF2:") else pf1.get(key)
+            taken = len(data.get("slots", {}).get(key, []))
+            options.append(discord.SelectOption(
+                label=build_label(key)[:100],
+                emoji=ROLES.get(base_role(key), "🔹"),
+                description=f"Places : {taken}/{max_r}" if max_r is not None else None,
+                value=key[:100],
+            ))
+        self.has_choices = bool(options)
+        if options:
+            self.add_item(BuildSelect(activity_id, options))
+
+
+async def _can_register(interaction: discord.Interaction, activity_id: int) -> bool:
+    """Contrôles communs avant une inscription ; répond à l'interaction en cas de refus."""
+    if not is_membre(interaction.user):
+        await interaction.response.send_message(
+            f"⛔ Tu dois avoir le rôle **{MEMBRE_ROLE_NAME}** pour t'inscrire.", ephemeral=True
+        )
+        return False
+    if not activities.get(activity_id):
+        await interaction.response.send_message("❌ Activité introuvable.", ephemeral=True)
+        return False
+    return True
+
+
+async def _choose_role(interaction: discord.Interaction, activity_id: int, chosen_role: str) -> None:
+    """Suite de l'inscription une fois la clé de rôle choisie (arme, spé ou inscription directe)."""
+    if not await _can_register(interaction, activity_id):
+        return
+    data      = activities[activity_id]
+    tdata     = _activity_tdata(data)
+    type_acti = tdata.get("type_acti", "")
+
+    if chosen_role.startswith("PF2:"):
+        hint_spec = tdata.get("weapon_pf2", tdata.get("specs_pf2", {})).get(chosen_role[4:], "")
+    else:
+        hint_spec = get_specs(tdata).get(chosen_role, "")
+
+    # Compo du site : le rôle a un build imposé → inscription directe au
+    # choix du rôle (ni liste d'armes ni saisie de spé), le build fait office d'arme.
+    if build_id_for_role(tdata, chosen_role) is not None:
+        build_name = hint_spec or chosen_role
         await interaction.response.defer(ephemeral=True)
-        await _register_player(interaction, self.activity_id, chosen_role, "")
+        await _register_player(interaction, activity_id, chosen_role, build_name)
+        return
+
+    if type_acti == "PVP" and hint_spec and not tdata.get("no_spec"):
+        if tdata.get("free_pick"):
+            await interaction.response.send_modal(
+                WeaponAndSpecModal(activity_id, chosen_role, hint_spec)
+            )
+            return
+        weapons_list     = [w.strip() for w in hint_spec.split("·") if w.strip()]
+        current_members  = data["slots"].get(chosen_role, [])
+        if weapons_list:
+            role_display = (chosen_role[4:] + " (PF2)") if chosen_role.startswith("PF2:") else chosen_role
+            await interaction.response.send_message(
+                f"⚔️ **{role_display}** — Quelle arme joues-tu ?",
+                view=WeaponSelectView(activity_id, chosen_role, weapons_list, current_members),
+                ephemeral=True,
+            )
+            return
+
+    if tdata.get("no_spec") and hint_spec and "*" in hint_spec:
+        await interaction.response.send_modal(
+            FreeWeaponModal(activity_id, chosen_role, hint_spec)
+        )
+        return
+
+    await interaction.response.defer(ephemeral=True)
+    await _register_player(interaction, activity_id, chosen_role, "")
 
 
 # ── BOUTON SE RETIRER ────────────────────────────────────────────────────────

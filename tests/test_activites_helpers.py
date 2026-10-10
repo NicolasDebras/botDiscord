@@ -188,6 +188,37 @@ def test_base_role_strips_party_build_name_and_duplicate_number():
     assert base_role("SCOOT") == "SCOOT"
 
 
+def test_group_role_keys_groups_builds_under_their_role_and_keeps_order():
+    from Service.activites import group_role_keys
+    keys = ["TANK · Def tank", "HEAL", "DPS · Weeping", "TANK · Main tank",
+            "DPS · One shot", "PF2:DPS · Weeping", "SCOOT"]
+    assert group_role_keys(keys) == {
+        "TANK": ["TANK · Def tank", "TANK · Main tank"],
+        "HEAL": ["HEAL"],
+        "DPS": ["DPS · Weeping", "DPS · One shot"],
+        "PF2:DPS": ["PF2:DPS · Weeping"],
+        "SCOOT": ["SCOOT"],
+    }
+
+
+def test_build_label_keeps_only_the_build_name():
+    from Service.activites import build_label
+    assert build_label("SUPPORT · Dragon - BR") == "Dragon - BR"
+    assert build_label("PF2:DPS · Weeping") == "Weeping"
+    assert build_label("DPS 2") == "DPS 2"
+    assert build_label("PF2:HEAL") == "HEAL"
+
+
+def test_available_role_keys_hides_full_roles_and_pf2_until_a_pf1_role_is_full():
+    from Service.activites import available_role_keys
+    tdata = {"pf_1": {"TANK · Def tank": 1, "DPS · Weeping": 2}, "pf_2": {"DPS · Weeping": 1}}
+    roles = ["TANK · Def tank", "DPS · Weeping", "PF2:DPS · Weeping"]
+    data = {"slots": {"TANK · Def tank": [], "DPS · Weeping": [(1, "a")]}}
+    assert available_role_keys(data, tdata, roles) == ["TANK · Def tank", "DPS · Weeping"]
+    data["slots"]["TANK · Def tank"] = [(2, "b")]
+    assert available_role_keys(data, tdata, roles) == ["DPS · Weeping", "PF2:DPS · Weeping"]
+
+
 def test_compo_image_sorts_duplicate_roles_with_their_base_role():
     from Service.build_image import _role_rank
     assert _role_rank("TANK · Main tank") == _role_rank("TANK") < _role_rank("HEAL · X") < _role_rank("DPS 2")

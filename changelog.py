@@ -7,9 +7,17 @@ Pour annoncer une nouvelle fonctionnalité : incrémenter VERSION et ajouter
 une entrée en tête de CHANGELOG (ordre du plus récent au plus ancien).
 """
 
-VERSION = "2026.10.09.6"
+VERSION = "2026.10.10"
 
 CHANGELOG: list[dict] = [
+    {
+        "version": "2026.10.10",
+        "title": "📋 Inscription en deux temps : rôle puis build",
+        "items": [
+            "Avec une compo du site, le menu d'inscription liste d'abord les rôles (TANK, HEAL, DPS…) ; si un rôle a plusieurs builds, un second menu propose les builds avec les places restantes.",
+            "Fini la longue liste de tous les rôles × builds où certains n'apparaissaient pas.",
+        ],
+    },
     {
         "version": "2026.10.09.6",
         "title": "⚔️ Tiers T4 et T5",
