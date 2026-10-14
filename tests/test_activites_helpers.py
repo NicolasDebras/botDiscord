@@ -62,12 +62,17 @@ def test_player_weapon_empty_string():
 
 def test_sort_roles_pf1_before_pf2_before_scoot():
     roles = ["SCOOT", "PF2:DPS", "TANK", "PF2:TANK", "HEAL"]
-    assert _sort_roles(roles) == ["TANK", "HEAL", "PF2:DPS", "PF2:TANK", "SCOOT"]
+    assert _sort_roles(roles) == ["TANK", "HEAL", "PF2:TANK", "PF2:DPS", "SCOOT"]
 
 
-def test_sort_roles_preserves_relative_order_within_group():
-    roles = ["DPS", "HEAL", "TANK"]
-    assert _sort_roles(roles) == ["DPS", "HEAL", "TANK"]
+def test_sort_roles_tank_heal_support_dps_in_each_party():
+    roles = ["DPS", "SUPPORT", "HEAL", "TANK", "PF2:DPS", "PF2:SUPPORT", "PF2:TANK"]
+    assert _sort_roles(roles) == ["TANK", "HEAL", "SUPPORT", "DPS", "PF2:TANK", "PF2:SUPPORT", "PF2:DPS"]
+
+
+def test_sort_roles_keeps_build_lines_with_their_role_and_custom_roles_last_in_template_order():
+    roles = ["DPS · Arcane", "COBRA", "TANK · Main tank", "FAUX", "SUPPORT 2", "TANK · Def tank"]
+    assert _sort_roles(roles) == ["TANK · Main tank", "TANK · Def tank", "SUPPORT 2", "DPS · Arcane", "COBRA", "FAUX"]
 
 
 def test_sort_roles_empty_list():
@@ -233,7 +238,7 @@ def test_available_role_keys_hides_full_roles_and_pf2_until_a_pf1_role_is_full()
 
 def test_compo_image_sorts_duplicate_roles_with_their_base_role():
     from Service.build_image import _role_rank
-    assert _role_rank("TANK · Main tank") == _role_rank("TANK") < _role_rank("HEAL · X") < _role_rank("DPS 2")
+    assert _role_rank("TANK · Main tank") == _role_rank("TANK") < _role_rank("HEAL · X") < _role_rank("SUPPORT") < _role_rank("DPS 2")
 
 
 def test_build_line_accepts_as_many_players_as_its_count():

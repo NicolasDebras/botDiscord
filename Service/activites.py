@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 
 import db
 from config import ROLES, DEFAULT_TEMPLATES, ACTIVITY_COLORS, DEFAULT_COLOR, ADMIN_ROLE_NAME, MEMBRE_ROLE_NAME
-from Service.build_image import compo_image, compo_rows
+from Service.build_image import ROLE_ORDER, compo_image, compo_rows
 from Service.utils import load_settings, append_bal_log, is_membre, is_caller_or_admin, notify_bal_limit, fmt_silver, log_error
 
 # ── STOCKAGE EN MÉMOIRE  {message_id: data} ──────────────────────────────────
@@ -147,12 +147,19 @@ def base_role(key: str) -> str:
     return role
 
 
-# ── HELPER : tri des rôles — PF1 d'abord, PF2 ensuite, SCOOT toujours en dernier
+# ── HELPER : tri des rôles — PF1 d'abord, PF2 ensuite, SCOOT toujours en dernier ;
+# dans chaque party : TANK, HEAL, SUPPORT, DPS (ROLE_ORDER), puis les autres rôles
+# dans l'ordre du template (tri stable).
+def _role_order_rank(key: str) -> int:
+    base = base_role(key)
+    return ROLE_ORDER.index(base) if base in ROLE_ORDER else len(ROLE_ORDER)
+
+
 def _sort_roles(roles: list[str]) -> list[str]:
     pf1   = [r for r in roles if not r.startswith("PF2:") and r != "SCOOT"]
     pf2   = [r for r in roles if r.startswith("PF2:")]
     scoot = [r for r in roles if r == "SCOOT"]
-    return pf1 + pf2 + scoot
+    return sorted(pf1, key=_role_order_rank) + sorted(pf2, key=_role_order_rank) + scoot
 
 
 # ── HELPER : tous les templates visibles sur un serveur (défaut + custom) ────
@@ -1834,7 +1841,7 @@ class Activites(commands.Cog):
     # ── /acti ────────────────────────────────────────────────────────────────
     @app_commands.command(name="acti", description="Créer une activité de guilde Albion Online")
     @app_commands.describe(
-        nametemplate = "Template de composition (optionnel — sans template : activité libre DPS/HEAL/SUPPORT)",
+        nametemplate = "Template de composition (optionnel — sans template : activité libre HEAL/SUPPORT/DPS)",
         nbplayer     = "Nombre de joueurs max (calculé automatiquement depuis le template si renseigné)",
         bal          = "Paiement BAL ? (true = BAL, false = Libre)",
         depart       = "Point de départ (Ville / HO / Libre)",
@@ -1867,9 +1874,9 @@ class Activites(commands.Cog):
         if not is_caller_or_admin(interaction.user):
             bal = False
 
-        # ── Sans template : activité PVP libre DPS / HEAL / SUPPORT ────────
+        # ── Sans template : activité PVP libre HEAL / SUPPORT / DPS ────────
         if not nametemplate:
-            slots         = {"DPS": [], "HEAL": [], "SUPPORT": []}
+            slots         = {"HEAL": [], "SUPPORT": [], "DPS": []}
             template_name = None
             nbplayer      = nbplayer or 100
         else:

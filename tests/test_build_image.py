@@ -152,7 +152,7 @@ def test_compo_rows_grouped_by_role_inside_each_party():
         "builds_pf2": {"DPS": 6, "TANK": 5},
     }
     assert [(p, r) for p, r, _, _ in compo_rows(template)] == [
-        ("Party 1", "TANK"), ("Party 1", "HEAL"), ("Party 1", "DPS"), ("Party 1", "SUPPORT"),
+        ("Party 1", "TANK"), ("Party 1", "HEAL"), ("Party 1", "SUPPORT"), ("Party 1", "DPS"),
         ("Party 2", "TANK"), ("Party 2", "DPS"),
     ]
 

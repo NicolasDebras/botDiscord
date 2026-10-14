@@ -95,7 +95,7 @@ pytest
 - `tier` — Tier requis (champ libre, ex : `T8.3`) — optionnel
 - `validation` — Inscriptions sur validation du caller — **défaut : false**
 
-> Sans template, une activité libre est créée avec les rôles DPS / HEAL / SUPPORT et 100 places max.
+> Sans template, une activité libre est créée avec les rôles HEAL / SUPPORT / DPS et 100 places max.
 
 **Inscriptions sur validation (`/acti … validation:true`)** :
 - quand un joueur choisit un rôle (ou Fill), il passe dans la section **« ⏳ En attente de validation »** de l'embed — il **n'occupe pas encore de place** (ni pingé par `/massup`, ni payé par `/finacti`) ;
@@ -105,7 +105,7 @@ pytest
 - passent directement, sans validation : **uniquement le créateur** et un joueur déjà accepté qui change de rôle (les Caller/Officiers/GM passent aussi par la validation, mais peuvent valider les autres). Redemander remplace la demande précédente ; « Se retirer » annule une demande en attente.
 
 **Compos du site (builds imposés)** — une compo créée sur le site `lilium-site` est un ensemble de builds (un build par rôle et par party). Avec `/acti nametemplate:<compo>` :
-- juste après l'embed de l'acti, le bot poste une **image de la compo** : fond lilas, une ligne par build, dans la couleur de son rôle (TANK, HEAL, DPS, SUPPORT), rôle en pastille colorée avec pictogramme (épées DPS, bouclier TANK, croix HEAL, étoile SUPPORT) (rôle × nombre, nom, icônes des 8 emplacements, les autres choix possibles en mini-icônes dans le coin de la case, « Au choix » pour une case libre) ;
+- juste après l'embed de l'acti, le bot poste une **image de la compo** : fond lilas, une ligne par build, dans la couleur de son rôle (TANK, HEAL, SUPPORT, DPS), rôle en pastille colorée avec pictogramme (épées DPS, bouclier TANK, croix HEAL, étoile SUPPORT) (rôle × nombre, nom, icônes des 8 emplacements, les autres choix possibles en mini-icônes dans le coin de la case, « Au choix » pour une case libre) ;
 - plusieurs lignes du même rôle (ex. « TANK · Def tank » + « TANK · Main tank ») sont regroupées dans l'embed sous **une seule catégorie** (🛡️ TANK, compteur cumulé), chaque ligne en sous-bloc avec ses joueurs et ses places libres « -— » ;
 - à l'inscription, le joueur choisit son **rôle**, puis — si la compo propose plusieurs builds pour ce rôle — son **build** dans un second menu (places restantes affichées) ; le build lui est imposé : il est inscrit directement, sans liste d'armes ni saisie du niveau de spé ;
 - `/massup` envoie en plus, en **MP**, à chaque joueur inscrit sur un rôle avec build, une **image de son build** (icônes officielles de l'équipement façon inventaire du jeu, choix multiples, cases « au choix », précisions). Un objet peut imposer un **tier minimum et un enchantement** (id au format du jeu, ex. `T8_MAIN_SWORD@1`) : icône de ce tier + pastille « 8.1 » colorée selon l'enchantement, et le MP rappelle qu'un équivalent convient (8.1 = 7.2 = 6.3). Le lanceur reçoit un récap éphémère (nombre de MP envoyés, joueurs aux MP fermés).
@@ -386,7 +386,7 @@ Un template par défaut peut être restreint à certains serveurs via la clé `"
 
 > Liste volontairement réduite à ces 4 rôles (proposés par l'autocomplétion de `/addtemplate` et le site ; `/addacti` propose ceux des activités en cours). Un ancien template qui utiliserait un autre nom de rôle fonctionne toujours, avec l'emoji 🔹. Copie à garder synchro dans `lilium-site/api/app/constants.py`.
 
-Sur l'image de la compo postée par `/acti`, les builds sont rangés par party (PF1 puis PF2) et, dans chaque party, par rôle : TANK, HEAL, DPS, SUPPORT.
+Sur l'image de la compo postée par `/acti`, les builds sont rangés par party (PF1 puis PF2) et, dans chaque party, par rôle : TANK, HEAL, SUPPORT, DPS.
 
 ---
 
