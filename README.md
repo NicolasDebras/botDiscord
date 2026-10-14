@@ -90,7 +90,7 @@ pytest
 **Paramètres de `/acti` :**
 - `nametemplate` — Template de composition (optionnel)
 - `nbplayer` — Nombre de joueurs max (calculé depuis le template si renseigné, 100 par défaut sans template)
-- `bal` — Paiement BAL ? (`true` = BAL, `false` = Libre) — **défaut : true** (forcé à `false` pour les simples Membres)
+- `heure` — Heure de départ, heure de Paris (optionnel) : `21h`, `21h30`, `21:30` ou avec une date `18/10 21h`. Sans date : prochaine occurrence (`21h` tapé à 22h = demain). L'embed l'affiche dans le fuseau de chaque joueur avec un compte à rebours
 - `depart` — Point de départ : `Ville` / `HO` / `Libre` — **défaut : Libre**
 - `tier` — Tier requis (champ libre, ex : `T8.3`) — optionnel
 - `validation` — Inscriptions sur validation du caller — **défaut : false**
@@ -146,7 +146,7 @@ Une fois l'activité créée :
 | `/ballog [page] [joueur] [action]` | Officier | Historique BAL sur 6 mois (paginé, filtrable par joueur et par type d'action) |
 | `/statbal [jours]` | Officier | Total silver distribué sur une période (défaut : 7 jours), ventilé par type d'action |
 
-> `/paybal` ne fonctionne que sur les activités créées avec `bal: true`.
+> Une activité est en **BAL** (partage du butin en fin d'acti, `/paybal`) quand elle est créée par un **Caller, Officier ou GM** ; créée par un simple **Membre**, elle est **libre** (pas de paiement). `/paybal` ne fonctionne que sur les activités en BAL.
 
 ---
 
