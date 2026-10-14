@@ -469,7 +469,7 @@ async def _register_player(
                 await _reply(interaction, "ℹ️ Tu es déjà en liste d'attente.", ephemeral=True)
             else:
                 waitlist.append((user_id, user_name))
-                await save_activities()
+                await save_activities(only=activity_id)
                 try:
                     channel = interaction.client.get_channel(data["channel_id"])
                     msg     = await channel.fetch_message(activity_id)
@@ -1928,7 +1928,7 @@ class Activites(commands.Cog):
         await interaction.response.send_message(embed=build_embed(data))
         message = await interaction.original_response()
         activities[message.id] = data
-        await save_activities()
+        await save_activities(only=message.id)
         await message.edit(view=build_view(message.id))
 
         # Compo du site : on poste juste après l'embed une image avec tous les builds.

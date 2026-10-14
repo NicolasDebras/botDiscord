@@ -436,6 +436,13 @@ async def init_db(database_url: str) -> None:
             "CREATE INDEX IF NOT EXISTS activity_log_guild_ended ON activity_log (guild_id, ended_at)"
         )
 
+        # ── Index des lectures par serveur (historique BAL, erreurs, builds du site) ──
+        # bal_log garde 6 mois pour tous les serveurs : /ballog, /statbal et les graphiques
+        # du site filtrent par serveur puis par date (ou dernières lignes).
+        await conn.execute("CREATE INDEX IF NOT EXISTS bal_log_guild_ts ON bal_log (guild_id, ts)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS error_log_guild_ts ON error_log (guild_id, ts)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS builds_guild ON builds (guild_id)")
+
 
 # ── ACTIVITIES ────────────────────────────────────────────────────────────────
 
@@ -1398,12 +1405,6 @@ async def get_builds(guild_id: int, role: str | None = None, type_acti: str | No
     async with _pool.acquire() as conn:
         rows = await conn.fetch(query, *params)
     return [dict(r) for r in rows]
-
-
-async def get_build_by_id(build_id: int, guild_id: int) -> dict | None:
-    async with _pool.acquire() as conn:
-        row = await conn.fetchrow("SELECT * FROM builds WHERE id = $1 AND guild_id = $2", build_id, guild_id)
-    return dict(row) if row else None
 
 
 async def get_builds_by_ids(build_ids: list[int], guild_id: int) -> dict[int, dict]:

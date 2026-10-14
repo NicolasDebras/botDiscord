@@ -356,8 +356,10 @@ def render_build_image(build: dict, icons: dict[str, bytes | None]) -> bytes:
 
 
 async def build_image(build: dict) -> bytes:
-    """Télécharge les icônes du build puis génère l'image."""
-    return render_build_image(build, await fetch_icons(build.get("items")))
+    """Télécharge les icônes du build puis génère l'image (Pillow dans un thread : ~50 ms
+    de calcul qui bloqueraient sinon la boucle d'événements)."""
+    icons = await fetch_icons(build.get("items"))
+    return await asyncio.to_thread(render_build_image, build, icons)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -564,4 +566,5 @@ async def compo_image(name: str, template_data: dict, builds_by_id: dict[int, di
     for *_, build in rows:
         ids.extend(i for i in item_ids(build.get("items")) if i not in ids)
     icons = await fetch_icons(None, ids)
-    return render_compo_image(name, rows, icons)
+    # Pillow dans un thread : jusqu'à ~250 ms pour une grosse compo, sans bloquer le bot.
+    return await asyncio.to_thread(render_compo_image, name, rows, icons)

@@ -116,7 +116,7 @@ async def send_build_dms(
     tdata = load_all_templates(data.get("guild_id", 0)).get(template, {}) if template else {}
     guild_id = data.get("guild_id", 0)
     all_ids = {i for role_key in data["slots"] for i in build_ids_for_role(tdata, role_key)}
-    builds = {i: b for i in all_ids if (b := await db.get_build_by_id(i, guild_id))}
+    builds = await db.get_builds_by_ids(list(all_ids), guild_id)   # un seul aller-retour
     recipients = build_recipients(data["slots"], tdata, {i: b["name"] for i, b in builds.items()})
     sent, closed = 0, []
 
