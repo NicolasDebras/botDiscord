@@ -7,9 +7,16 @@ Pour annoncer une nouvelle fonctionnalité : incrémenter VERSION et ajouter
 une entrée en tête de CHANGELOG (ordre du plus récent au plus ancien).
 """
 
-VERSION = "2026.10.14"
+VERSION = "2026.10.14.1"
 
 CHANGELOG: list[dict] = [
+    {
+        "version": "2026.10.14.1",
+        "title": "🔀 Rôles dans l'ordre TANK, HEAL, SUPPORT, DPS",
+        "items": [
+            "L'embed des activités, le menu d'inscription et l'image de compo rangent maintenant les rôles dans l'ordre 🛡️ TANK, 💚 HEAL, 🔮 SUPPORT, ⚔️ DPS (PF1 puis PF2). Les rôles perso restent après, dans l'ordre du template.",
+        ],
+    },
     {
         "version": "2026.10.14",
         "title": "🎨 Une couleur par rôle sur l'image de compo",

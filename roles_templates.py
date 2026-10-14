@@ -10,8 +10,8 @@ sans variable d'environnement ni import du bot. Après une modification, lancer
 ROLES: dict[str, str] = {
     "TANK":    "🛡️",
     "HEAL":    "💚",
-    "DPS":     "⚔️",
     "SUPPORT": "🔮",
+    "DPS":     "⚔️",
 }
 
 # ── TEMPLATES PAR DÉFAUT ──────────────────────────────────────────────────────

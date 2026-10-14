@@ -370,7 +370,7 @@ C_MINI = 22  # mini-icône d'un choix alternatif (coin bas-droit de la case)
 COMPO_WIDTH = MARGIN * 2 + C_LEFT + len(COMPO_SLOTS) * (C_ICON + C_ICON_GAP)
 
 
-ROLE_ORDER = ("TANK", "HEAL", "DPS", "SUPPORT")
+ROLE_ORDER = ("TANK", "HEAL", "SUPPORT", "DPS")
 
 
 def _base_role(role: str) -> str:
@@ -381,7 +381,7 @@ def _base_role(role: str) -> str:
 
 
 def _role_rank(role: str) -> int:
-    """Ordre TANK, HEAL, DPS, SUPPORT puis le reste ; « TANK · Main tank » se range avec TANK."""
+    """Ordre TANK, HEAL, SUPPORT, DPS puis le reste ; « TANK · Main tank » se range avec TANK."""
     base = _base_role(role)
     return ROLE_ORDER.index(base) if base in ROLE_ORDER else len(ROLE_ORDER)
 
@@ -432,7 +432,7 @@ def _draw_role_badge(img: Image.Image, draw: ImageDraw.ImageDraw, x: int, y: int
 
 def compo_rows(template_data: dict) -> list[tuple[str, str, int, int]]:
     """[(party, rôle, nombre, build_id), ...] pour les rôles de la compo qui ont un build.
-    PF1 puis PF2 ; dans chaque party, regroupés par rôle : TANK, HEAL, DPS, SUPPORT, puis le reste."""
+    PF1 puis PF2 ; dans chaque party, regroupés par rôle : TANK, HEAL, SUPPORT, DPS, puis le reste."""
     rows = []
     for party, count_key, builds_key in (("Party 1", "pf_1", "builds"), ("Party 2", "pf_2", "builds_pf2")):
         builds = template_data.get(builds_key) or {}
@@ -501,7 +501,7 @@ def _mix(a: tuple[int, int, int], b: tuple[int, int, int], t: float) -> tuple[in
 
 def render_compo_image(name: str, rows: list[tuple[str, str, int, dict]], icons: dict[str, bytes | None]) -> bytes:
     """rows = [(party, rôle, nombre, build)] → PNG : fond lilas, une carte sombre par build
-    (rôle × nombre, nom du build, icônes des 8 emplacements), une couleur d'accent par rôle (DPS, TANK, HEAL, SUPPORT).
+    (rôle × nombre, nom du build, icônes des 8 emplacements), une couleur d'accent par rôle (TANK, HEAL, SUPPORT, DPS).
     Au plus COMPO_MAX_ROWS lignes."""
     rows = rows[:COMPO_MAX_ROWS]
     accents = [role_color(r[1]) for r in rows]
