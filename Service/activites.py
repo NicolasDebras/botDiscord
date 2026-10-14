@@ -5,7 +5,8 @@ import asyncio
 import discord
 from discord.ext import commands, tasks
 from discord import app_commands
-from datetime import datetime, UTC
+from datetime import datetime, timedelta, UTC
+from zoneinfo import ZoneInfo
 
 import db
 from config import ROLES, DEFAULT_TEMPLATES, ACTIVITY_COLORS, DEFAULT_COLOR, ADMIN_ROLE_NAME, MEMBRE_ROLE_NAME
@@ -288,7 +289,7 @@ def build_embed(data: dict) -> discord.Embed:
         top_info_parts.append(f"📍 **Départ :** {depart}")
     if tier:
         top_info_parts.append(f"⚔️ **Tier :** {tier}")
-    top_info   = "   ".join(top_info_parts)
+    top_info   = "\n".join(filter(None, [heure_line(data.get("start_at")), "   ".join(top_info_parts)]))
     desc_block = "\n".join(filter(None, [tpl_desc, custom_desc]))
     if desc_block and top_info:
         full_desc = f"{desc_block}\n\n{top_info}"
@@ -418,6 +419,46 @@ async def _post_compo_image(interaction: discord.Interaction, template_name: str
             await interaction.followup.send(file=discord.File(io.BytesIO(png), filename="compo.png"))
     except Exception as e:
         await log_error("activites.compo_image", e, guild_id=interaction.guild.id, user_id=interaction.user.id)
+
+
+# ── HELPER : heure de départ (/acti heure:…) ────────────────────────────────
+PARIS = ZoneInfo("Europe/Paris")
+_HEURE_RE = re.compile(r"^(?:(\d{1,2})/(\d{1,2})\s+)?(\d{1,2})(?:\s*[h:]\s*(\d{2})?)?$")
+HEURE_AIDE = "21h, 21h30, 21:30 ou 18/10 21h (heure de Paris)"
+
+
+def parse_heure(text: str, now: datetime | None = None) -> datetime | None:
+    """« 21h », « 21h30 », « 21:30 », « 18/10 21h » → heure de départ (heure de Paris, en UTC).
+    Sans date : prochaine occurrence (« 21h » tapé à 22h = demain 21h). '' → None.
+    ValueError si le format est invalide ou si la date est déjà passée."""
+    text = text.strip().lower()
+    if not text:
+        return None
+    m = _HEURE_RE.match(text)
+    if not m:
+        raise ValueError(text)
+    day, month, hour, minute = m.groups()
+    hour, minute = int(hour), int(minute or 0)
+    if hour > 23 or minute > 59:
+        raise ValueError(text)
+    now = (now or datetime.now(UTC)).astimezone(PARIS)
+    if day:
+        start = datetime(now.year, int(month), int(day), hour, minute, tzinfo=PARIS)   # ValueError si 31/02
+        if start < now - timedelta(minutes=5):
+            raise ValueError(text)
+    else:
+        start = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        if start < now - timedelta(minutes=5):
+            start = (start + timedelta(days=1)).replace(hour=hour, minute=minute)   # même heure le lendemain (changement d'heure)
+    return start.astimezone(UTC)
+
+
+def heure_line(start_at: datetime | None) -> str:
+    """Ligne de l'embed : date et heure dans le fuseau de chaque joueur + compte à rebours (timestamps Discord)."""
+    if not start_at:
+        return ""
+    ts = int(start_at.timestamp())
+    return f"🕘 **Heure :** <t:{ts}:F> (<t:{ts}:R>)"
 
 
 # ── HELPER : label affiché d'une activité ───────────────────────────────────
@@ -1844,6 +1885,7 @@ class Activites(commands.Cog):
     @app_commands.describe(
         nametemplate = "Template de composition (optionnel — sans template : activité libre HEAL/SUPPORT/DPS)",
         nbplayer     = "Nombre de joueurs max (calculé automatiquement depuis le template si renseigné)",
+        heure        = "Heure de départ (ex : 21h, 21h30, 18/10 21h — heure de Paris)",
         depart       = "Point de départ (Ville / HO / Libre)",
         tier         = "Tier requis (ex : T7, T8.3…)",
         validation   = "Inscriptions sur validation : chaque joueur doit être accepté par toi (MP) ou un Caller",
@@ -1859,6 +1901,7 @@ class Activites(commands.Cog):
         interaction:  discord.Interaction,
         nametemplate: str = "",
         nbplayer:     app_commands.Range[int, 1, 100] | None = None,
+        heure:        str = "",
         depart:       str = "Libre",
         tier:         str = "",
         validation:   bool = False,
@@ -1866,6 +1909,14 @@ class Activites(commands.Cog):
         if not is_membre(interaction.user):
             await interaction.response.send_message(
                 f"⛔ Tu dois avoir le rôle **{MEMBRE_ROLE_NAME}** pour créer une activité.", ephemeral=True
+            )
+            return
+
+        try:
+            start_at = parse_heure(heure)
+        except ValueError:
+            await interaction.response.send_message(
+                f"❌ Heure invalide ou déjà passée : « {heure} ». Exemples : {HEURE_AIDE}.", ephemeral=True
             )
             return
 
@@ -1915,6 +1966,7 @@ class Activites(commands.Cog):
             "bal":                bal,
             "depart":             depart,
             "tier":               tier,
+            "start_at":           start_at,
             "custom_description": "",
             "slots":              slots,
             "channel_id":         interaction.channel_id,

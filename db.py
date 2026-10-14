@@ -94,6 +94,7 @@ async def init_db(database_url: str) -> None:
             ALTER TABLE activities ADD COLUMN IF NOT EXISTS creator_id BIGINT  NOT NULL DEFAULT 0;
             ALTER TABLE activities ADD COLUMN IF NOT EXISTS validation BOOLEAN NOT NULL DEFAULT FALSE;
             ALTER TABLE activities ADD COLUMN IF NOT EXISTS pending    JSONB   NOT NULL DEFAULT '[]'::jsonb;
+            ALTER TABLE activities ADD COLUMN IF NOT EXISTS start_at   TIMESTAMPTZ;
         """)
         await conn.execute(
             "ALTER TABLE bal ADD COLUMN IF NOT EXISTS is_alerted BOOLEAN NOT NULL DEFAULT FALSE"
@@ -479,6 +480,7 @@ async def load_activities() -> dict:
             "creator_id":         row["creator_id"] or None,
             "validation":         row["validation"],
             "pending":            _jloads(row["pending"]) or [],
+            "start_at":           row["start_at"],
         }
     return result
 
@@ -497,8 +499,8 @@ async def save_activity(msg_id: int, data: dict) -> None:
         await conn.execute("""
             INSERT INTO activities
                 (message_id, channel_id, guild_id, creator, template, max_players, bal, created_at, slots, waitlist,
-                 depart, tier, custom_description, creator_id, validation, pending)
-            VALUES ($1, $2, $13, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, $10, $11, $12, $14, $15, $16::jsonb)
+                 depart, tier, custom_description, creator_id, validation, pending, start_at)
+            VALUES ($1, $2, $13, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, $10, $11, $12, $14, $15, $16::jsonb, $17)
             ON CONFLICT (message_id) DO UPDATE SET
                 channel_id          = EXCLUDED.channel_id,
                 guild_id            = EXCLUDED.guild_id,
@@ -514,12 +516,13 @@ async def save_activity(msg_id: int, data: dict) -> None:
                 custom_description  = EXCLUDED.custom_description,
                 creator_id          = EXCLUDED.creator_id,
                 validation          = EXCLUDED.validation,
-                pending             = EXCLUDED.pending
+                pending             = EXCLUDED.pending,
+                start_at            = EXCLUDED.start_at
         """, msg_id, data["channel_id"], data["creator"], data["template"],
              data["max_players"], data["bal"], created_at, slots_json, waitlist_json,
              data.get("depart", "Libre"), data.get("tier", ""), data.get("custom_description", ""),
              data.get("guild_id", 0), data.get("creator_id") or 0, bool(data.get("validation")),
-             json.dumps(data.get("pending", []), ensure_ascii=False))
+             json.dumps(data.get("pending", []), ensure_ascii=False), data.get("start_at"))
 
 
 async def delete_activity(msg_id: int) -> None:

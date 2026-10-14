@@ -12,8 +12,9 @@ VERSION = "2026.10.14.4"
 CHANGELOG: list[dict] = [
     {
         "version": "2026.10.14.4",
-        "title": "💰 /acti sans l'option bal",
+        "title": "🕘 /acti : heure de départ, plus d'option bal",
         "items": [
+            "Nouveau paramètre `heure` dans `/acti` (ex : `21h`, `21h30`, `18/10 21h`, heure de Paris) : l'acti affiche l'heure de départ dans le fuseau de chacun, avec un compte à rebours.",
             "Plus besoin de choisir BAL ou Libre dans `/acti` : une acti créée par un Caller, un Officier ou le GM est en BAL (partage du butin en fin d'acti), celle d'un simple Membre est libre.",
         ],
     },
