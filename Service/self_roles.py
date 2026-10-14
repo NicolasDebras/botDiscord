@@ -48,7 +48,7 @@ class RoleToggleButton(discord.ui.Button):
         if role not in interaction.user.roles:
             web_staff = await db.get_web_staff_role(interaction.guild.id)
             refusal = role_grant_refusal(
-                role, protected_names=STAFF_ROLE_NAMES + (MEMBRE_ROLE_NAME, CALLER_ROLE_NAME),
+                role, protected_names=(*STAFF_ROLE_NAMES, MEMBRE_ROLE_NAME, CALLER_ROLE_NAME),
                 protected_ids=(web_staff,) if web_staff else (),
             )
         if refusal:

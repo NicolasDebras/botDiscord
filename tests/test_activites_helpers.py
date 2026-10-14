@@ -5,6 +5,7 @@ from Service.activites import (
     _acti_label, _is_creator, parse_silver, MAX_SILVER, MAX_WEAPON_SLOTS,
 )
 from tests.fakes import fake_member
+from datetime import UTC
 
 
 # ── _parse_weapon_slots ─────────────────────────────────────────────────────
@@ -269,9 +270,9 @@ def test_weapon_sub_limit_still_applies_without_build():
 # ── Historique des activités (stats d'activité du site) ──────────────────────
 
 def test_activity_log_row_snapshot():
-    from datetime import datetime, timezone
+    from datetime import datetime
     from Service.activites import activity_log_row
-    created = datetime(2026, 10, 8, 20, 0, tzinfo=timezone.utc)
+    created = datetime(2026, 10, 8, 20, 0, tzinfo=UTC)
     data = {"guild_id": 111, "template": "ZvZ", "creator_id": 42, "max_players": 6, "created_at": created,
             "slots": {"TANK": [(1, "A", ""), (2, "B", "")], "HEAL": [], "PF2:DPS": [(3, "C", "")]}}
     tdata = {"type_acti": "PVP", "pf_1": {"TANK": 2, "HEAL": 1}, "pf_2": {"DPS": 3}}

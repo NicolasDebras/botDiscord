@@ -5,7 +5,7 @@ templates.json, settings.json).
 """
 import json
 import asyncpg
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 
 from config import DEFAULT_BAL_RATE
 
@@ -608,7 +608,7 @@ async def add_activity_log(row: dict) -> None:
 # ── BAL LOG ───────────────────────────────────────────────────────────────────
 
 async def append_bal_log(action: str, by: str, entries: list, template: str = "", guild_id: int = 0) -> None:
-    ts           = datetime.now(timezone.utc)
+    ts           = datetime.now(UTC)
     entries_json = json.dumps(entries, ensure_ascii=False)
     async with _pool.acquire() as conn:
         await conn.execute(
@@ -814,7 +814,7 @@ async def get_player_profile(user_id: str, guild_id: int = 0) -> dict | None:
 
 
 async def save_player_profile(user_id: str, ig_name: str, initial_pve: int, initial_pvp: int, recruitment_info: str = "", is_membre: bool = False, guild_id: int = 0) -> None:
-    joined_at = datetime.now(timezone.utc)
+    joined_at = datetime.now(UTC)
     async with _pool.acquire() as conn:
         await conn.execute("""
             INSERT INTO player_profiles (user_id, guild_id, ig_name, initial_pve_fame, initial_pvp_fame, joined_at, recruitment_info, is_membre)
@@ -888,7 +888,7 @@ async def update_player_igname(user_id: str, ig_name: str, guild_id: int = 0) ->
 
 
 async def update_player_fame(user_id: str, ig_name: str, pve: int, pvp: int, guild_id: int = 0) -> None:
-    updated_at = datetime.now(timezone.utc)
+    updated_at = datetime.now(UTC)
     async with _pool.acquire() as conn:
         await conn.execute("""
             UPDATE player_profiles
@@ -924,7 +924,7 @@ async def delete_player_profile(user_id: str, guild_id: int = 0) -> None:
 
 
 async def save_recruitment_ticket(user_id: str, channel_id: int, guild_id: int = 0) -> None:
-    ts = datetime.now(timezone.utc)
+    ts = datetime.now(UTC)
     async with _pool.acquire() as conn:
         await conn.execute("""
             INSERT INTO recruitment_tickets (user_id, guild_id, thread_id, created_at)
@@ -1017,7 +1017,7 @@ async def set_recruitment_config(
 
 
 async def increment_acti_count(user_ids: list[str], guild_id: int = 0) -> None:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     async with _pool.acquire() as conn:
         async with conn.transaction():
             for user_id in user_ids:
@@ -1204,7 +1204,7 @@ async def add_error_log(
     command: str, error_type: str, error_message: str, traceback_str: str,
     guild_id: int | None = None, user_id: str | None = None,
 ) -> None:
-    ts = datetime.now(timezone.utc)
+    ts = datetime.now(UTC)
     async with _pool.acquire() as conn:
         await conn.execute("""
             INSERT INTO error_log (ts, guild_id, command, user_id, error_type, error_message, traceback)
@@ -1376,7 +1376,7 @@ async def get_location_by_id(location_id: int, guild_id: int) -> dict | None:
 
 
 async def close_location(location_id: int) -> None:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     async with _pool.acquire() as conn:
         await conn.execute(
             "UPDATE locations SET is_closed = TRUE, closed_at = $2 WHERE id = $1",

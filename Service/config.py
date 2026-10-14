@@ -11,7 +11,7 @@ from Service.utils import log_error
 
 
 # Rôles qu'on ne distribue jamais automatiquement (en plus des permissions sensibles)
-_NO_AUTO_GRANT = STAFF_ROLE_NAMES + (MEMBRE_ROLE_NAME, CALLER_ROLE_NAME)
+_NO_AUTO_GRANT = (*STAFF_ROLE_NAMES, MEMBRE_ROLE_NAME, CALLER_ROLE_NAME)
 
 
 async def _grant_refusal(interaction: discord.Interaction, role: discord.Role,
@@ -513,7 +513,7 @@ class ValidatedRoleView(discord.ui.View):
     @discord.ui.select(cls=discord.ui.RoleSelect, placeholder="Choisis le rôle attribué à la validation")
     async def role_select(self, interaction: discord.Interaction, select: discord.ui.RoleSelect):
         # Le rôle Membre est autorisé ici : c'est justement le rôle donné à la validation
-        refusal = await _grant_refusal(interaction, select.values[0], STAFF_ROLE_NAMES + (CALLER_ROLE_NAME,))
+        refusal = await _grant_refusal(interaction, select.values[0], (*STAFF_ROLE_NAMES, CALLER_ROLE_NAME))
         if refusal:
             await interaction.response.send_message(f"⛔ {refusal}.", ephemeral=True)
             return

@@ -5,7 +5,7 @@ import asyncio
 import discord
 from discord.ext import commands, tasks
 from discord import app_commands
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 
 import db
 from config import ROLES, DEFAULT_TEMPLATES, ACTIVITY_COLORS, DEFAULT_COLOR, ADMIN_ROLE_NAME, MEMBRE_ROLE_NAME
@@ -314,7 +314,7 @@ def build_embed(data: dict) -> discord.Embed:
     type_acti = tdata.get("type_acti", "") if tdata else ""
 
     pf1_keys      = list(pf1.keys()) if pf1 else list(slots.keys())
-    pf2_keys      = [f"PF2:{r}" for r in pf2.keys()]
+    pf2_keys      = [f"PF2:{r}" for r in pf2]
     roles_to_show = _sort_roles(pf1_keys + pf2_keys)
 
     pf1_has_any_full = pf1 and any(
@@ -1021,7 +1021,7 @@ class BuildSelectView(discord.ui.View):
         tdata = _activity_tdata(data)
         pf1   = get_pf1(tdata) if tdata else {}
         pf2   = get_pf2(tdata) if tdata else {}
-        roles = list(pf1.keys()) + [f"PF2:{r}" for r in pf2.keys()]
+        roles = list(pf1.keys()) + [f"PF2:{r}" for r in pf2]
         keys  = [k for k in available_role_keys(data, tdata, roles) if role_group(k) == group]
         options = []
         for key in keys:
@@ -1322,7 +1322,7 @@ class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
 
             # Créditer les BAL via DB (batch)
             deltas: dict[str, int] = {}
-            for uid, name, role, mult in paying:
+            for uid, _name, _role, mult in paying:
                 deltas[str(uid)] = deltas.get(str(uid), 0) + int(part_base * mult)
             for entry in scoot_members:
                 key = str(entry[0])
@@ -1336,7 +1336,7 @@ class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
                 await db.increment_acti_count(all_ids, guild_id=interaction.guild.id)
 
             log_entries = []
-            for uid, name, role, mult in paying:
+            for uid, name, _role, mult in paying:
                 key = str(uid)
                 log_entries.append({"uid": key, "name": name, "delta": int(part_base * mult), "total": new_totals[key]})
             for entry in scoot_members:
@@ -1725,7 +1725,7 @@ class ActivityView(discord.ui.View):
         pf1           = get_pf1(tdata) if tdata else {}
         pf2           = get_pf2(tdata) if tdata else {}
         pf1_keys      = list(pf1.keys()) if pf1 else list(ROLES.keys())
-        pf2_keys      = [f"PF2:{r}" for r in pf2.keys()]
+        pf2_keys      = [f"PF2:{r}" for r in pf2]
         roles_to_show = _sort_roles(pf1_keys + pf2_keys)
 
         if not tdata.get("no_register"):
@@ -1909,7 +1909,7 @@ class Activites(commands.Cog):
         data = {
             "creator":            interaction.user.display_name,
             "creator_id":         interaction.user.id,
-            "created_at":         datetime.now(timezone.utc),
+            "created_at":         datetime.now(UTC),
             "template":           template_name,
             "thread_name":        thread_name,
             "max_players":        nbplayer,

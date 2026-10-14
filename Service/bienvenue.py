@@ -64,7 +64,7 @@ class Bienvenue(commands.Cog):
         if cfg["default_role_id"]:
             role = member.guild.get_role(cfg["default_role_id"])
             refusal = role and role_grant_refusal(
-                role, protected_names=STAFF_ROLE_NAMES + (MEMBRE_ROLE_NAME, CALLER_ROLE_NAME)
+                role, protected_names=(*STAFF_ROLE_NAMES, MEMBRE_ROLE_NAME, CALLER_ROLE_NAME)
             )
             if not role:
                 print(f"[bienvenue] Rôle par défaut introuvable (ID {cfg['default_role_id']}) sur {member.guild.name}.")

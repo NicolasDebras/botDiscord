@@ -140,7 +140,7 @@ async def _get_icon(session: aiohttp.ClientSession, url: str) -> tuple[bool, byt
                     return True, b"".join(chunks)
                 if resp.status == 404:
                     return True, None
-        except (aiohttp.ClientError, asyncio.TimeoutError):
+        except (TimeoutError, aiohttp.ClientError):
             pass
     return False, None
 
@@ -454,7 +454,7 @@ def _lilac_background(width: int, height: int) -> Image.Image:
     draw = ImageDraw.Draw(img)
     for y in range(height):
         t = y / max(height - 1, 1)
-        color = tuple(round(a + (b - a) * t) for a, b in zip(LILAC, LILAC_2))
+        color = tuple(round(a + (b - a) * t) for a, b in zip(LILAC, LILAC_2, strict=True))
         draw.line([(0, y), (width, y)], fill=color)
     return img
 
@@ -496,7 +496,7 @@ def role_color(role: str) -> tuple[int, int, int]:
 
 
 def _mix(a: tuple[int, int, int], b: tuple[int, int, int], t: float) -> tuple[int, int, int]:
-    return tuple(round(x + (y - x) * t) for x, y in zip(a, b))
+    return tuple(round(x + (y - x) * t) for x, y in zip(a, b, strict=True))
 
 
 def render_compo_image(name: str, rows: list[tuple[str, str, int, dict]], icons: dict[str, bytes | None]) -> bytes:
@@ -522,7 +522,7 @@ def render_compo_image(name: str, rows: list[tuple[str, str, int, dict]], icons:
         if multi_party:
             draw.text((MARGIN, y), party.upper(), font=_font(16, "Bold"), fill=INK)
             y += 34
-        for (row_party, role, count, build), accent in zip(rows, accents):
+        for (row_party, role, count, build), accent in zip(rows, accents, strict=True):
             if row_party != party:
                 continue
             draw.rounded_rectangle((MARGIN, y, width - MARGIN, y + C_ROW_H), radius=14,

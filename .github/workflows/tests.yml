@@ -14,15 +14,15 @@ jobs:
   pytest:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           path: botDiscord
       # Le site à côté du bot : active tests/test_guide_sync.py (guide du site à jour)
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           repository: NicolasDebras/lilium-site
           path: lilium-site
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
           cache: pip
