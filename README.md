@@ -71,6 +71,8 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
+**CI** (`.github/workflows/tests.yml`) : GitHub lance `pytest` à chaque push et pull request (avec le repo du site cloné à côté, pour le test du guide). `main` est protégée : on ne fusionne que si les tests passent.
+
 > Ces tests ne couvrent pas les fonctions qui appellent réellement Discord ou la base de données (out of scope pour de l'unitaire pur) — seulement la logique qui peut casser silencieusement lors d'un refactor (ex. le parsing `_parse_weapon_slots`/`_sort_roles`, déjà responsable d'un bug réel corrigé cette session).
 
 ---
@@ -331,7 +333,8 @@ Un `id` unique est attribué à chaque location — visible dans `/recaplocation
 ```
 LiliumBot/
 ├── bot.py              # Point d'entrée, init DB, chargement des cogs
-├── config.py           # Token, rôles, templates par défaut, couleurs
+├── config.py           # Token, noms de rôles Discord, couleurs
+├── roles_templates.py  # ROLES + templates par défaut — copié tel quel par le site (lilium-site)
 ├── db.py               # Couche d'accès PostgreSQL (asyncpg)
 ├── albion_api.py       # Client API Albion Online (fame, recherche joueur)
 ├── changelog.py        # VERSION + entrées annoncées via /config → 📢 Annonces de mises à jour
@@ -344,7 +347,7 @@ LiliumBot/
     ├── admin.py        # Commandes d'administration
     ├── bal.py          # Commandes BAL
     ├── massup.py       # Commande /massup (ping participants + image du build en MP)
-    ├── build_image.py  # Image PNG d'un build (Pillow, police Inter dans assets/fonts)
+    ├── build_image.py  # Images PNG build/compo (Pillow) — copié tel quel par le site, avec assets/
     ├── moderation.py   # Surveillance format canal acti-flash
     ├── recrutement.py  # Commande /recrutement (fiche de candidature + baseline fame)
     ├── joueur.py                # /info, /ancien, /reporter, /kick + tâche 22h
