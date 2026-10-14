@@ -273,3 +273,37 @@ def test_role_color_one_color_per_role():
     assert role_color("TANK 2") == ROLE_COLORS["TANK"]
     assert len({role_color(r) for r in ("TANK", "HEAL", "DPS", "SUPPORT")}) == 4
     assert role_color("CALLER") == ROLE_OTHER_COLOR
+
+
+# ── Signature « Serveur · Bot » en bas des images ────────────────────────────
+
+def test_signature_text_joins_server_and_bot():
+    from Service.build_image import signature_text
+    assert signature_text("Lilium", "LiliumBot") == "Lilium · LiliumBot"
+    assert signature_text("  ", "LiliumBot") == "LiliumBot"
+    assert signature_text() == ""
+
+
+def test_signature_adds_a_small_band_at_the_bottom_of_both_images():
+    from Service.build_image import SIGNATURE_H, render_build_image
+    build = {"name": "Heal", "role": "HEAL", "items": {}}
+    plain = Image.open(io.BytesIO(render_build_image(build, {})))
+    signed = Image.open(io.BytesIO(render_build_image(build, {}, "Lilium · LiliumBot")))
+    assert signed.height == plain.height + SIGNATURE_H
+    assert signed.width == plain.width
+    # quelque chose est écrit dans la bande du bas (le fond est uni sans signature)
+    band = signed.crop((0, signed.height - SIGNATURE_H, signed.width, signed.height)).convert("L")
+    assert band.getextrema()[0] != band.getextrema()[1]
+
+    rows = [("Party 1", "TANK", 1, {"name": "Tank", "items": {}})]
+    plain = Image.open(io.BytesIO(render_compo_image("x", rows, {})))
+    signed = Image.open(io.BytesIO(render_compo_image("x", rows, {}, "Lilium · LiliumBot")))
+    assert signed.height == plain.height + SIGNATURE_H
+
+
+def test_image_signature_uses_the_bot_nickname_on_the_server():
+    from types import SimpleNamespace
+    from Service.utils import image_signature
+    inter = SimpleNamespace(guild=SimpleNamespace(name="Lilium", me=SimpleNamespace(display_name="Lily")),
+                            client=SimpleNamespace(user=SimpleNamespace(name="LiliumBot")))
+    assert image_signature(inter) == "Lilium · Lily"

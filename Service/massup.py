@@ -9,7 +9,7 @@ import db
 from config import MEMBRE_ROLE_NAME
 from Service.activites import activities, _acti_label, _is_creator, base_role, build_ids_for_role, load_all_templates
 from Service.build_image import build_image, has_tiered_gear
-from Service.utils import ActivitySelect, is_caller_or_admin, is_membre, log_error
+from Service.utils import ActivitySelect, image_signature, is_caller_or_admin, is_membre, log_error
 
 # Ajouté au MP quand le build impose des tiers (pastilles « 8.1 » sur l'image)
 TIERS_NOTE = "\n⚔️ Tiers indiqués = minimum : un équivalent convient (8.1 = 7.2 = 6.3)."
@@ -119,13 +119,14 @@ async def send_build_dms(
     builds = await db.get_builds_by_ids(list(all_ids), guild_id)   # un seul aller-retour
     recipients = build_recipients(data["slots"], tdata, {i: b["name"] for i, b in builds.items()})
     sent, closed = 0, []
+    signature = image_signature(inter)
 
     for build_id, players in recipients.items():
         build = builds.get(build_id)
         if not build:
             continue
         try:
-            png = await build_image(build)
+            png = await build_image(build, signature)
         except Exception as e:
             await log_error("massup.build_image", e, guild_id=data.get("guild_id"))
             continue

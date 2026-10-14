@@ -30,6 +30,14 @@ async def log_error(
         print(f"[log_error] Impossible d'enregistrer l'erreur en base : {e}")
 
 
+def image_signature(interaction: discord.Interaction) -> str:
+    """Signature des images de build/compo : « Serveur · Bot » (pseudo du bot sur ce serveur s'il en a un)."""
+    from Service.build_image import signature_text   # import local : build_image reste sans import du bot
+    guild = interaction.guild
+    bot = (guild.me.display_name if guild and guild.me else None) or getattr(interaction.client.user, "name", "")
+    return signature_text(guild.name if guild else "", bot)
+
+
 def fmt_silver(n: int) -> str:
     """Formate un montant en silver avec espaces comme séparateur de milliers."""
     return f"{n:,}".replace(",", " ")

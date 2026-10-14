@@ -11,7 +11,7 @@ from zoneinfo import ZoneInfo
 import db
 from config import ROLES, DEFAULT_TEMPLATES, ACTIVITY_COLORS, DEFAULT_COLOR, ADMIN_ROLE_NAME, MEMBRE_ROLE_NAME
 from Service.build_image import ROLE_ORDER, compo_image, compo_rows
-from Service.utils import load_settings, append_bal_log, is_membre, is_caller_or_admin, notify_bal_limit, fmt_silver, log_error
+from Service.utils import load_settings, append_bal_log, image_signature, is_membre, is_caller_or_admin, notify_bal_limit, fmt_silver, log_error
 
 # ── STOCKAGE EN MÉMOIRE  {message_id: data} ──────────────────────────────────
 activities: dict[int, dict] = {}
@@ -414,7 +414,7 @@ async def _post_compo_image(interaction: discord.Interaction, template_name: str
         return
     try:
         builds = await db.get_builds_by_ids([bid for *_, bid in rows], interaction.guild.id)
-        png = await compo_image(template_name, template_data, builds)
+        png = await compo_image(template_name, template_data, builds, signature=image_signature(interaction))
         if png:
             await interaction.followup.send(file=discord.File(io.BytesIO(png), filename="compo.png"))
     except Exception as e:
