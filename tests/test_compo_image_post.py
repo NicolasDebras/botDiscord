@@ -35,8 +35,9 @@ def _fake_interaction():
         sent.append(kwargs)
 
     inter = SimpleNamespace(
-        guild=SimpleNamespace(id=111),
+        guild=SimpleNamespace(id=111, name="Lilium", me=SimpleNamespace(display_name="LiliumBot")),
         user=SimpleNamespace(id=1),
+        client=SimpleNamespace(user=SimpleNamespace(name="LiliumBot")),
         followup=SimpleNamespace(send=send),
     )
     return inter, sent

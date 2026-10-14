@@ -310,8 +310,25 @@ def _draw_swaps_column(img: Image.Image, draw: ImageDraw.ImageDraw, x: int, top:
         _draw_tier_badge(draw, x + 3, y + SWAP_CELL - 3, item_id, 11)
 
 
-def render_build_image(build: dict, icons: dict[str, bytes | None]) -> bytes:
-    """PNG du build : titre, rôle, grille façon inventaire (+ colonne Swaps à droite), précisions en bas."""
+SIGNATURE_H = 26   # bande du bas pour la signature (« Serveur · Bot »)
+
+
+def signature_text(server: str = "", bot: str = "") -> str:
+    """« Lilium · LiliumBot » : nom du serveur Discord et du bot, en bas de l'image ('' si aucun)."""
+    return " · ".join(t.strip() for t in (server, bot) if t and t.strip())
+
+
+def _draw_signature(draw: ImageDraw.ImageDraw, width: int, height: int, text: str, fill) -> None:
+    """Signature en petit, alignée à droite dans la bande du bas."""
+    font = _font(12)
+    text = fit_text(text, font, width - 2 * MARGIN)
+    w = draw.textlength(text, font=font)
+    draw.text((width - MARGIN - w, height - SIGNATURE_H + 4), text, font=font, fill=fill)
+
+
+def render_build_image(build: dict, icons: dict[str, bytes | None], signature: str = "") -> bytes:
+    """PNG du build : titre, rôle, grille façon inventaire (+ colonne Swaps à droite), précisions en bas,
+    puis la signature (« Serveur · Bot ») en petit si elle est donnée."""
     items = normalize_items(build.get("items"))
     swaps = [s for s in items.pop(SWAPS_KEY, []) if s != FREE_CHOICE][:SWAPS_MAX]
     footer = [t for t in (build.get("weapon", ""), build.get("notes", "")) if t and t.strip()]
@@ -323,7 +340,7 @@ def render_build_image(build: dict, icons: dict[str, bytes | None]) -> bytes:
 
     grid_h = 3 * (CELL + LABEL_H) + 2 * GAP
     footer_h = (len(footer_lines) * 22 + 24) if footer_lines else 0
-    height = HEADER_H + grid_h + footer_h + MARGIN
+    height = HEADER_H + grid_h + footer_h + MARGIN + (SIGNATURE_H if signature else 0)
 
     width = WIDTH + (SWAP_CELL + GAP) if swaps else WIDTH
     img = Image.new("RGBA", (width, height), BG)
@@ -349,17 +366,19 @@ def render_build_image(build: dict, icons: dict[str, bytes | None]) -> bytes:
     for line in footer_lines:
         draw.text((MARGIN, y), line, font=_font(16), fill=TEXT)
         y += 22
+    if signature:
+        _draw_signature(draw, width, height, signature, MUTED)
 
     out = io.BytesIO()
     img.convert("RGB").save(out, format="PNG")
     return out.getvalue()
 
 
-async def build_image(build: dict) -> bytes:
+async def build_image(build: dict, signature: str = "") -> bytes:
     """Télécharge les icônes du build puis génère l'image (Pillow dans un thread : ~50 ms
     de calcul qui bloqueraient sinon la boucle d'événements)."""
     icons = await fetch_icons(build.get("items"))
-    return await asyncio.to_thread(render_build_image, build, icons)
+    return await asyncio.to_thread(render_build_image, build, icons, signature)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -501,17 +520,19 @@ def _mix(a: tuple[int, int, int], b: tuple[int, int, int], t: float) -> tuple[in
     return tuple(round(x + (y - x) * t) for x, y in zip(a, b, strict=True))
 
 
-def render_compo_image(name: str, rows: list[tuple[str, str, int, dict]], icons: dict[str, bytes | None]) -> bytes:
+def render_compo_image(name: str, rows: list[tuple[str, str, int, dict]], icons: dict[str, bytes | None],
+                       signature: str = "") -> bytes:
     """rows = [(party, rôle, nombre, build)] → PNG : fond lilas, une carte sombre par build
-    (rôle × nombre, nom du build, icônes des 8 emplacements), une couleur d'accent par rôle (TANK, HEAL, SUPPORT, DPS).
-    Au plus COMPO_MAX_ROWS lignes."""
+    (rôle × nombre, nom du build, icônes des 8 emplacements), une couleur d'accent par rôle (TANK, HEAL, SUPPORT, DPS),
+    puis la signature (« Serveur · Bot ») en petit si elle est donnée. Au plus COMPO_MAX_ROWS lignes."""
     rows = rows[:COMPO_MAX_ROWS]
     accents = [role_color(r[1]) for r in rows]
     max_swaps = max((len(normalize_items(r[3].get("items")).get(SWAPS_KEY, [])[:SWAPS_MAX]) for r in rows), default=0)
     width = COMPO_WIDTH + (14 + max_swaps * (C_ICON + C_ICON_GAP) if max_swaps else 0)
     parties = list(dict.fromkeys(r[0] for r in rows))
     multi_party = len(parties) > 1
-    height = C_HEADER + len(rows) * (C_ROW_H + 10) + (len(parties) * 34 if multi_party else 0) + MARGIN
+    height = (C_HEADER + len(rows) * (C_ROW_H + 10) + (len(parties) * 34 if multi_party else 0) + MARGIN
+              + (SIGNATURE_H if signature else 0))
     img = _lilac_background(width, height)
     draw = ImageDraw.Draw(img)
 
@@ -550,13 +571,15 @@ def render_compo_image(name: str, rows: list[tuple[str, str, int, dict]], icons:
                     _draw_small_slot(img, draw, ix, y + (C_ROW_H - C_ICON) // 2, [item_id], icons)
                     ix += C_ICON + C_ICON_GAP
             y += C_ROW_H + 10
+    if signature:
+        _draw_signature(draw, width, height, signature, _mix(INK, LILAC_2, .25))
 
     out = io.BytesIO()
     img.convert("RGB").save(out, format="PNG")
     return out.getvalue()
 
 
-async def compo_image(name: str, template_data: dict, builds_by_id: dict[int, dict]) -> bytes | None:
+async def compo_image(name: str, template_data: dict, builds_by_id: dict[int, dict], signature: str = "") -> bytes | None:
     """Image de la compo, ou None si aucun de ses rôles n'a de build."""
     rows = [(party, role, count, builds_by_id[bid])
             for party, role, count, bid in compo_rows(template_data) if bid in builds_by_id]
@@ -567,4 +590,4 @@ async def compo_image(name: str, template_data: dict, builds_by_id: dict[int, di
         ids.extend(i for i in item_ids(build.get("items")) if i not in ids)
     icons = await fetch_icons(None, ids)
     # Pillow dans un thread : jusqu'à ~250 ms pour une grosse compo, sans bloquer le bot.
-    return await asyncio.to_thread(render_compo_image, name, rows, icons)
+    return await asyncio.to_thread(render_compo_image, name, rows, icons, signature)
