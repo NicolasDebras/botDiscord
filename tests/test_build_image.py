@@ -267,11 +267,9 @@ def test_compo_badge_uses_base_role_and_its_color():
     assert ROLE_COLORS.get(_base_role("CALLER"), ROLE_OTHER_COLOR) == ROLE_OTHER_COLOR
 
 
-def test_build_colors_one_color_per_distinct_build():
-    from Service.build_image import BUILD_COLORS, build_colors
-    builds = [{"id": 1}, {"id": 2}, {"id": 1}, {"id": 3}]
-    c = build_colors(builds)
-    assert c[0] == c[2]                      # même build en PF1 et PF2 → même couleur
-    assert len({c[0], c[1], c[3]}) == 3
-    many = build_colors([{"id": i} for i in range(len(BUILD_COLORS) + 1)])
-    assert many[-1] == BUILD_COLORS[0]       # palette en boucle
+def test_role_color_one_color_per_role():
+    from Service.build_image import ROLE_COLORS, ROLE_OTHER_COLOR, role_color
+    assert role_color("DPS") == role_color("DPS · Arcane") == ROLE_COLORS["DPS"]   # tous les DPS pareil
+    assert role_color("TANK 2") == ROLE_COLORS["TANK"]
+    assert len({role_color(r) for r in ("TANK", "HEAL", "DPS", "SUPPORT")}) == 4
+    assert role_color("CALLER") == ROLE_OTHER_COLOR

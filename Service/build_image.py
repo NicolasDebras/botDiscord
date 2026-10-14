@@ -486,32 +486,9 @@ def _draw_small_slot(img: Image.Image, draw: ImageDraw.ImageDraw, x: int, y: int
 
 COMPO_MAX_ROWS = 40  # la hauteur de l'image suit le nombre de lignes : au-delà, mémoire (image de plusieurs Go)
 
-# Couleur d'accent par build (lisibles sur la carte sombre) : bande, contour, rôle et fond teinté.
-BUILD_COLORS = (
-    (200, 162, 255),  # lilas
-    (94, 214, 196),   # turquoise
-    (255, 186, 92),   # ambre
-    (255, 122, 138),  # corail
-    (110, 176, 255),  # bleu ciel
-    (140, 220, 100),  # vert
-    (255, 130, 210),  # rose
-    (255, 150, 80),   # orange
-    (225, 225, 110),  # jaune
-    (150, 140, 255),  # pervenche
-)
-
-
-def build_colors(builds: list[dict]) -> list[tuple[int, int, int]]:
-    """Couleur de chaque ligne : une par build distinct, dans l'ordre d'apparition (en boucle
-    au-delà de la palette). Un même build en Party 1 et Party 2 garde sa couleur."""
-    assigned: dict = {}
-    colors = []
-    for build in builds:
-        key = build.get("id", build.get("name"))
-        if key not in assigned:
-            assigned[key] = BUILD_COLORS[len(assigned) % len(BUILD_COLORS)]
-        colors.append(assigned[key])
-    return colors
+def role_color(role: str) -> tuple[int, int, int]:
+    """Couleur d'accent d'une ligne de compo : celle de son rôle (bande, contour, nom, fond teinté)."""
+    return ROLE_COLORS.get(_base_role(role), ROLE_OTHER_COLOR)
 
 
 def _mix(a: tuple[int, int, int], b: tuple[int, int, int], t: float) -> tuple[int, int, int]:
@@ -520,10 +497,10 @@ def _mix(a: tuple[int, int, int], b: tuple[int, int, int], t: float) -> tuple[in
 
 def render_compo_image(name: str, rows: list[tuple[str, str, int, dict]], icons: dict[str, bytes | None]) -> bytes:
     """rows = [(party, rôle, nombre, build)] → PNG : fond lilas, une carte sombre par build
-    (rôle × nombre, nom du build, icônes des 8 emplacements), une couleur d'accent par build.
+    (rôle × nombre, nom du build, icônes des 8 emplacements), une couleur d'accent par rôle (DPS, TANK, HEAL, SUPPORT).
     Au plus COMPO_MAX_ROWS lignes."""
     rows = rows[:COMPO_MAX_ROWS]
-    accents = build_colors([r[3] for r in rows])
+    accents = [role_color(r[1]) for r in rows]
     max_swaps = max((len(normalize_items(r[3].get("items")).get(SWAPS_KEY, [])[:SWAPS_MAX]) for r in rows), default=0)
     width = COMPO_WIDTH + (14 + max_swaps * (C_ICON + C_ICON_GAP) if max_swaps else 0)
     parties = list(dict.fromkeys(r[0] for r in rows))
@@ -548,7 +525,7 @@ def render_compo_image(name: str, rows: list[tuple[str, str, int, dict]], icons:
                                    fill=_mix(BG, accent, .10), outline=_mix(BG, accent, .55), width=2)
             draw.rounded_rectangle((MARGIN + 10, y + 12, MARGIN + 15, y + C_ROW_H - 12), radius=3, fill=accent)
             # Pastille du rôle (sa couleur + pictogramme) et « ×N », puis le nom du build
-            # dans la couleur du build : tout l'espace avant les icônes, coupé proprement avec « … »
+            # dans la couleur du rôle : tout l'espace avant les icônes, coupé proprement avec « … »
             text_w = C_LEFT - 26 - 12
             right = _draw_role_badge(img, draw, MARGIN + 26, y + 10, role)
             draw.text((right + 8, y + 12), f"×{count}", font=_font(18, "Bold"), fill=TEXT)
@@ -560,7 +537,7 @@ def render_compo_image(name: str, rows: list[tuple[str, str, int, dict]], icons:
                 _draw_small_slot(img, draw, ix, y + (C_ROW_H - C_ICON) // 2, items.get(slot, []), icons)
                 ix += C_ICON + C_ICON_GAP
             swaps = [s for s in items.get(SWAPS_KEY, []) if s != FREE_CHOICE][:SWAPS_MAX]
-            if swaps:   # swaps à droite des 8 cases, après un trait de la couleur du build
+            if swaps:   # swaps à droite des 8 cases, après un trait de la couleur du rôle
                 draw.line((ix + 4, y + 14, ix + 4, y + C_ROW_H - 14), fill=accent, width=2)
                 ix += 14
                 for item_id in swaps:

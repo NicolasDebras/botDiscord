@@ -7,9 +7,16 @@ Pour annoncer une nouvelle fonctionnalité : incrémenter VERSION et ajouter
 une entrée en tête de CHANGELOG (ordre du plus récent au plus ancien).
 """
 
-VERSION = "2026.10.10.3"
+VERSION = "2026.10.14"
 
 CHANGELOG: list[dict] = [
+    {
+        "version": "2026.10.14",
+        "title": "🎨 Une couleur par rôle sur l'image de compo",
+        "items": [
+            "Sur l'image de compo, les couleurs ne changent plus à chaque build : chaque ligne prend la couleur de son rôle (bleu TANK, vert HEAL, orange DPS, violet SUPPORT).",
+        ],
+    },
     {
         "version": "2026.10.10.3",
         "title": "🎨 Rôles en couleur sur l'image de compo",
