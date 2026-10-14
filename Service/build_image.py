@@ -140,7 +140,7 @@ async def _get_icon(session: aiohttp.ClientSession, url: str) -> tuple[bool, byt
                     return True, b"".join(chunks)
                 if resp.status == 404:
                     return True, None
-        except (aiohttp.ClientError, asyncio.TimeoutError):
+        except (TimeoutError, aiohttp.ClientError):
             pass
     return False, None
 
@@ -356,8 +356,10 @@ def render_build_image(build: dict, icons: dict[str, bytes | None]) -> bytes:
 
 
 async def build_image(build: dict) -> bytes:
-    """Télécharge les icônes du build puis génère l'image."""
-    return render_build_image(build, await fetch_icons(build.get("items")))
+    """Télécharge les icônes du build puis génère l'image (Pillow dans un thread : ~50 ms
+    de calcul qui bloqueraient sinon la boucle d'événements)."""
+    icons = await fetch_icons(build.get("items"))
+    return await asyncio.to_thread(render_build_image, build, icons)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -454,7 +456,7 @@ def _lilac_background(width: int, height: int) -> Image.Image:
     draw = ImageDraw.Draw(img)
     for y in range(height):
         t = y / max(height - 1, 1)
-        color = tuple(round(a + (b - a) * t) for a, b in zip(LILAC, LILAC_2))
+        color = tuple(round(a + (b - a) * t) for a, b in zip(LILAC, LILAC_2, strict=True))
         draw.line([(0, y), (width, y)], fill=color)
     return img
 
@@ -496,7 +498,7 @@ def role_color(role: str) -> tuple[int, int, int]:
 
 
 def _mix(a: tuple[int, int, int], b: tuple[int, int, int], t: float) -> tuple[int, int, int]:
-    return tuple(round(x + (y - x) * t) for x, y in zip(a, b))
+    return tuple(round(x + (y - x) * t) for x, y in zip(a, b, strict=True))
 
 
 def render_compo_image(name: str, rows: list[tuple[str, str, int, dict]], icons: dict[str, bytes | None]) -> bytes:
@@ -522,7 +524,7 @@ def render_compo_image(name: str, rows: list[tuple[str, str, int, dict]], icons:
         if multi_party:
             draw.text((MARGIN, y), party.upper(), font=_font(16, "Bold"), fill=INK)
             y += 34
-        for (row_party, role, count, build), accent in zip(rows, accents):
+        for (row_party, role, count, build), accent in zip(rows, accents, strict=True):
             if row_party != party:
                 continue
             draw.rounded_rectangle((MARGIN, y, width - MARGIN, y + C_ROW_H), radius=14,
@@ -564,4 +566,5 @@ async def compo_image(name: str, template_data: dict, builds_by_id: dict[int, di
     for *_, build in rows:
         ids.extend(i for i in item_ids(build.get("items")) if i not in ids)
     icons = await fetch_icons(None, ids)
-    return render_compo_image(name, rows, icons)
+    # Pillow dans un thread : jusqu'à ~250 ms pour une grosse compo, sans bloquer le bot.
+    return await asyncio.to_thread(render_compo_image, name, rows, icons)

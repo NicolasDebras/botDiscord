@@ -46,7 +46,7 @@ async def download(session, sem, item, force) -> str:
                         return f"HTTP {resp.status}"
                     target.write_bytes(compress(await resp.read()))
                     return "ok"
-            except (aiohttp.ClientError, asyncio.TimeoutError):
+            except (TimeoutError, aiohttp.ClientError):
                 await asyncio.sleep(1)
     return "échec"
 
@@ -60,7 +60,7 @@ async def main(argv: list[str]) -> int:
     sem = asyncio.Semaphore(6)
     async with aiohttp.ClientSession() as session:
         results = await asyncio.gather(*(download(session, sem, it, force) for it in items))
-    failed = [(it["id"], r) for it, r in zip(items, results) if r not in ("ok", "skip")]
+    failed = [(it["id"], r) for it, r in zip(items, results, strict=True) if r not in ("ok", "skip")]
     print(f"{results.count('ok')} téléchargées, {results.count('skip')} déjà présentes, {len(failed)} en échec")
     for item_id, reason in failed:
         print(f"  ✗ {item_id} : {reason}")

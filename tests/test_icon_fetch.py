@@ -101,7 +101,8 @@ def test_repo_ships_icons_for_the_site_catalog():
     files = list(real_dir.glob("*.png"))
     assert len(files) > 250
     for name in ("MAIN_MACE_HELL", "MEAL_OMELETTE", "POTION_MOB_RESET", "CAPEITEM_FW_CAERLEON"):
-        assert Image.open(real_dir / f"{name}.png").format == "PNG"
+        with Image.open(real_dir / f"{name}.png") as img:
+            assert img.format == "PNG"
 
 
 # ── Secours CDN ──────────────────────────────────────────────────────────────
@@ -115,13 +116,13 @@ def test_fetch_icon_falls_back_to_lower_tier_and_caches():
 
 
 def test_fetch_icon_retries_after_timeout():
-    session = FakeSession({url(8, "A"): [asyncio.TimeoutError(), 200]})
+    session = FakeSession({url(8, "A"): [TimeoutError(), 200]})
     assert asyncio.run(build_image.fetch_icon(session, "A")) == b"png"
 
 
 def test_fetch_icon_transient_failure_is_not_cached():
     """Un CDN lent ne doit pas marquer l'icône comme absente pour toujours."""
-    session = FakeSession({url(8, "A"): [asyncio.TimeoutError()] * build_image.ICON_RETRIES})
+    session = FakeSession({url(8, "A"): [TimeoutError()] * build_image.ICON_RETRIES})
     assert asyncio.run(build_image.fetch_icon(session, "A")) is None
     assert "A" not in build_image._icon_cache
 

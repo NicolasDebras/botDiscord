@@ -3,6 +3,7 @@ from discord.ext import commands, tasks
 
 import db
 from Service.utils import log_error
+import contextlib
 
 # ── CACHES EN MÉMOIRE ─────────────────────────────────────────────────────────
 # {hub_channel_id: {channel_id, guild_id, category_id, name_template, user_limit}}
@@ -72,10 +73,8 @@ class VocalTemp(commands.Cog):
             await db.delete_temp_voice_channel(channel_id)
             return
         if not channel.members:
-            try:
+            with contextlib.suppress(discord.HTTPException):
                 await channel.delete(reason="Nettoyage salon vocal temporaire vide")
-            except discord.HTTPException:
-                pass
             _temp_channels.pop(channel_id, None)
             await db.delete_temp_voice_channel(channel_id)
 
@@ -133,10 +132,8 @@ class VocalTemp(commands.Cog):
             if existing_id:
                 existing_ch = member.guild.get_channel(existing_id)
                 if existing_ch:
-                    try:
+                    with contextlib.suppress(discord.HTTPException):
                         await member.move_to(existing_ch, reason="Salon vocal temporaire existant")
-                    except discord.HTTPException:
-                        pass
                     return
 
             category = member.guild.get_channel(hub["category_id"]) if hub["category_id"] else after.channel.category
@@ -168,10 +165,8 @@ class VocalTemp(commands.Cog):
 
         # ── Quitte un salon temporaire devenu vide → suppression ───────────────
         if before.channel and before.channel.id in _temp_channels and not before.channel.members:
-            try:
+            with contextlib.suppress(discord.HTTPException):
                 await before.channel.delete(reason="Salon vocal temporaire vide")
-            except discord.HTTPException:
-                pass
             _temp_channels.pop(before.channel.id, None)
             await db.delete_temp_voice_channel(before.channel.id)
 

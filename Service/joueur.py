@@ -10,6 +10,7 @@ import db
 from albion_api import fetch_albion_fame, fmt_fame
 from config import ADMIN_ROLE_NAME, RECRUTEUR_ROLE_ID, MEMBRE_ROLE_NAME, GUILD_ID as _MAIN_GUILD_ID
 from Service.utils import fmt_silver, is_membre as has_membre_role, kick_refusal, log_error, split_message
+import contextlib
 
 _PARIS          = ZoneInfo("Europe/Paris")
 _RAPPEL_HEURE   = datetime.time(hour=22, minute=0, tzinfo=_PARIS)
@@ -50,7 +51,7 @@ class Joueur(commands.Cog):
 
         guild_id = guild.id
         profiles = await db.get_all_profiles(guild_id=guild_id)
-        now      = datetime.datetime.now(datetime.timezone.utc)
+        now      = datetime.datetime.now(datetime.UTC)
         delai    = datetime.timedelta(days=3)
 
         # ── 1. Mise à jour / nettoyage des profils ────────────────────────────
@@ -136,9 +137,12 @@ class Joueur(commands.Cog):
 
         # ── 5. Classement fame gagnée cette semaine ───────────────────────────
         def _weekly_fame_gain(p) -> int | None:
-            if not p["ig_name"]: return None
-            if p["current_pve_fame"] is None or p["current_pvp_fame"] is None: return None
-            if p["weekly_pve_fame"] is None or p["weekly_pvp_fame"] is None: return None
+            if not p["ig_name"]:
+                return None
+            if p["current_pve_fame"] is None or p["current_pvp_fame"] is None:
+                return None
+            if p["weekly_pve_fame"] is None or p["weekly_pvp_fame"] is None:
+                return None
             pve_gain = max(0, p["current_pve_fame"] - p["weekly_pve_fame"])
             pvp_gain = max(0, p["current_pvp_fame"] - p["weekly_pvp_fame"])
             return pve_gain + pvp_gain
@@ -352,10 +356,8 @@ class Joueur(commands.Cog):
             pvp_init = profile["initial_pvp_fame"] if profile else 0
 
             fame_live = None
-            try:
+            with contextlib.suppress(Exception):
                 fame_live = await fetch_albion_fame(ig_name)
-            except Exception:
-                pass
 
             if fame_live:
                 pve_val    = fame_live["pve"]

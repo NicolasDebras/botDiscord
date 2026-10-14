@@ -9,6 +9,7 @@ import db
 from config import ADMIN_ROLE_NAME
 from albion_api import fetch_albion_fame, fmt_fame
 from Service.utils import log_error
+import contextlib
 
 # Candidatures en cours de traitement (anti double envoi → deux salons)
 _submitting: set[tuple[int, int]] = set()
@@ -109,10 +110,8 @@ class QuestionnaireModal(discord.ui.Modal, title="📋 Questionnaire de candidat
             fame = None
 
         if fame:
-            try:
+            with contextlib.suppress(discord.Forbidden):
                 await interaction.user.edit(nick=fame["name"][:32], reason="Candidature — pseudo IG")
-            except discord.Forbidden:
-                pass
 
         category = guild.get_channel(cfg["category_id"]) if cfg["category_id"] else None
         if not isinstance(category, discord.CategoryChannel):
@@ -292,10 +291,8 @@ class ValidateCandidatureView(discord.ui.View):
         )
         await db.delete_recruitment_ticket_by_channel(interaction.channel.id)
         await asyncio.sleep(5)
-        try:
+        with contextlib.suppress(discord.Forbidden):
             await interaction.channel.delete(reason=f"Candidature validée par {interaction.user}")
-        except discord.Forbidden:
-            pass
 
     @discord.ui.button(
         label="❌ Refuser la candidature",
@@ -314,10 +311,8 @@ class ValidateCandidatureView(discord.ui.View):
         )
         await db.delete_recruitment_ticket_by_channel(interaction.channel.id)
         await asyncio.sleep(5)
-        try:
+        with contextlib.suppress(discord.Forbidden):
             await interaction.channel.delete(reason=f"Candidature refusée par {interaction.user}")
-        except discord.Forbidden:
-            pass
 
 
 # ── COG ───────────────────────────────────────────────────────────────────────
@@ -428,10 +423,8 @@ class RecrutementExterne(commands.Cog):
             )
             return
 
-        try:
+        with contextlib.suppress(discord.Forbidden):
             await interaction.user.edit(nick=fame["name"][:32], reason="Pseudo IG enregistré via /register")
-        except discord.Forbidden:
-            pass
 
         await db.save_player_profile(
             str(interaction.user.id), fame["name"], fame["pve"], fame["pvp"],

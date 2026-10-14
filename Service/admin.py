@@ -87,7 +87,7 @@ class AdminSpecLevelModal(discord.ui.Modal):
         action = "déplacé" if any(e[0] == self.target_id for m in data["slots"].values() for e in m) else "ajouté"
         _place_player(data, self.target_id, self.target_name, self.chosen_role, spec)
         await interaction.response.defer(ephemeral=True)
-        await save_activities()
+        await save_activities(only=self.msg_id)
 
         try:
             channel = interaction.client.get_channel(data["channel_id"])
@@ -228,7 +228,7 @@ class Admin(commands.Cog):
             except Exception:
                 pass
 
-            await save_activities()
+            await save_activities(only=msg_id)
             await inter.followup.send(
                 f"✅ **{target_name}** a été retiré de **{_acti_label(data)}**.", ephemeral=True
             )
@@ -335,7 +335,7 @@ class Admin(commands.Cog):
                 await msg.edit(embed=build_embed(data), view=build_view(msg_id))
             except Exception:
                 pass
-            await save_activities()
+            await save_activities(only=msg_id)
             await inter.followup.send(
                 f"✅ **{target_name}** {action} en **{label}** dans **{_acti_label(data)}** !", ephemeral=True
             )

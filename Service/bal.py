@@ -9,6 +9,7 @@ import db
 from config import ADMIN_ROLE_NAME, MEMBRE_ROLE_NAME, GUILD_ID as _MAIN_GUILD_ID
 from Service.activites import activities
 from Service.utils import is_admin, is_membre, ActivitySelect, append_bal_log, load_bal_log, notify_bal_limit, fmt_silver
+import contextlib
 
 # Labels affichés dans /ballog
 ACTION_LABELS = {
@@ -391,10 +392,8 @@ class Bal(commands.Cog):
             paid = True  # posé avant tout await : un second clic est refusé
             view.stop()
             await inter.response.defer()
-            try:
+            with contextlib.suppress(discord.HTTPException):
                 await interaction.edit_original_response(view=None)
-            except discord.HTTPException:
-                pass
             deltas      = {str(uid): montant for uid, _ in participants}
             new_totals  = await db.increment_bal_batch(deltas, guild_id=inter.guild.id)
             log_entries = [
@@ -469,13 +468,11 @@ class Bal(commands.Cog):
         await notify_bal_limit(interaction.client, interaction.user.id, new_sender, guild_id=interaction.guild.id)
         await notify_bal_limit(interaction.client, joueur.id, new_receiver, guild_id=interaction.guild.id)
 
-        try:
+        with contextlib.suppress(Exception):
             await joueur.send(
                 f"💰 **{interaction.user.display_name}** t'a transféré **{fmt_silver(montant)} silver** depuis sa BAL.\n"
                 f"Tu es passé de **{fmt_silver(old_receiver)}** à **{fmt_silver(new_receiver)} silver**."
             )
-        except Exception:
-            pass
 
         await interaction.followup.send(
             f"✅ **{fmt_silver(montant)} silver** transférés à {joueur.mention} !\n"

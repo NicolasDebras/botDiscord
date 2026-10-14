@@ -1,5 +1,4 @@
 import datetime
-from datetime import timezone
 from zoneinfo import ZoneInfo
 
 import discord
