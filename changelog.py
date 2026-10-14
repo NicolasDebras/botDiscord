@@ -7,9 +7,18 @@ Pour annoncer une nouvelle fonctionnalité : incrémenter VERSION et ajouter
 une entrée en tête de CHANGELOG (ordre du plus récent au plus ancien).
 """
 
-VERSION = "2026.10.14.1"
+VERSION = "2026.10.14.2"
 
 CHANGELOG: list[dict] = [
+    {
+        "version": "2026.10.14.2",
+        "title": "⚡ Bot plus réactif",
+        "items": [
+            "Les images de build et de compo sont générées sans bloquer le bot : il ne fige plus pendant un `/massup` ou la création d'une acti avec compo.",
+            "`/massup` envoie les images plus vite (tous les builds chargés d'un coup), et `/addacti`, `/kickacti` et la liste d'attente répondent plus vite.",
+            "Historique BAL (`/ballog`, `/statbal`) et erreurs (`/errors`) plus rapides à afficher sur les gros serveurs.",
+        ],
+    },
     {
         "version": "2026.10.14.1",
         "title": "🔀 Rôles dans l'ordre TANK, HEAL, SUPPORT, DPS",
