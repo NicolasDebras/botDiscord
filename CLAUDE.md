@@ -4,7 +4,7 @@ Règles communes (invariants, workflow git, lecture économe) : `../CLAUDE.md`.
 
 ## Carte
 - `bot.py` — démarrage, cogs, `allowed_mentions` par défaut, liste blanche `ALLOWED_GUILD_IDS`, handler d'erreurs
-- `config.py` — env, noms de rôles (Officier, Maitre de guilde, Membre, Caller), ROLES, DEFAULT_TEMPLATES
+- `config.py` — env, noms de rôles (Officier, Maitre de guilde, Membre, Caller) ; ROLES et DEFAULT_TEMPLATES dans `roles_templates.py`
 - `db.py` — schéma (`init_db`) + toutes les requêtes ; tables du site : `builds`, `custom_templates`, `web_staff_config`, `web_admins`, `public_compos`, `activity_log`
 - `Service/utils.py` — permissions (`is_admin`, `is_membre`…, `role_grant_refusal`, `kick_refusal`), `log_error`
 - `Service/activites.py` — /acti, inscriptions, `/finacti` (`FinActiModal`), cache templates (2 min)
@@ -12,6 +12,7 @@ Règles communes (invariants, workflow git, lecture économe) : `../CLAUDE.md`.
 - `Service/config.py` — panneau /config ; `self_roles.py`, `bienvenue.py`, `vocal_temp.py`, `recrutement*.py`, `joueur.py`, `web_admin.py`, `errors.py`
 
 ## À chaque changement
+- `Service/build_image.py`, `roles_templates.py` ou `assets/` modifiés → partagés avec le site : sans import du bot ; après fusion, `python -m scripts.sync_from_bot` dans `lilium-site/api` (sa CI échoue sinon).
 - Commande ajoutée/modifiée → mettre à jour `lilium-site/frontend/src/app/pages/guide/guide-content.ts` (vérifié par `tests/test_guide_sync.py`).
 - README.md mis à jour si visible.
 - `changelog.py` si visible par les joueurs : VERSION `YYYY.MM.DD[.N]`, entrée en tête `{"version", "title": emoji + titre, "items": [...]}`.

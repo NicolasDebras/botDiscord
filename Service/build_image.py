@@ -1,6 +1,10 @@
 """
 Service/build_image.py — Image PNG d'un build (envoyée en MP par /massup).
 
+⚠️ Copié tel quel dans lilium-site (api/app/shared/build_image.py), avec assets/ :
+aucun import du bot ici. Après une modification, lancer `python -m scripts.sync_from_bot`
+dans lilium-site/api (sa CI vérifie que la copie est identique).
+
 Un build vient du site lilium-site (table builds, colonne items) :
     {"mainhand": ["2H_HOLYSTAFF", "2H_HOLYSTAFF_HELL"], "cape": ["*"], "food": ["MEAL_STEW"], ...}
 chaque case = 1 à 3 objets au choix, ["*"] = au choix du joueur. L'ancien

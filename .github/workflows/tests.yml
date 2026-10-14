@@ -1,0 +1,33 @@
+# Tests à chaque push et pull request. Une règle de protection de `main` sur GitHub
+# (Settings → Rules) exige que ce job passe avant de fusionner.
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: botDiscord
+      # Le site à côté du bot : active tests/test_guide_sync.py (guide du site à jour)
+      - uses: actions/checkout@v4
+        with:
+          repository: NicolasDebras/lilium-site
+          path: lilium-site
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: botDiscord/requirements*.txt
+      - run: pip install -r requirements-dev.txt
+        working-directory: botDiscord
+      - run: python -m pytest -q
+        working-directory: botDiscord
