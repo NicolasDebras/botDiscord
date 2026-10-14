@@ -7,9 +7,16 @@ Pour annoncer une nouvelle fonctionnalité : incrémenter VERSION et ajouter
 une entrée en tête de CHANGELOG (ordre du plus récent au plus ancien).
 """
 
-VERSION = "2026.10.14.2"
+VERSION = "2026.10.14.3"
 
 CHANGELOG: list[dict] = [
+    {
+        "version": "2026.10.14.3",
+        "title": "🛠️ /errors plus complet",
+        "items": [
+            "`/errors` (et la page Admin du site) affiche aussi les erreurs des MP de validation d'inscription et du nettoyage des salons vocaux temporaires : elles étaient enregistrées sans serveur et n'apparaissaient nulle part.",
+        ],
+    },
     {
         "version": "2026.10.14.2",
         "title": "⚡ Bot plus réactif",
