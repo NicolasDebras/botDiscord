@@ -7,9 +7,16 @@ Pour annoncer une nouvelle fonctionnalité : incrémenter VERSION et ajouter
 une entrée en tête de CHANGELOG (ordre du plus récent au plus ancien).
 """
 
-VERSION = "2026.10.14.3"
+VERSION = "2026.10.14.4"
 
 CHANGELOG: list[dict] = [
+    {
+        "version": "2026.10.14.4",
+        "title": "💰 /acti sans l'option bal",
+        "items": [
+            "Plus besoin de choisir BAL ou Libre dans `/acti` : une acti créée par un Caller, un Officier ou le GM est en BAL (partage du butin en fin d'acti), celle d'un simple Membre est libre.",
+        ],
+    },
     {
         "version": "2026.10.14.3",
         "title": "🛠️ /errors plus complet",

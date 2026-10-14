@@ -1844,7 +1844,6 @@ class Activites(commands.Cog):
     @app_commands.describe(
         nametemplate = "Template de composition (optionnel — sans template : activité libre HEAL/SUPPORT/DPS)",
         nbplayer     = "Nombre de joueurs max (calculé automatiquement depuis le template si renseigné)",
-        bal          = "Paiement BAL ? (true = BAL, false = Libre)",
         depart       = "Point de départ (Ville / HO / Libre)",
         tier         = "Tier requis (ex : T7, T8.3…)",
         validation   = "Inscriptions sur validation : chaque joueur doit être accepté par toi (MP) ou un Caller",
@@ -1860,7 +1859,6 @@ class Activites(commands.Cog):
         interaction:  discord.Interaction,
         nametemplate: str = "",
         nbplayer:     app_commands.Range[int, 1, 100] | None = None,
-        bal:          bool = True,
         depart:       str = "Libre",
         tier:         str = "",
         validation:   bool = False,
@@ -1871,9 +1869,9 @@ class Activites(commands.Cog):
             )
             return
 
-        # ── Si simple Membre (pas Caller/GM/Officier), bal forcé à False ────
-        if not is_caller_or_admin(interaction.user):
-            bal = False
+        # ── BAL (partage du butin en fin d'acti) : actis des Callers / Officiers / GM ;
+        # celles d'un simple Membre sont libres (pas de paiement) ────────────
+        bal = is_caller_or_admin(interaction.user)
 
         # ── Sans template : activité PVP libre HEAL / SUPPORT / DPS ────────
         if not nametemplate:
