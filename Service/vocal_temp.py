@@ -81,10 +81,11 @@ class VocalTemp(commands.Cog):
     async def _safe_cleanup_channel(self, channel_id: int) -> None:
         """Comme _cleanup_channel, mais n'interrompt jamais l'appelant — une erreur
         sur un salon ne doit pas empêcher de traiter les autres ni tuer la boucle."""
+        guild_id = (_temp_channels.get(channel_id) or {}).get("guild_id")   # lu avant : le nettoyage le retire
         try:
             await self._cleanup_channel(channel_id)
         except Exception as e:
-            await log_error("vocal_temp.cleanup_channel", e)
+            await log_error("vocal_temp.cleanup_channel", e, guild_id=guild_id)
 
     @commands.Cog.listener()
     async def on_ready(self):
