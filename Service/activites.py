@@ -640,8 +640,9 @@ def validation_view(activity_id: int, user_id: int, rid: str) -> discord.ui.View
     return view
 
 
-async def _dm(client: discord.Client, user_id: int, *args, **kwargs) -> bool:
-    """MP sans jamais lever : False si MP fermés / utilisateur introuvable."""
+async def _dm(client: discord.Client, user_id: int, *args, guild_id: int | None = None, **kwargs) -> bool:
+    """MP sans jamais lever : False si MP fermés / utilisateur introuvable.
+    `guild_id` : serveur de l'activité, pour que l'erreur apparaisse dans son /errors."""
     try:
         user = client.get_user(user_id) or await client.fetch_user(user_id)
         await user.send(*args, **kwargs)
@@ -649,7 +650,7 @@ async def _dm(client: discord.Client, user_id: int, *args, **kwargs) -> bool:
     except (discord.Forbidden, discord.NotFound):
         return False
     except Exception as e:
-        await log_error("activites.validation_dm", e, user_id=user_id)
+        await log_error("activites.validation_dm", e, guild_id=guild_id, user_id=user_id)
         return False
 
 
@@ -663,7 +664,7 @@ async def _request_validation(interaction: discord.Interaction, activity_id: int
 
     sent = False
     if data.get("creator_id"):
-        sent = await _dm(interaction.client, data["creator_id"],
+        sent = await _dm(interaction.client, data["creator_id"], guild_id=data.get("guild_id"),
                          embed=_request_embed(data, activity_id, req),
                          view=validation_view(activity_id, user.id, req["rid"]))
     where = "Le caller a reçu ta demande en MP." if sent else "Un caller la validera depuis l'activité."
@@ -727,7 +728,7 @@ async def _decide(interaction: discord.Interaction, activity_id: int, user_id: i
                       f"  →  {_activity_link(data, activity_id)}")
     else:
         player_msg = f"❌ Ton inscription à **{label}** en **{role_txt}** a été refusée par {by}."
-    await _dm(interaction.client, user_id, player_msg)
+    await _dm(interaction.client, user_id, player_msg, guild_id=data.get("guild_id"))
 
     done = f"{'✅ Acceptée' if accept else '❌ Refusée'} : <@{user_id}> en **{role_txt}** (par {by})."
     if from_dm and interaction.message:
