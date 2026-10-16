@@ -98,9 +98,10 @@ pytest
 > Sans template, une activité libre est créée avec les rôles HEAL / SUPPORT / DPS et 100 places max.
 
 **Inscriptions sur validation (`/acti … validation:true`)** :
-- quand un joueur choisit un rôle (ou Fill), il passe dans la section **« ⏳ En attente de validation »** de l'embed — il **n'occupe pas encore de place** (ni pingé par `/massup`, ni payé par `/finacti`) ;
+- quand un joueur choisit un rôle, il passe dans la section **« ⏳ En attente de validation »** de l'embed — il **n'occupe pas encore de place** (ni pingé par `/massup`, ni payé par `/finacti`) ;
 - le **créateur de l'acti reçoit un MP** (joueur, rôle, build/spé, lien vers l'acti) avec **✅ Accepter / ❌ Refuser** — boutons valables même après un redémarrage du bot ;
 - les **Caller / Officiers / GM** (et le créateur) peuvent aussi trancher via le bouton **« ⏳ En attente (n) »** de l'acti — utile si le créateur a ses MP fermés ;
+- le menu **« Rôle à attribuer »** permet de placer le joueur sur un autre rôle libre que celui demandé (obligatoire pour un Fill) ;
 - à l'acceptation, les places sont revérifiées (si le rôle est devenu plein, la demande reste en attente) ; le joueur reçoit un MP dans les deux cas ;
 - passent directement, sans validation : **uniquement le créateur** et un joueur déjà accepté qui change de rôle (les Caller/Officiers/GM passent aussi par la validation, mais peuvent valider les autres). Redemander remplace la demande précédente ; « Se retirer » annule une demande en attente.
 
@@ -121,7 +122,7 @@ Une fois l'activité créée :
 - Les joueurs choisissent leur rôle via le menu déroulant
 - **PVP** : sélection de l'arme puis saisie du niveau de spécialisation (1-1000)
 - **PVE** : inscription directe
-- Bouton 🔀 **Fill** : s'inscrire dans un rôle **Fill** dédié (affiché comme les autres rôles dans l'embed), sans choisir de rôle/arme — compte dans le total de joueurs et passe en liste d'attente si l'activité est pleine
+- Bouton 🔀 **Fill** : le joueur passe **en attente d'un rôle** (section « ⏳ En attente » de l'embed, sans occuper de place) et le créateur est prévenu en MP ; un Caller / Officier / GM (ou le créateur) ouvre **« ⏳ En attente (n) »**, choisit le joueur puis le **rôle libre** à lui donner (ex. Main heal) et accepte — le joueur reçoit un **MP** avec son rôle et le lien de l'acti. Refusé si l'activité est pleine
 - Bouton ❌ pour se retirer (slots ou liste d'attente)
 - Bouton ⏳ Liste d'attente (sur les templates avec `has_waitlist`)
 - Bouton ✏️ Modifier (créateur ou Officier) → change la description, le tier et le départ

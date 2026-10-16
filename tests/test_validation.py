@@ -379,3 +379,99 @@ def test_leave_removes_pending_request(acti):
     inter.message = SimpleNamespace(edit=edit)
     asyncio.run(activites.LeaveButton(ACTI).callback(inter))
     assert acti["pending"] == []
+
+
+# ── Fill : en attente, le caller attribue le rôle ────────────────────────────
+
+def fill(user, client):
+    inter = interaction(user, client)
+    asyncio.run(activites._request_fill(inter, ACTI))
+    return inter
+
+
+def test_fill_goes_to_pending_and_dms_creator_without_accept_button(acti):
+    acti["validation"] = False
+    client = FakeClient()
+    inter = fill(member(PLAYER, "Membre", name="Bob"), client)
+
+    assert all(v == [] for v in acti["slots"].values())
+    [req] = acti["pending"]
+    assert req["uid"] == PLAYER and req["role"] == activites.FILL
+    [(to, _content, kwargs)] = client.dms
+    assert to == CREATOR and "Fill" in kwargs["embed"].title
+    assert [c.custom_id for c in kwargs["view"].children] == [f"actival:{ACTI}:{PLAYER}:{req['rid']}:r"]
+    assert "Fill" in inter.replies[0]
+
+
+def test_fill_refused_when_activity_full(acti):
+    acti["max_players"] = 1
+    acti["slots"]["TANK"] = [(99, "X", "")]
+    inter = fill(member(PLAYER, "Membre"), FakeClient())
+    assert acti["pending"] == [] and "complète" in inter.replies[0]
+
+
+def test_fill_needs_a_role_to_be_accepted(acti):
+    client = FakeClient()
+    fill(member(PLAYER, "Membre"), client)
+    client.dms.clear()
+    inter = decide(member(CALLER, "Caller"), client, PLAYER, None, True, from_dm=False)
+    assert len(acti["pending"]) == 1 and client.dms == []
+    assert "choisis le rôle" in inter.replies[0]
+
+
+def test_caller_places_fill_on_a_free_role_and_player_gets_dm(acti):
+    client = FakeClient()
+    fill(member(PLAYER, "Membre", name="Bob"), client)
+    client.dms.clear()
+    inter = interaction(member(CALLER, "Caller", name="Cal"), client)
+    asyncio.run(activites._decide(inter, ACTI, PLAYER, None, True, role="DPS"))
+
+    assert acti["slots"]["DPS"] == [(PLAYER, "Bob", "")] and acti["pending"] == []
+    [(to, content, _)] = client.dms
+    assert to == PLAYER and "t'a placé en **DPS**" in content
+
+
+def test_caller_cannot_place_fill_on_full_role(acti):
+    client = FakeClient()
+    fill(member(PLAYER, "Membre"), client)
+    acti["slots"]["TANK"] = [(99, "X", "")]
+    inter = interaction(member(CALLER, "Caller"), client)
+    asyncio.run(activites._decide(inter, ACTI, PLAYER, None, True, role="TANK"))
+    assert "Plus de place" in inter.replies[0] and len(acti["pending"]) == 1
+
+
+def test_assignable_roles_skips_full_roles_and_names_builds(acti):
+    acti["slots"]["TANK"] = [(99, "X", "")]
+    assert activites.assignable_roles(acti, TEMPLATE) == [("DPS", "DPS")]
+    tpl = {"type_acti": "PVE", "pf_1": {"HEAL": 1, "HEAL · Off": 1}, "weapon": {"HEAL": "Main heal"},
+           "builds": {"HEAL": 5, "HEAL · Off": 6}}
+    assert activites.assignable_roles({"slots": {}}, tpl) == [("HEAL", "HEAL — Main heal"), ("HEAL · Off", "HEAL · Off")]
+    assert [k for k, _ in activites.assignable_roles({"slots": {}}, {})] == list(activites.ROLES)
+
+
+def test_assigned_spec():
+    req = {"role": "TANK", "spec": "Tank Masse"}
+    tpl = {"pf_1": {"HEAL": 1, "DPS": 1}, "weapon": {"HEAL": "Main heal", "DPS": "Arc"}, "builds": {"HEAL": 5}}
+    assert activites.assigned_spec(tpl, req, "TANK") == "Tank Masse"     # rôle demandé : spé conservée
+    assert activites.assigned_spec(tpl, req, "HEAL") == "Main heal"      # build imposé
+    assert activites.assigned_spec(tpl, req, "DPS") == ""                # liste d'armes : pas de spé
+
+
+def test_embed_and_view_show_fill_waiting_without_validation(acti):
+    acti["validation"] = False
+    acti["pending"] = [{"uid": PLAYER, "name": "Bob", "role": "Fill", "spec": "", "rid": "x"}]
+    fields = {f.name: f.value for f in build_embed(acti).fields}
+    assert fields["⏳ En attente d'un rôle  [1]"] == f"<@{PLAYER}> — 🔀 Fill (rôle à attribuer)"
+
+    async def build():
+        return activites.ActivityView(ACTI)
+    assert any(isinstance(c, PendingButton) for c in asyncio.run(build()).children)
+
+
+def test_pending_review_view_offers_role_picker():
+    async def build():
+        return activites.PendingReviewView(ACTI, [{"uid": PLAYER, "name": "Bob", "role": "Fill", "spec": "", "rid": "x"}],
+                                           [("TANK", "TANK"), ("DPS", "DPS")])
+    view = asyncio.run(build())
+    assert view.select.options[0].label == "Bob — 🔀 Fill"
+    assert [o.value for o in view.role_select.options] == ["TANK", "DPS"]

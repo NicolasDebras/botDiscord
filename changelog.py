@@ -7,9 +7,17 @@ Pour annoncer une nouvelle fonctionnalité : incrémenter VERSION et ajouter
 une entrée en tête de CHANGELOG (ordre du plus récent au plus ancien).
 """
 
-VERSION = "2026.10.14.5"
+VERSION = "2026.10.16"
 
 CHANGELOG: list[dict] = [
+    {
+        "version": "2026.10.16",
+        "title": "🔀 Fill : le caller choisit ton rôle",
+        "items": [
+            "Le bouton Fill te met en attente d'un rôle (tu n'occupes pas encore de place) : un Caller, un Officier ou le GM te place sur un rôle libre (ex. Main heal) depuis le bouton « ⏳ En attente » de l'acti, et tu reçois un MP avec ton rôle.",
+            "Sur une acti avec validation, le caller peut aussi accepter une demande sur un autre rôle libre que celui demandé.",
+        ],
+    },
     {
         "version": "2026.10.14.5",
         "title": "🖼️ Images signées",
