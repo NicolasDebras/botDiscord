@@ -379,10 +379,12 @@ def build_embed(data: dict) -> discord.Embed:
     pending = data.get("pending", [])
     if pending:
         pending_value = "\n".join(
+            f"<@{p['uid']}> — 🔀 Fill (rôle à attribuer)" if p["role"] == FILL else
             f"<@{p['uid']}> — {_role_label(p['role'])}" + (f"  ({p['spec']})" if p.get("spec") else "")
             for p in pending
         )
-        embed.add_field(name=f"⏳ En attente de validation  [{len(pending)}]", value=pending_value[:1024], inline=False)
+        title = "⏳ En attente de validation" if data.get("validation") else "⏳ En attente d'un rôle"
+        embed.add_field(name=f"{title}  [{len(pending)}]", value=pending_value[:1024], inline=False)
 
     payout_line    = "💰 BAL" if bal else "🆓 Libre"
     total_inscrits = sum(len(v) for v in slots.values())
@@ -548,6 +550,37 @@ def _role_label(role_key: str) -> str:
     return f"{role_key[4:]} PF2" if role_key.startswith("PF2:") else role_key
 
 
+# ── FILL : le joueur attend qu'un caller lui attribue un rôle ────────────────
+FILL = "Fill"
+
+
+def assignable_roles(data: dict, tdata: dict) -> list[tuple[str, str]]:
+    """Rôles encore libres qu'un caller peut attribuer à une demande : [(clé, libellé)]."""
+    pf1   = get_pf1(tdata) if tdata else {}
+    pf2   = get_pf2(tdata) if tdata else {}
+    roles = _sort_roles((list(pf1) if pf1 else list(ROLES)) + [f"PF2:{r}" for r in pf2])
+    result = []
+    for key in available_role_keys(data, tdata, roles):
+        if key in (FILL, f"PF2:{FILL}"):
+            continue
+        label = _role_label(key)
+        title = slot_title(tdata, key)
+        if title != label and title.lower() not in label.lower():
+            label = f"{label} — {title}"
+        result.append((key, label))
+    return result
+
+
+def assigned_spec(tdata: dict, req: dict, role_key: str) -> str:
+    """Build/arme retenu quand le caller place le joueur : celui de sa demande si le rôle ne change pas,
+    sinon le build imposé du rôle (compo du site), sinon rien."""
+    if role_key == req["role"]:
+        return req.get("spec", "")
+    if tdata and build_id_for_role(tdata, role_key) is not None:
+        return role_hint(tdata, role_key) or role_key
+    return ""
+
+
 def registration_error(data: dict, tdata: dict, user_id: int, chosen_role: str, spec: str) -> str | None:
     """Contrôles de place d'un rôle (et de la sous-limite d'arme) : message d'erreur ou None.
     Utilisé à l'inscription et à l'acceptation d'une demande (/acti validation)."""
@@ -642,13 +675,20 @@ def _activity_link(data: dict, activity_id: int) -> str:
 
 
 def _request_embed(data: dict, activity_id: int, req: dict) -> discord.Embed:
+    link = f"à **{_acti_label(data)}** → [voir l'activité]({_activity_link(data, activity_id)})"
+    if req["role"] == FILL:
+        return discord.Embed(
+            title="🔀 Fill en attente d'un rôle",
+            description=(
+                f"<@{req['uid']}> (**{req['name']}**) s'est inscrit en **Fill** {link}\n"
+                f"Attribue-lui un rôle via le bouton **⏳ En attente** de l'activité : il recevra un MP."
+            ),
+            color=DEFAULT_COLOR,
+        )
     spec = f"  —  {req['spec']}" if req.get("spec") else ""
     return discord.Embed(
         title="⏳ Demande d'inscription",
-        description=(
-            f"<@{req['uid']}> (**{req['name']}**) veut s'inscrire en **{_role_label(req['role'])}**{spec}\n"
-            f"à **{_acti_label(data)}** → [voir l'activité]({_activity_link(data, activity_id)})"
-        ),
+        description=f"<@{req['uid']}> (**{req['name']}**) veut s'inscrire en **{_role_label(req['role'])}**{spec}\n{link}",
         color=DEFAULT_COLOR,
     )
 
@@ -674,9 +714,11 @@ class ValidationButton(discord.ui.DynamicItem[discord.ui.Button],
         await _decide(interaction, self.activity_id, self.user_id, self.rid, self.accept, from_dm=True)
 
 
-def validation_view(activity_id: int, user_id: int, rid: str) -> discord.ui.View:
+def validation_view(activity_id: int, user_id: int, rid: str, fill: bool = False) -> discord.ui.View:
+    """Fill : pas de bouton Accepter, le rôle se choisit depuis le bouton « En attente » de l'acti."""
     view = discord.ui.View(timeout=None)
-    view.add_item(ValidationButton(activity_id, user_id, rid, True))
+    if not fill:
+        view.add_item(ValidationButton(activity_id, user_id, rid, True))
     view.add_item(ValidationButton(activity_id, user_id, rid, False))
     return view
 
@@ -714,6 +756,28 @@ async def _request_validation(interaction: discord.Interaction, activity_id: int
                  f"Tu recevras un MP quand elle sera traitée.", ephemeral=True)
 
 
+async def _request_fill(interaction: discord.Interaction, activity_id: int) -> None:
+    """Bouton Fill : le joueur passe en attente (sans occuper de place) jusqu'à ce qu'un
+    caller lui attribue un rôle libre ; le créateur est prévenu en MP."""
+    data = activities[activity_id]
+    if sum(len(v) for v in data["slots"].values()) >= data["max_players"]:
+        await _reply(interaction, f"⛔ L'activité est complète ({data['max_players']} joueurs max).", ephemeral=True)
+        return
+    user = interaction.user
+    req  = {"uid": user.id, "name": user.display_name, "role": FILL, "spec": "", "rid": _new_rid()}
+    data["pending"] = [p for p in data.get("pending", []) if p["uid"] != user.id] + [req]
+    await save_activities(only=activity_id)
+    await _refresh_activity_message(interaction.client, activity_id)
+
+    if data.get("creator_id") and data["creator_id"] != user.id:
+        await _dm(interaction.client, data["creator_id"], guild_id=data.get("guild_id"),
+                  embed=_request_embed(data, activity_id, req),
+                  view=validation_view(activity_id, user.id, req["rid"], fill=True))
+    await _reply(interaction,
+                 "🔀 Tu es en **Fill** : en attente qu'un caller te place sur un rôle libre. "
+                 "Tu recevras un MP avec ton rôle.", ephemeral=True)
+
+
 async def _validator(interaction: discord.Interaction, data: dict):
     """Membre du serveur qui clique (en MP, interaction.user n'a pas de rôles)."""
     user = interaction.user
@@ -729,8 +793,9 @@ async def _validator(interaction: discord.Interaction, data: dict):
 
 
 async def _decide(interaction: discord.Interaction, activity_id: int, user_id: int, rid: str | None,
-                  accept: bool, *, from_dm: bool = False) -> None:
-    """Accepte ou refuse une demande en attente (MP du créateur ou bouton « En attente » de l'acti)."""
+                  accept: bool, *, from_dm: bool = False, role: str | None = None) -> None:
+    """Accepte ou refuse une demande en attente (MP du créateur ou bouton « En attente » de l'acti).
+    `role` : rôle attribué par le caller (obligatoire pour un Fill), sinon celui demandé."""
     if not interaction.response.is_done():
         await interaction.response.defer(ephemeral=True)   # MP + base : peut dépasser les 3 s de Discord
     data = activities.get(activity_id)
@@ -747,24 +812,33 @@ async def _decide(interaction: discord.Interaction, activity_id: int, user_id: i
         return
 
     label = _acti_label(data)
+    role  = role or req["role"]
     if accept:
+        if role == FILL:
+            await _reply(interaction, f"ℹ️ <@{user_id}> est en Fill : choisis le rôle à lui donner "
+                                      f"(bouton **⏳ En attente** de l'activité).", ephemeral=True)
+            return
         tdata = load_all_templates(data.get("guild_id", 0)).get(data.get("template") or "", {})
-        error = registration_error(data, tdata, user_id, req["role"], req["spec"])
+        spec  = assigned_spec(tdata, req, role)
+        error = registration_error(data, tdata, user_id, role, spec)
         total = sum(len(v) for v in data["slots"].values())
         if not error and total >= data["max_players"]:
             error = f"⛔ L'activité est complète ({data['max_players']} joueurs max)."
         if error:
             await _reply(interaction, f"{error} La demande de <@{user_id}> reste en attente.", ephemeral=True)
             return
-        _place_player(data, user_id, req["name"], req["role"], req["spec"])
+        _place_player(data, user_id, req["name"], role, spec)
     else:
         data["pending"] = [p for p in data["pending"] if p["uid"] != user_id]
     await save_activities(only=activity_id)
     await _refresh_activity_message(interaction.client, activity_id)
 
-    role_txt = _role_label(req["role"])
+    role_txt = "Fill" if role == FILL else _role_label(role)
     by       = interaction.user.display_name
-    if accept:
+    if accept and role != req["role"]:
+        player_msg = (f"✅ {by} t'a placé en **{role_txt}** à **{label}**."
+                      f"  →  {_activity_link(data, activity_id)}")
+    elif accept:
         player_msg = (f"✅ Ton inscription à **{label}** en **{role_txt}** a été validée par {by}."
                       f"  →  {_activity_link(data, activity_id)}")
     else:
@@ -1223,7 +1297,7 @@ class FillButton(discord.ui.Button):
             return
 
         await interaction.response.defer(ephemeral=True)
-        await _register_player(interaction, self.activity_id, "Fill", "")
+        await _request_fill(interaction, self.activity_id)
 
 
 # ── MODAL FIN D'ACTIVITÉ ─────────────────────────────────────────────────────
@@ -1709,47 +1783,66 @@ class PendingButton(discord.ui.Button):
             await interaction.response.send_message("✅ Aucune demande en attente.", ephemeral=True)
             return
         await interaction.response.send_message(
-            f"⏳ **{len(pending)}** demande(s) en attente — choisis un joueur puis accepte ou refuse.",
-            view=PendingReviewView(self.activity_id, pending), ephemeral=True,
+            f"⏳ **{len(pending)}** demande(s) en attente — choisis un joueur puis accepte ou refuse.\n"
+            f"Pour un 🔀 Fill, choisis aussi le rôle à lui donner (il le reçoit en MP).",
+            view=PendingReviewView(self.activity_id, pending, assignable_roles(data, _activity_tdata(data))),
+            ephemeral=True,
         )
 
 
 class PendingReviewView(discord.ui.View):
-    """Vue éphémère : sélection d'une demande + Accepter / Refuser."""
+    """Vue éphémère : sélection d'une demande (+ rôle attribué, obligatoire pour un Fill) + Accepter / Refuser."""
 
-    def __init__(self, activity_id: int, pending: list[dict]):
+    def __init__(self, activity_id: int, pending: list[dict], roles: list[tuple[str, str]] = ()):
         super().__init__(timeout=300)
         self.activity_id = activity_id
         self.selected: int | None = None
+        self.role: str | None = None
         self.select = discord.ui.Select(
             placeholder="Choisis une demande…",
             options=[
                 discord.SelectOption(
-                    label=f"{p['name']} — {_role_label(p['role'])}"[:100],
+                    label=f"{p['name']} — {'🔀 Fill' if p['role'] == FILL else _role_label(p['role'])}"[:100],
                     description=p["spec"][:100] if p.get("spec") else None,
                     value=str(p["uid"]),
                 )
                 for p in pending[:25]
             ],
+            row=0,
         )
         self.select.callback = self._on_select
         self.add_item(self.select)
+        if roles:
+            self.role_select = discord.ui.Select(
+                placeholder="Rôle à attribuer (par défaut : celui demandé)…",
+                options=[
+                    discord.SelectOption(label=label[:100], emoji=ROLES.get(base_role(key), "🔹"), value=key[:100])
+                    for key, label in roles[:25]
+                ],
+                row=1,
+            )
+            self.role_select.callback = self._on_role
+            self.add_item(self.role_select)
 
     async def _on_select(self, interaction: discord.Interaction):
         self.selected = int(self.select.values[0])
+        await interaction.response.defer()
+
+    async def _on_role(self, interaction: discord.Interaction):
+        self.role = self.role_select.values[0]
         await interaction.response.defer()
 
     async def _decide_selected(self, interaction: discord.Interaction, accept: bool):
         if self.selected is None:
             await interaction.response.send_message("ℹ️ Choisis d'abord une demande dans la liste.", ephemeral=True)
             return
-        await _decide(interaction, self.activity_id, self.selected, None, accept)
+        await _decide(interaction, self.activity_id, self.selected, None, accept, role=self.role if accept else None)
 
-    @discord.ui.button(label="Accepter", emoji="✅", style=discord.ButtonStyle.success, row=1)
+    @discord.ui.button(label="Accepter", emoji="✅", style=discord.ButtonStyle.success, row=2)
     async def accept_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self._decide_selected(interaction, True)
 
-    @discord.ui.button(label="Refuser", emoji="❌", style=discord.ButtonStyle.danger, row=1)
+    @discord.ui.button(label="Refuser", emoji="❌", style=discord.ButtonStyle.danger, row=2)
     async def refuse_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self._decide_selected(interaction, False)
 
@@ -1777,7 +1870,7 @@ class ActivityView(discord.ui.View):
                 self.add_item(FillButton(activity_id))
         if tdata.get("has_waitlist"):
             self.add_item(WaitlistButton(activity_id))
-        if data.get("validation"):
+        if data.get("validation") or data.get("pending"):
             self.add_item(PendingButton(activity_id, len(data.get("pending", []))))
         self.add_item(EditActiButton(activity_id))
         self.add_item(FinActiButton(activity_id))
