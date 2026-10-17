@@ -1,46 +1,42 @@
-"""/monbal : blague de guilde (« connard, c'est mon bal ») au lieu du solde, sur tous les serveurs."""
+"""!bal : blague de guilde visible de tous (« Connard, c'est /monbal » en gros) ; /monbal garde le solde."""
 import asyncio
 from types import SimpleNamespace
 
-import pytest
-
 import db
-from config import GUILD_ID
 from Service import bal
 
 
-def _interaction(guild_id):
+def test_bal_joke_is_big_and_visible_to_everyone():
     sent = []
 
-    async def send_message(content, **kwargs):
-        sent.append(("message", content, kwargs))
+    async def reply(content, **kwargs):
+        sent.append((content, kwargs))
+
+    asyncio.run(bal.Bal.bal_joke.callback(bal.Bal(bot=None), SimpleNamespace(reply=reply)))
+    assert sent == [("# Connard, c'est /monbal", {"mention_author": False})]   # titre Markdown, pas éphémère
+
+
+def test_monbal_still_shows_the_balance(monkeypatch):
+    sent = []
 
     async def defer(**kwargs):
-        sent.append(("defer", None, kwargs))
+        pass
 
     async def followup_send(content, **kwargs):
-        sent.append(("followup", content, kwargs))
+        sent.append((content, kwargs))
 
+    async def get_bal(user_id, guild_id):
+        return 1_500_000
+
+    monkeypatch.setattr(bal, "is_membre", lambda user: True)
+    monkeypatch.setattr(db, "get_bal", get_bal)
     inter = SimpleNamespace(
         user=SimpleNamespace(id=42, display_name="Lily"),
-        guild=SimpleNamespace(id=guild_id),
-        response=SimpleNamespace(send_message=send_message, defer=defer),
+        guild=SimpleNamespace(id=999),                       # serveur tiers : réponse simple
+        response=SimpleNamespace(defer=defer),
         followup=SimpleNamespace(send=followup_send),
     )
-    return inter, sent
-
-
-@pytest.fixture
-def member(monkeypatch):
-    monkeypatch.setattr(bal, "is_membre", lambda user: True)
-
-
-@pytest.mark.parametrize("guild_id", [GUILD_ID, 999])   # serveur principal et serveur tiers
-def test_monbal_answers_the_joke_only_on_every_server(monkeypatch, member, guild_id):
-    async def no_db(*args, **kwargs):
-        raise AssertionError("pas de lecture du solde pour la blague")
-
-    monkeypatch.setattr(db, "get_bal", no_db)
-    inter, sent = _interaction(guild_id)
     asyncio.run(bal.Bal.monbal.callback(bal.Bal(bot=None), inter))
-    assert sent == [("message", "connard, c'est mon bal", {"ephemeral": True})]
+    assert len(sent) == 1
+    assert sent[0][1] == {"ephemeral": True}
+    assert bal.fmt_silver(1_500_000) in sent[0][0]
