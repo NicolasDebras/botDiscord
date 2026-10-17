@@ -5,7 +5,7 @@ from discord.ext import commands
 from discord import app_commands
 
 import db
-from config import ADMIN_ROLE_NAME, MEMBRE_ROLE_NAME, GUILD_ID as _MAIN_GUILD_ID
+from config import ADMIN_ROLE_NAME, MEMBRE_ROLE_NAME
 from Service.activites import activities
 from Service.utils import is_admin, is_membre, ActivitySelect, append_bal_log, load_bal_log, notify_bal_limit, fmt_silver
 import contextlib
@@ -25,7 +25,7 @@ ACTION_LABELS = {
 # ══════════════════════════════════════════════════════════════════════════════
 # COG BAL
 # ══════════════════════════════════════════════════════════════════════════════
-# Blague de guilde : sur le serveur principal, /monbal remballe le joueur au lieu d'afficher son solde
+# Blague de guilde : /monbal remballe le joueur au lieu d'afficher son solde
 # (solde visible sur le site, page Ma BAL ; les officiers ont /baljoueur).
 BAL_JOKE = "connard, c'est mon bal"
 
@@ -104,15 +104,7 @@ class Bal(commands.Cog):
                 f"⛔ Tu dois avoir le rôle **{MEMBRE_ROLE_NAME}** pour utiliser cette commande.", ephemeral=True
             )
             return
-        # ── Serveur principal : blague de guilde à la place du solde ─────────
-        if interaction.guild.id == _MAIN_GUILD_ID:
-            await interaction.response.send_message(BAL_JOKE, ephemeral=True)
-            return
-
-        # ── Serveurs tiers : réponse simple ───────────────────────────────────
-        await interaction.response.defer(ephemeral=True)
-        solde = await db.get_bal(str(interaction.user.id), guild_id=interaction.guild.id)
-        await interaction.followup.send(f"💰 Ton solde BAL : **{fmt_silver(solde)} silver**", ephemeral=True)
+        await interaction.response.send_message(BAL_JOKE, ephemeral=True)
 
     # =========================================================================
     # /baljoueur  — voir le solde BAL d'un joueur spécifique
