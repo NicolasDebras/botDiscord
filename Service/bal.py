@@ -26,9 +26,18 @@ ACTION_LABELS = {
 # ══════════════════════════════════════════════════════════════════════════════
 # COG BAL
 # ══════════════════════════════════════════════════════════════════════════════
+# Blague de guilde : un joueur qui tape « !bal » (au lieu de /monbal) se fait remballer.
+BAL_JOKE = "connard, c'est mon bal"
+
+
 class Bal(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+
+    # ── !bal (commande texte, blague) ────────────────────────────────────────
+    @commands.command(name="bal", aliases=["Bal", "BAL"])
+    async def bal_joke(self, ctx: commands.Context) -> None:
+        await ctx.reply(BAL_JOKE, mention_author=False)
 
     # ── Guard admin ──────────────────────────────────────────────────────────
     async def check_admin(self, interaction: discord.Interaction) -> bool:
