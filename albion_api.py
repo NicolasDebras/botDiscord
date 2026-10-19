@@ -29,6 +29,19 @@ def same_guild(a: str | None, b: str | None) -> bool:
     return (a or "").strip().lower() == (b or "").strip().lower()
 
 
+def majority_guild(guilds) -> str | None:
+    """Guilde la plus représentée (casse ignorée, « sans guilde » exclu), sinon None."""
+    counts: dict[str, list] = {}
+    for g in guilds:
+        g = (g or "").strip()
+        if g:
+            entry = counts.setdefault(g.lower(), [0, g])
+            entry[0] += 1
+    if not counts:
+        return None
+    return max(counts.values(), key=lambda e: e[0])[1]
+
+
 _NICK_MAX = 32  # limite Discord
 
 

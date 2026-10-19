@@ -5,7 +5,7 @@ from discord import app_commands
 import changelog
 import db
 from albion_api import fetch_albion_fame
-from config import ADMIN_ROLE_NAME, CALLER_ROLE_NAME, MEMBRE_ROLE_NAME
+from config import ADMIN_ROLE_NAME, CALLER_ROLE_NAME, GUILD_ID, MEMBRE_ROLE_NAME
 from Service.utils import is_admin, role_grant_refusal, STAFF_ROLE_NAMES
 from Service import vocal_temp, bienvenue, self_roles
 from Service.utils import log_error
@@ -99,7 +99,13 @@ async def _verif_guilde_embed(guild: discord.Guild) -> discord.Embed:
     albion_guild = await db.get_albion_guild(guild.id)
     auto_rename  = await db.get_auto_rename(guild.id)
     embed = discord.Embed(title="🛡️ Vérif guilde Albion", color=0x3498DB)
-    embed.add_field(name="Guilde Albion", value=f"**{albion_guild}**" if albion_guild else "*Non configurée*", inline=True)
+    if albion_guild:
+        guilde = f"**{albion_guild}**"
+    elif guild.id == GUILD_ID:
+        guilde = "*Auto : guilde de la majorité des membres*"
+    else:
+        guilde = "*Non configurée*"
+    embed.add_field(name="Guilde Albion", value=guilde, inline=True)
     embed.add_field(name="Auto-rename [Guilde] Pseudo", value="✅ Activé" if auto_rename else "❌ Désactivé", inline=True)
     embed.description = (
         "**Guilde** : chaque soir à 22h, le récap liste les membres (rôle Membre) dont le pseudo IG "

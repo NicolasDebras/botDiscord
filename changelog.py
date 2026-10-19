@@ -16,6 +16,7 @@ CHANGELOG: list[dict] = [
         "items": [
             "Nouvelle section /config → 🛡️ Vérif guilde Albion : indique le pseudo d'un membre de ta guilde, le bot détecte la guilde tout seul.",
             "Chaque soir à 22h, le récap liste les membres dont le pseudo IG n'est plus dans la guilde (avec leur guilde actuelle) — aucun rôle n'est retiré automatiquement.",
+            "Sur le serveur Lilium, rien à configurer : la guilde est détectée automatiquement d'après les membres.",
             "Pour les communautés : option Auto-rename qui renomme chaque joueur en « [Guilde] Pseudo » (à 22h, à /register et à la candidature).",
             "Le récap « à valider via /ancien » est mis en pause.",
         ],

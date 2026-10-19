@@ -7,7 +7,7 @@ from discord.ext import commands, tasks
 from discord import app_commands
 
 import db
-from albion_api import fetch_albion_fame, fmt_fame, same_guild, tagged_nick
+from albion_api import fetch_albion_fame, fmt_fame, majority_guild, same_guild, tagged_nick
 from config import ADMIN_ROLE_NAME, RECRUTEUR_ROLE_ID, MEMBRE_ROLE_NAME, GUILD_ID as _MAIN_GUILD_ID
 from Service.utils import fmt_silver, is_membre as has_membre_role, kick_refusal, log_error, split_message
 import contextlib
@@ -66,7 +66,7 @@ class Joueur(commands.Cog):
             membre_role = discord.utils.get(guild.roles, name=MEMBRE_ROLE_NAME)
 
         albion_guild = await db.get_albion_guild(guild_id)
-        hors_guilde: list[tuple[discord.Member, str, str]] = []  # (membre, pseudo IG, guilde actuelle)
+        checks: list[tuple[discord.Member, str, str]] = []  # rôle Membre : (membre, pseudo IG, guilde actuelle)
 
         # ── 1. Mise à jour / nettoyage des profils ────────────────────────────
         for p in profiles:
@@ -93,9 +93,14 @@ class Joueur(commands.Cog):
                         if member.display_name != nick:
                             with contextlib.suppress(discord.Forbidden):
                                 await member.edit(nick=nick, reason="Auto-rename [Guilde]")
-                    if albion_guild and membre_role in member.roles and not same_guild(fame["guild"], albion_guild):
-                        hors_guilde.append((member, fame["name"], fame["guild"]))
+                    if membre_role in member.roles:
+                        checks.append((member, fame["name"], fame["guild"]))
                 await asyncio.sleep(0.5)
+
+        # Serveur principal : pas besoin de configurer la guilde, on prend celle de la majorité des membres
+        if not albion_guild and guild_id == _MAIN_GUILD_ID:
+            albion_guild = majority_guild(g for _, _, g in checks)
+        hors_guilde = [c for c in checks if not same_guild(c[2], albion_guild)] if albion_guild else []
 
         if not channel:
             return False

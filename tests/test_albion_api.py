@@ -1,4 +1,4 @@
-from albion_api import find_exact_player, fmt_fame, same_guild, tagged_nick
+from albion_api import find_exact_player, fmt_fame, majority_guild, same_guild, tagged_nick
 
 
 def test_fmt_fame_under_thousand_unchanged():
@@ -62,3 +62,11 @@ def test_tagged_nick_truncates_guild_not_pseudo():
 def test_tagged_nick_pseudo_too_long_for_tag():
     pseudo = "P" * 30
     assert tagged_nick("Lilium", pseudo) == pseudo
+
+
+def test_majority_guild_ignores_case_and_empty():
+    assert majority_guild(["Lilium", "", "lilium", "Autre", None]) == "Lilium"
+
+
+def test_majority_guild_none_when_no_guild():
+    assert majority_guild(["", None]) is None

@@ -267,7 +267,7 @@ L'embed `/info` affiche :
 > Si le joueur n'a jamais été recruté via le bot, seul le compteur d'activités est disponible.
 
 **Rappel automatique 22h** — chaque soir à **22h** (heure de Paris), sur **chaque serveur où le bot est installé et où un salon de récap est configuré** (`/config` → 📋 Salon de récap) :
-- **🛡️ Vérif guilde** (si une guilde Albion est configurée) : liste les membres (rôle Membre) dont le pseudo IG n'est plus dans la guilde, avec leur guilde actuelle (ping Recruteur). Rien n'est retiré automatiquement ; un joueur introuvable sur l'API n'est pas listé
+- **🛡️ Vérif guilde** (si une guilde Albion est configurée ; sur le serveur principal `DISCORD_GUILD_ID`, sans config, c'est la guilde de la majorité des membres) : liste les membres (rôle Membre) dont le pseudo IG n'est plus dans la guilde, avec leur guilde actuelle (ping Recruteur). Rien n'est retiré automatiquement ; un joueur introuvable sur l'API n'est pas listé
 - **Auto-rename** (si activé) : renomme chaque joueur lié en `[Guilde IG] Pseudo` — tourne aussi sur les serveurs sans salon de récap
 - Met à jour les fames via l'API Albion Online
 - Supprime les profils des joueurs qui ont quitté le Discord depuis plus de **3 jours**
