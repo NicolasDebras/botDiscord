@@ -2,10 +2,34 @@
 albion_api.py — Utilitaires pour l'API Albion Online (gameinfo).
 Serveur EU : gameinfo-ams.albiononline.com
 """
+import asyncio
+
 import aiohttp
 
 _BASE = "https://gameinfo-ams.albiononline.com/api/gameinfo"
 _TIMEOUT = aiohttp.ClientTimeout(total=10)
+_RETRY_DELAYS = (2, 5)  # secondes entre les essais (API souvent en 429 / 5xx sur les gros lots)
+
+
+class AlbionApiError(Exception):
+    """API indisponible (erreur réseau, 429, 5xx…) après les essais — distinct de « joueur introuvable »."""
+
+
+async def _get_json(session: aiohttp.ClientSession, url: str, params: dict | None = None) -> dict | None:
+    """GET JSON avec nouveaux essais sur erreur passagère. None = 404 ; AlbionApiError si l'API ne répond pas."""
+    for delay in (*_RETRY_DELAYS, None):
+        try:
+            async with session.get(url, params=params) as resp:
+                if resp.status == 200:
+                    return await resp.json(content_type=None)
+                if resp.status == 404:
+                    return None
+                error = AlbionApiError(f"HTTP {resp.status}")
+        except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+            error = AlbionApiError(str(e) or type(e).__name__)
+        if delay is None:
+            raise error
+        await asyncio.sleep(delay)
 
 
 def fmt_fame(n: int) -> str:
@@ -59,13 +83,13 @@ def tagged_nick(guild: str | None, pseudo: str, tag_len: int = TAG_LEN_DEFAULT) 
 
 
 async def fetch_albion_fame(pseudo: str) -> dict | None:
-    """Retourne {'pve': int, 'pvp': int, 'name': str, 'guild': str} ou None si introuvable."""
+    """Retourne {'pve': int, 'pvp': int, 'name': str, 'guild': str} ou None si introuvable.
+    Lève AlbionApiError si l'API ne répond pas (à ne pas confondre avec un pseudo inexistant)."""
     async with aiohttp.ClientSession(timeout=_TIMEOUT) as session:
         # 1. Recherche — endpoint /search (pas /players/search)
-        async with session.get(f"{_BASE}/search", params={"q": pseudo}) as resp:
-            if resp.status != 200:
-                return None
-            data = await resp.json()
+        data = await _get_json(session, f"{_BASE}/search", {"q": pseudo})
+        if not data:
+            return None
 
         players = data.get("players") or []
         if not players:
@@ -78,10 +102,9 @@ async def fetch_albion_fame(pseudo: str) -> dict | None:
             return None
 
         # 2. Détails joueur — /players/{id} (pas /players/{id}/stats)
-        async with session.get(f"{_BASE}/players/{match['Id']}") as resp:
-            if resp.status != 200:
-                return None
-            player = await resp.json()
+        player = await _get_json(session, f"{_BASE}/players/{match['Id']}")
+        if not player:
+            return None
 
     lifetime = player.get("LifetimeStatistics") or {}
     pve = lifetime.get("PvE") or {}

@@ -52,7 +52,9 @@ class Joueur(commands.Cog):
         tag_len  = await db.get_rename_tag_len(guild.id) or TAG_LEN_DEFAULT
         known    = await db.get_known_ig_names(guild.id, [str(m.id) for m in guild.members if not m.bot])
         renommes, echecs = 0, []
-        for user_id, ig_name in known.items():
+        erreurs_api = 0  # consécutives : au-delà, l'API est considérée en panne → on arrête
+        items = list(known.items())
+        for i, (user_id, ig_name) in enumerate(items):
             member = guild.get_member(int(user_id))
             if member is None:
                 continue
@@ -61,9 +63,16 @@ class Joueur(commands.Cog):
             else:
                 try:
                     fame = await fetch_albion_fame(ig_name)
+                    erreurs_api = 0
                 except Exception:
-                    fame = None
-                await asyncio.sleep(0.5)
+                    erreurs_api += 1
+                    if erreurs_api >= 3:
+                        echecs.append(f"⛔ API Albion indisponible — {len(items) - i} joueur(s) non traité(s), réessaie plus tard.")
+                        break
+                    echecs.append(f"{member.mention} (API Albion indisponible)")
+                    continue
+                finally:
+                    await asyncio.sleep(0.5)
             if not fame:
                 echecs.append(f"{member.mention} (pseudo **{ig_name}** introuvable sur l'API)")
                 continue
@@ -81,7 +90,7 @@ class Joueur(commands.Cog):
         return renommes, echecs
 
     # Init massive : une seule passe sur tous les serveurs où l'option est active, après ce déploiement
-    _RENAME_INIT_KEY = "auto_rename_init:tag-v1"
+    _RENAME_INIT_KEY = "auto_rename_init:tag-v2"  # v2 : relancée après le correctif des erreurs API
 
     @tasks.loop(count=1)
     async def init_auto_rename(self):
@@ -145,11 +154,11 @@ class Joueur(commands.Cog):
             if p["ig_name"]:
                 try:
                     fame = await fetch_albion_fame(p["ig_name"])
+                    fames[p["user_id"]] = fame  # pas en cas d'erreur API : l'auto-rename réessaiera
                     if fame:
                         await db.update_player_fame(p["user_id"], fame["name"], fame["pve"], fame["pvp"], guild_id=guild_id)
                 except Exception:
                     fame = None
-                fames[p["user_id"]] = fame
                 # API en échec / pseudo introuvable → pas de signalement (pas de faux positif)
                 if fame and membre_role in member.roles:
                     checks.append((member, fame["name"], fame["guild"]))

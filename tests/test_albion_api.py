@@ -76,3 +76,56 @@ def test_majority_guild_none_when_no_guild():
 def test_tagged_nick_custom_length():
     assert tagged_nick("Lilium", "Naej", tag_len=5) == "[Liliu] Naej"
 
+
+
+class _FakeResp:
+    def __init__(self, status, data=None):
+        self.status, self._data = status, data
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+    async def json(self, content_type=None):
+        return self._data
+
+
+class _FakeSession:
+    def __init__(self, statuses):
+        self._statuses = list(statuses)
+        self.calls = 0
+
+    def get(self, url, params=None):
+        self.calls += 1
+        return _FakeResp(self._statuses.pop(0), {"ok": True})
+
+
+def _run_get_json(monkeypatch, statuses):
+    import asyncio
+    import albion_api
+
+    async def no_sleep(_):
+        return None
+
+    monkeypatch.setattr(albion_api.asyncio, "sleep", no_sleep)
+    session = _FakeSession(statuses)
+    return asyncio.run(albion_api._get_json(session, "url")), session
+
+
+def test_get_json_retries_after_rate_limit(monkeypatch):
+    data, session = _run_get_json(monkeypatch, [429, 200])
+    assert data == {"ok": True} and session.calls == 2
+
+
+def test_get_json_404_is_not_found_without_retry(monkeypatch):
+    data, session = _run_get_json(monkeypatch, [404])
+    assert data is None and session.calls == 1
+
+
+def test_get_json_raises_when_api_stays_down(monkeypatch):
+    import pytest
+    from albion_api import AlbionApiError
+    with pytest.raises(AlbionApiError):
+        _run_get_json(monkeypatch, [500, 503, 502])
