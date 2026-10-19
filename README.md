@@ -255,7 +255,7 @@ Système de candidature en libre-service, **configurable indépendamment sur cha
 | `/ancien @joueur` | Recruteur, Officier | Basculer le statut Nouveau joueur ↔ Membre (n'apparaît plus dans le récap 22h, en pause) |
 | `/reporter @joueur` | Recruteur, Officier | Repousser le suivi d'un nouveau joueur d'une semaine (vacances, maladie…) |
 | `/kick @joueur` | Recruteur, Officier | Passer un joueur en AFK — retire tous ses rôles, ajoute le rôle Absent, envoie un DM. Impossible sur un Officier, le Maitre de guilde, le propriétaire, un bot ou quelqu'un dont le rôle le plus haut est ≥ au sien |
-| `/recap` | Recruteur, Officier | Relancer manuellement le récap recrutement — purge immédiate des profils des partis |
+| `/recap` | Recruteur, Officier | Relancer manuellement le récap — purge immédiate des profils des partis ; si l'auto-rename est actif, affiche le bilan (renommés + joueurs non renommés et pourquoi) |
 
 L'embed `/info` affiche :
 - **Pseudo IG** (enregistré via `/recrutement`)
