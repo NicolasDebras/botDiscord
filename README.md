@@ -226,7 +226,6 @@ Système de candidature en libre-service, **configurable indépendamment sur cha
 - **✏️ Guilde Albion** — saisis le pseudo IG d'un membre de la guilde (pré-rempli avec le tien si tu as un profil) : la guilde est détectée via l'API Albion et enregistrée sous son nom officiel. Active la section « Vérif guilde » du récap 22h
 - **🏷️ Auto-rename : ON/OFF** — pour les serveurs communauté : renomme les joueurs en `[Gui] Pseudo` (début du nom de leur guilde IG) — tout de suite à l'activation, puis à 22h, à `/register` et à la candidature. Un joueur sans `/register` sur ce serveur est renommé quand même si le bot connaît son pseudo IG via un autre serveur. Pseudo seul s'il n'a pas de guilde ou si ça dépasse 32 caractères
 - **🔠 Longueur du tag** — nombre de caractères du nom de guilde gardés dans le tag (3 par défaut, 1 à 15) ; relance le renommage si l'option est active
-- Au premier démarrage après la mise à jour, une passe de renommage unique tourne sur tous les serveurs où l'option est active
 - **🔕 Désactiver la vérif** — retire la guilde configurée
 - Le bot doit avoir **Gérer les pseudos** et être au-dessus des joueurs à renommer (le propriétaire ne peut jamais être renommé)
 

@@ -35,11 +35,9 @@ class Joueur(commands.Cog):
 
     async def cog_load(self):
         self.rappel_nouveaux.start()
-        self.init_auto_rename.start()
 
     async def cog_unload(self):
         self.rappel_nouveaux.cancel()
-        self.init_auto_rename.cancel()
 
     # ── Auto-rename « [Gui] Pseudo » ───────────────────────────────────────────
     async def auto_rename_guild(self, guild: discord.Guild, fames: dict[str, dict | None] | None = None) -> tuple[int, list[str]]:
@@ -88,25 +86,6 @@ class Joueur(commands.Cog):
             except discord.Forbidden:
                 echecs.append(f"{member.mention} (rôle au-dessus du bot ou permission « Gérer les pseudos » manquante)")
         return renommes, echecs
-
-    # Init massive : une seule passe sur tous les serveurs où l'option est active, après ce déploiement
-    _RENAME_INIT_KEY = "auto_rename_init:tag-v2"  # v2 : relancée après le correctif des erreurs API
-
-    @tasks.loop(count=1)
-    async def init_auto_rename(self):
-        if await db.get_setting(self._RENAME_INIT_KEY, "") == "1":
-            return
-        for guild in self.bot.guilds:
-            try:
-                if await db.get_auto_rename(guild.id):
-                    await self.auto_rename_guild(guild)
-            except Exception as e:
-                await log_error("joueur.init_auto_rename", e, guild_id=guild.id)
-        await db.set_setting(self._RENAME_INIT_KEY, "1")
-
-    @init_auto_rename.before_loop
-    async def before_init_rename(self):
-        await self.bot.wait_until_ready()
 
     # ── Logique commune recap ──────────────────────────────────────────────────
     async def _run_recap(self, guild: discord.Guild, purge_immediate: bool = False) -> bool:
