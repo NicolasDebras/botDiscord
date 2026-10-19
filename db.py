@@ -817,6 +817,16 @@ async def set_auto_rename(guild_id: int, enabled: bool) -> None:
     await set_setting(f"auto_rename:{guild_id}", "1" if enabled else "")
 
 
+# Nombre de caractères de la guilde gardés dans le tag (vide = défaut albion_api.TAG_LEN_DEFAULT)
+async def get_rename_tag_len(guild_id: int) -> int | None:
+    val = await get_setting(f"rename_tag_len:{guild_id}", "")
+    return int(val) if val.isdigit() else None
+
+
+async def set_rename_tag_len(guild_id: int, n: int) -> None:
+    await set_setting(f"rename_tag_len:{guild_id}", str(n))
+
+
 # ── PLAYER PROFILES ───────────────────────────────────────────────────────────
 
 async def get_player_profile(user_id: str, guild_id: int = 0) -> dict | None:
@@ -869,6 +879,23 @@ async def get_pending_new_players(min_days: int = 14, guild_id: int = 0) -> list
             ORDER BY joined_at ASC
         """, min_days, guild_id)
     return [{"user_id": r["user_id"], "ig_name": r["ig_name"], "joined_at": r["joined_at"]} for r in rows]
+
+
+async def get_known_ig_names(guild_id: int, user_ids: list[str]) -> dict[str, str]:
+    """Pseudo IG de chaque membre : profil de ce serveur en priorité, sinon celui d'un
+    autre serveur (exception voulue au filtre guild_id : sert à l'auto-rename
+    des joueurs déjà connus du bot qui n'ont pas fait /register ici)."""
+    if not user_ids:
+        return {}
+    async with _pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT DISTINCT ON (user_id) user_id, ig_name
+               FROM player_profiles
+               WHERE user_id = ANY($2::text[]) AND COALESCE(ig_name, '') <> ''
+               ORDER BY user_id, (guild_id = $1) DESC, fame_updated_at DESC NULLS LAST""",
+            guild_id, user_ids,
+        )
+    return {r["user_id"]: r["ig_name"] for r in rows}
 
 
 async def get_all_profiles(guild_id: int = 0) -> list[dict]:

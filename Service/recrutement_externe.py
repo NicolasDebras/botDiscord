@@ -7,7 +7,7 @@ from discord import app_commands
 
 import db
 from config import ADMIN_ROLE_NAME
-from albion_api import fetch_albion_fame, fmt_fame, tagged_nick
+from albion_api import TAG_LEN_DEFAULT, fetch_albion_fame, fmt_fame, tagged_nick
 from Service.utils import log_error
 import contextlib
 
@@ -18,7 +18,7 @@ _submitting: set[tuple[int, int]] = set()
 async def _nick_for(guild_id: int, fame: dict) -> str:
     """Pseudo Discord : « [Guilde IG] Pseudo » si l'auto-rename est actif sur ce serveur."""
     if await db.get_auto_rename(guild_id):
-        return tagged_nick(fame["guild"], fame["name"])
+        return tagged_nick(fame["guild"], fame["name"], await db.get_rename_tag_len(guild_id) or TAG_LEN_DEFAULT)
     return fame["name"][:32]
 
 

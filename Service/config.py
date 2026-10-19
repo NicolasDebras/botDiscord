@@ -1,10 +1,12 @@
+import asyncio
+
 import discord
 from discord.ext import commands
 from discord import app_commands
 
 import changelog
 import db
-from albion_api import fetch_albion_fame
+from albion_api import TAG_LEN_DEFAULT, TAG_LEN_MAX, fetch_albion_fame, tagged_nick
 from config import ADMIN_ROLE_NAME, CALLER_ROLE_NAME, GUILD_ID, MEMBRE_ROLE_NAME
 from Service.utils import is_admin, role_grant_refusal, STAFF_ROLE_NAMES
 from Service import vocal_temp, bienvenue, self_roles
@@ -106,12 +108,14 @@ async def _verif_guilde_embed(guild: discord.Guild) -> discord.Embed:
     else:
         guilde = "*Non configurée*"
     embed.add_field(name="Guilde Albion", value=guilde, inline=True)
-    embed.add_field(name="Auto-rename [Guilde] Pseudo", value="✅ Activé" if auto_rename else "❌ Désactivé", inline=True)
+    tag_len = await db.get_rename_tag_len(guild.id) or TAG_LEN_DEFAULT
+    embed.add_field(name="Auto-rename [Gui] Pseudo", value="✅ Activé" if auto_rename else "❌ Désactivé", inline=True)
+    embed.add_field(name="Longueur du tag", value=f"{tag_len} caractère(s) — ex. `{tagged_nick('Lilium', 'Pseudo', tag_len)}`", inline=True)
     embed.description = (
         "**Guilde** : chaque soir à 22h, le récap liste les membres (rôle Membre) dont le pseudo IG "
         "n'est plus dans cette guilde.\n"
-        "**Communauté** : l'auto-rename renomme chaque joueur lié en `[Guilde IG] Pseudo` "
-        "(à 22h et à `/register`)."
+        "**Communauté** : l'auto-rename renomme chaque joueur connu du bot en `[Gui] Pseudo` "
+        "(début du nom de sa guilde IG) — tout de suite à l'activation, puis à 22h et à `/register`."
     )
     embed.set_footer(text="Nécessite un pseudo IG enregistré (/register ou candidature). Le récap utilise le salon configuré dans « Salon de récap ».")
     return embed
@@ -561,12 +565,62 @@ class AlbionGuildModal(discord.ui.Modal, title="Guilde Albion"):
         )
 
 
+_rename_tasks: set[asyncio.Task] = set()  # référence forte : sinon la tâche peut être collectée en cours
+
+
+def _launch_rename(interaction: discord.Interaction) -> None:
+    """Lance l'auto-rename du serveur en arrière-plan (peut prendre ~0,5 s par joueur)."""
+    joueur = interaction.client.get_cog("Joueur")
+    if not joueur:
+        return
+    guild = interaction.guild
+
+    async def run():
+        try:
+            await joueur.auto_rename_guild(guild)
+        except Exception as e:
+            await log_error("config.auto_rename", e, guild_id=guild.id)
+
+    task = asyncio.create_task(run())
+    _rename_tasks.add(task)
+    task.add_done_callback(_rename_tasks.discard)
+
+
+class TagLenModal(discord.ui.Modal, title="Longueur du tag"):
+    longueur = discord.ui.TextInput(label=f"Caractères de la guilde gardés (1 à {TAG_LEN_MAX})", max_length=2)
+
+    def __init__(self, guild_id: int, current: int):
+        super().__init__()
+        self.guild_id = guild_id
+        self.longueur.default = str(current)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        val = self.longueur.value.strip()
+        if not val.isdigit() or not 1 <= int(val) <= TAG_LEN_MAX:
+            await interaction.response.send_message(f"❌ Entre un nombre entre 1 et {TAG_LEN_MAX}.", ephemeral=True)
+            return
+        await db.set_rename_tag_len(self.guild_id, int(val))
+        relance = await db.get_auto_rename(self.guild_id)
+        if relance:
+            _launch_rename(interaction)
+        await interaction.response.send_message(
+            f"✅ Tag sur {val} caractère(s) : `{tagged_nick('Lilium', 'Pseudo', int(val))}`"
+            + (" — renommage en cours." if relance else "."),
+            ephemeral=True,
+        )
+
+
 class VerifGuildeView(discord.ui.View):
     def __init__(self, guild_id: int, auto_rename: bool):
         super().__init__(timeout=180)
         self.guild_id = guild_id
         self.rename_btn.label = f"🏷️ Auto-rename : {'ON' if auto_rename else 'OFF'}"
         self.rename_btn.style = discord.ButtonStyle.success if auto_rename else discord.ButtonStyle.secondary
+
+    @discord.ui.button(label="🔠 Longueur du tag", style=discord.ButtonStyle.secondary, row=0)
+    async def tag_len_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        current = await db.get_rename_tag_len(self.guild_id) or TAG_LEN_DEFAULT
+        await interaction.response.send_modal(TagLenModal(self.guild_id, current))
 
     @discord.ui.button(label="✏️ Guilde Albion", style=discord.ButtonStyle.primary, row=0)
     async def guild_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -577,6 +631,8 @@ class VerifGuildeView(discord.ui.View):
     async def rename_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         enabled = not await db.get_auto_rename(self.guild_id)
         await db.set_auto_rename(self.guild_id, enabled)
+        if enabled:
+            _launch_rename(interaction)
         embed = await _verif_guilde_embed(interaction.guild)
         await interaction.response.edit_message(embed=embed, view=VerifGuildeView(self.guild_id, enabled))
 

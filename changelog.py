@@ -7,9 +7,19 @@ Pour annoncer une nouvelle fonctionnalité : incrémenter VERSION et ajouter
 une entrée en tête de CHANGELOG (ordre du plus récent au plus ancien).
 """
 
-VERSION = "2026.10.19.1"
+VERSION = "2026.10.19.2"
 
 CHANGELOG: list[dict] = [
+    {
+        "version": "2026.10.19.2",
+        "title": "🏷️ Auto-rename : tag court",
+        "items": [
+            "Le tag ne garde que les 3 premiers caractères de la guilde : « [Lil] Pseudo ». Longueur réglable dans /config → 🛡️ Vérif guilde Albion → 🔠 Longueur du tag.",
+            "Activer l'auto-rename renomme tout le serveur immédiatement, sans attendre 22h.",
+            "Les joueurs déjà connus du bot sur un autre serveur sont renommés même sans /register ici.",
+            "/recap affiche le bilan du renommage : joueurs renommés et ceux qui n'ont pas pu l'être (avec la raison).",
+        ],
+    },
     {
         "version": "2026.10.19.1",
         "title": "🛡️ Vérif guilde Albion & auto-rename",

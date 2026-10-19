@@ -7,7 +7,7 @@ from discord.ext import commands, tasks
 from discord import app_commands
 
 import db
-from albion_api import fetch_albion_fame, fmt_fame, majority_guild, same_guild, tagged_nick
+from albion_api import TAG_LEN_DEFAULT, fetch_albion_fame, fmt_fame, majority_guild, same_guild, tagged_nick
 from config import ADMIN_ROLE_NAME, RECRUTEUR_ROLE_ID, MEMBRE_ROLE_NAME, GUILD_ID as _MAIN_GUILD_ID
 from Service.utils import fmt_silver, is_membre as has_membre_role, kick_refusal, log_error, split_message
 import contextlib
@@ -35,9 +35,69 @@ class Joueur(commands.Cog):
 
     async def cog_load(self):
         self.rappel_nouveaux.start()
+        self.init_auto_rename.start()
 
     async def cog_unload(self):
         self.rappel_nouveaux.cancel()
+        self.init_auto_rename.cancel()
+
+    # ── Auto-rename « [Gui] Pseudo » ───────────────────────────────────────────
+    async def auto_rename_guild(self, guild: discord.Guild, fames: dict[str, dict | None] | None = None) -> tuple[int, list[str]]:
+        """Renomme chaque membre dont le pseudo IG est connu du bot (profil de ce serveur,
+        sinon d'un autre serveur). `fames` : fames déjà récupérées (évite un 2e appel API).
+        Retourne (nombre de renommés, échecs lisibles)."""
+        fames = fames or {}
+        if not guild.chunked:
+            await guild.chunk()
+        tag_len  = await db.get_rename_tag_len(guild.id) or TAG_LEN_DEFAULT
+        known    = await db.get_known_ig_names(guild.id, [str(m.id) for m in guild.members if not m.bot])
+        renommes, echecs = 0, []
+        for user_id, ig_name in known.items():
+            member = guild.get_member(int(user_id))
+            if member is None:
+                continue
+            if user_id in fames:
+                fame = fames[user_id]
+            else:
+                try:
+                    fame = await fetch_albion_fame(ig_name)
+                except Exception:
+                    fame = None
+                await asyncio.sleep(0.5)
+            if not fame:
+                echecs.append(f"{member.mention} (pseudo **{ig_name}** introuvable sur l'API)")
+                continue
+            nick = tagged_nick(fame["guild"], fame["name"], tag_len)
+            if member.display_name == nick:
+                continue
+            if member.id == guild.owner_id:
+                echecs.append(f"{member.mention} (propriétaire du serveur)")
+                continue
+            try:
+                await member.edit(nick=nick, reason="Auto-rename [Guilde]")
+                renommes += 1
+            except discord.Forbidden:
+                echecs.append(f"{member.mention} (rôle au-dessus du bot ou permission « Gérer les pseudos » manquante)")
+        return renommes, echecs
+
+    # Init massive : une seule passe sur tous les serveurs où l'option est active, après ce déploiement
+    _RENAME_INIT_KEY = "auto_rename_init:tag-v1"
+
+    @tasks.loop(count=1)
+    async def init_auto_rename(self):
+        if await db.get_setting(self._RENAME_INIT_KEY, "") == "1":
+            return
+        for guild in self.bot.guilds:
+            try:
+                if await db.get_auto_rename(guild.id):
+                    await self.auto_rename_guild(guild)
+            except Exception as e:
+                await log_error("joueur.init_auto_rename", e, guild_id=guild.id)
+        await db.set_setting(self._RENAME_INIT_KEY, "1")
+
+    @init_auto_rename.before_loop
+    async def before_init_rename(self):
+        await self.bot.wait_until_ready()
 
     # ── Logique commune recap ──────────────────────────────────────────────────
     async def _run_recap(self, guild: discord.Guild, purge_immediate: bool = False) -> bool:
@@ -69,7 +129,7 @@ class Joueur(commands.Cog):
 
         albion_guild = await db.get_albion_guild(guild_id)
         checks: list[tuple[discord.Member, str, str]] = []  # rôle Membre : (membre, pseudo IG, guilde actuelle)
-        renommes, refus, introuvables = 0, [], []  # bilan auto-rename (affiché par /recap)
+        fames: dict[str, dict | None] = {}  # user_id → fame déjà récupérée (réutilisée par l'auto-rename)
 
         # ── 1. Mise à jour / nettoyage des profils ────────────────────────────
         for p in profiles:
@@ -89,26 +149,13 @@ class Joueur(commands.Cog):
                         await db.update_player_fame(p["user_id"], fame["name"], fame["pve"], fame["pvp"], guild_id=guild_id)
                 except Exception:
                     fame = None
-                # API en échec / pseudo introuvable → ni rename ni signalement (pas de faux positif)
-                if fame:
-                    if auto_rename:
-                        nick = tagged_nick(fame["guild"], fame["name"])
-                        if member.display_name != nick:
-                            if member.id == guild.owner_id:
-                                refus.append(f"{member.mention} (propriétaire du serveur)")
-                            else:
-                                try:
-                                    await member.edit(nick=nick, reason="Auto-rename [Guilde]")
-                                    renommes += 1
-                                except discord.Forbidden:
-                                    refus.append(f"{member.mention} (rôle au-dessus du bot ou permission « Gérer les pseudos » manquante)")
-                    if membre_role in member.roles:
-                        checks.append((member, fame["name"], fame["guild"]))
-                elif auto_rename:
-                    introuvables.append(f"{member.mention} (pseudo **{p['ig_name']}** introuvable sur l'API)")
+                fames[p["user_id"]] = fame
+                # API en échec / pseudo introuvable → pas de signalement (pas de faux positif)
+                if fame and membre_role in member.roles:
+                    checks.append((member, fame["name"], fame["guild"]))
                 await asyncio.sleep(0.5)
 
-        self._rename_reports[guild_id] = (renommes, refus + introuvables) if auto_rename else None
+        self._rename_reports[guild_id] = await self.auto_rename_guild(guild, fames) if auto_rename else None
 
         # Serveur principal : pas besoin de configurer la guilde, on prend celle de la majorité des membres
         if not albion_guild and guild_id == _MAIN_GUILD_ID:

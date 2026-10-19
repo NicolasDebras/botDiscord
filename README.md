@@ -224,7 +224,9 @@ Système de candidature en libre-service, **configurable indépendamment sur cha
 
 **🛡️ Vérif guilde Albion**
 - **✏️ Guilde Albion** — saisis le pseudo IG d'un membre de la guilde (pré-rempli avec le tien si tu as un profil) : la guilde est détectée via l'API Albion et enregistrée sous son nom officiel. Active la section « Vérif guilde » du récap 22h
-- **🏷️ Auto-rename : ON/OFF** — pour les serveurs communauté : renomme les joueurs liés en `[Guilde IG] Pseudo` (32 caractères max, le nom de guilde est tronqué, jamais le pseudo), à 22h ainsi qu'à `/register` et à la candidature
+- **🏷️ Auto-rename : ON/OFF** — pour les serveurs communauté : renomme les joueurs en `[Gui] Pseudo` (début du nom de leur guilde IG) — tout de suite à l'activation, puis à 22h, à `/register` et à la candidature. Un joueur sans `/register` sur ce serveur est renommé quand même si le bot connaît son pseudo IG via un autre serveur. Pseudo seul s'il n'a pas de guilde ou si ça dépasse 32 caractères
+- **🔠 Longueur du tag** — nombre de caractères du nom de guilde gardés dans le tag (3 par défaut, 1 à 15) ; relance le renommage si l'option est active
+- Au premier démarrage après la mise à jour, une passe de renommage unique tourne sur tous les serveurs où l'option est active
 - **🔕 Désactiver la vérif** — retire la guilde configurée
 - Le bot doit avoir **Gérer les pseudos** et être au-dessus des joueurs à renommer (le propriétaire ne peut jamais être renommé)
 
@@ -268,7 +270,7 @@ L'embed `/info` affiche :
 
 **Rappel automatique 22h** — chaque soir à **22h** (heure de Paris), sur **chaque serveur où le bot est installé et où un salon de récap est configuré** (`/config` → 📋 Salon de récap) :
 - **🛡️ Vérif guilde** (si une guilde Albion est configurée ; sur le serveur principal `DISCORD_GUILD_ID`, sans config, c'est la guilde de la majorité des membres) : liste les membres (rôle Membre) dont le pseudo IG n'est plus dans la guilde, avec leur guilde actuelle (ping Recruteur). Rien n'est retiré automatiquement ; un joueur introuvable sur l'API n'est pas listé
-- **Auto-rename** (si activé) : renomme chaque joueur lié en `[Guilde IG] Pseudo` — tourne aussi sur les serveurs sans salon de récap
+- **Auto-rename** (si activé) : renomme chaque joueur connu du bot en `[Gui] Pseudo` — tourne aussi sur les serveurs sans salon de récap
 - Met à jour les fames via l'API Albion Online
 - Supprime les profils des joueurs qui ont quitté le Discord depuis plus de **3 jours**
 - Affiche un **🏆 Top 3** et un **🐌 Flop 3** des joueurs ayant gagné le plus / le moins de fame (PvP + PvE cumulée) cette semaine

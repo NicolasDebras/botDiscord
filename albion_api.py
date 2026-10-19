@@ -45,14 +45,17 @@ def majority_guild(guilds) -> str | None:
 _NICK_MAX = 32  # limite Discord
 
 
-def tagged_nick(guild: str | None, pseudo: str) -> str:
-    """« [Guilde] Pseudo » tenant en 32 caractères : la guilde est tronquée, jamais le pseudo."""
+TAG_LEN_DEFAULT = 3   # « [Lil] Pseudo » : 3 premiers caractères de la guilde (réglable via /config)
+TAG_LEN_MAX     = 15
+
+
+def tagged_nick(guild: str | None, pseudo: str, tag_len: int = TAG_LEN_DEFAULT) -> str:
+    """« [Gui] Pseudo » (`tag_len` premiers caractères de la guilde), pseudo seul s'il n'y a pas la place."""
     pseudo = pseudo[:_NICK_MAX]
-    guild  = (guild or "").strip()
-    room   = _NICK_MAX - len(pseudo) - 3  # « [", "] " autour de la guilde
-    if not guild or room < 1:
+    tag    = (guild or "").strip()[:tag_len].strip()
+    if not tag or len(pseudo) + len(tag) + 3 > _NICK_MAX:
         return pseudo
-    return f"[{guild[:room].rstrip()}] {pseudo}"
+    return f"[{tag}] {pseudo}"
 
 
 async def fetch_albion_fame(pseudo: str) -> dict | None:

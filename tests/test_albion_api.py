@@ -43,8 +43,12 @@ def test_same_guild_empty_vs_name():
     assert not same_guild(None, "Lilium")
 
 
-def test_tagged_nick_normal():
-    assert tagged_nick("Lilium", "Naej") == "[Lilium] Naej"
+def test_tagged_nick_uses_first_three_chars():
+    assert tagged_nick("Lilium", "Naej") == "[Lil] Naej"
+
+
+def test_tagged_nick_short_guild_name_kept():
+    assert tagged_nick("OK", "Naej") == "[OK] Naej"
 
 
 def test_tagged_nick_without_guild_keeps_pseudo():
@@ -52,11 +56,8 @@ def test_tagged_nick_without_guild_keeps_pseudo():
     assert tagged_nick(None, "Naej") == "Naej"
 
 
-def test_tagged_nick_truncates_guild_not_pseudo():
-    nick = tagged_nick("A Very Long Guild Name Indeed", "PseudoAssezLong")
-    assert len(nick) == 32
-    assert nick.endswith("] PseudoAssezLong")
-    assert nick.startswith("[A Very")
+def test_tagged_nick_tag_trailing_space_stripped():
+    assert tagged_nick("Le Clan", "Naej") == "[Le] Naej"
 
 
 def test_tagged_nick_pseudo_too_long_for_tag():
@@ -70,3 +71,8 @@ def test_majority_guild_ignores_case_and_empty():
 
 def test_majority_guild_none_when_no_guild():
     assert majority_guild(["", None]) is None
+
+
+def test_tagged_nick_custom_length():
+    assert tagged_nick("Lilium", "Naej", tag_len=5) == "[Liliu] Naej"
+
