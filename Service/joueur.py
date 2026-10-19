@@ -30,6 +30,8 @@ def _is_recruteur_or_admin(member: discord.Member) -> bool:
 class Joueur(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+        # Bilan du dernier auto-rename par serveur : (renommés, échecs) ou None si désactivé
+        self._rename_reports: dict[int, tuple[int, list[str]] | None] = {}
 
     async def cog_load(self):
         self.rappel_nouveaux.start()
@@ -67,6 +69,7 @@ class Joueur(commands.Cog):
 
         albion_guild = await db.get_albion_guild(guild_id)
         checks: list[tuple[discord.Member, str, str]] = []  # rôle Membre : (membre, pseudo IG, guilde actuelle)
+        renommes, refus, introuvables = 0, [], []  # bilan auto-rename (affiché par /recap)
 
         # ── 1. Mise à jour / nettoyage des profils ────────────────────────────
         for p in profiles:
@@ -91,11 +94,21 @@ class Joueur(commands.Cog):
                     if auto_rename:
                         nick = tagged_nick(fame["guild"], fame["name"])
                         if member.display_name != nick:
-                            with contextlib.suppress(discord.Forbidden):
-                                await member.edit(nick=nick, reason="Auto-rename [Guilde]")
+                            if member.id == guild.owner_id:
+                                refus.append(f"{member.mention} (propriétaire du serveur)")
+                            else:
+                                try:
+                                    await member.edit(nick=nick, reason="Auto-rename [Guilde]")
+                                    renommes += 1
+                                except discord.Forbidden:
+                                    refus.append(f"{member.mention} (rôle au-dessus du bot ou permission « Gérer les pseudos » manquante)")
                     if membre_role in member.roles:
                         checks.append((member, fame["name"], fame["guild"]))
+                elif auto_rename:
+                    introuvables.append(f"{member.mention} (pseudo **{p['ig_name']}** introuvable sur l'API)")
                 await asyncio.sleep(0.5)
+
+        self._rename_reports[guild_id] = (renommes, refus + introuvables) if auto_rename else None
 
         # Serveur principal : pas besoin de configurer la guilde, on prend celle de la majorité des membres
         if not albion_guild and guild_id == _MAIN_GUILD_ID:
@@ -252,12 +265,17 @@ class Joueur(commands.Cog):
 
         await interaction.response.defer(ephemeral=True)
         ok = await self._run_recap(interaction.guild, purge_immediate=True)
-        if not ok:
-            await interaction.followup.send(
-                "❌ Aucun salon de récap configuré sur ce serveur. Utilise `/config` pour en choisir un.", ephemeral=True
-            )
-            return
-        await interaction.followup.send("✅ Récap envoyé et base nettoyée.", ephemeral=True)
+        msg = "✅ Récap envoyé et base nettoyée." if ok else \
+              "❌ Aucun salon de récap configuré sur ce serveur. Utilise `/config` pour en choisir un."
+        report = self._rename_reports.get(interaction.guild.id)
+        if report:
+            renommes, echecs = report
+            msg += (f"\n🏷️ Auto-rename : **{renommes}** joueur(s) renommé(s) "
+                    f"(seuls les joueurs avec un pseudo IG enregistré via `/register` ou candidature).")
+            if echecs:
+                msg += "\n⚠️ Non renommés :\n" + "\n".join(f"• {e}" for e in echecs)
+        for part in split_message(msg):
+            await interaction.followup.send(part, ephemeral=True)
 
     # ── /ancien @joueur ───────────────────────────────────────────────────────
     @app_commands.command(name="ancien", description="Marquer un joueur comme ancien membre (retire le flag Nouveau joueur)")
