@@ -360,6 +360,18 @@ def test_embed_bare_first_site_line_shows_its_build_name(acti, monkeypatch):
     assert "**TANK**" not in value
 
 
+def test_embed_shows_custom_shares(acti, monkeypatch):
+    tpl = {"type_acti": "PVE", "pf_1": {"TANK": 1, "TANK · Off": 1, "DPS": 2},
+           "role_multipliers": {"TANK": 2, "TANK · Off": 1, "DPS": 1.5}}
+    monkeypatch.setattr(activites, "load_all_templates", lambda gid: {"T": tpl})
+    acti["slots"] = {"TANK": [], "TANK · Off": [], "DPS": []}
+    fields = [(f.name, f.value) for f in build_embed(acti).fields]
+    tank = fields[0][1].split("\n")
+    assert tank[0] == "**TANK**  ·  💰 2 parts"                # sous-bloc à 2 parts
+    assert "**Off**" in tank and "💰" not in fields[0][1].split("**Off**")[1]
+    assert fields[1][0] == "⚔️ DPS  [0/2]  ·  💰 1,5 part"     # rôle seul : dans l'en-tête
+
+
 def test_activity_view_has_pending_button_only_with_validation(acti):
     async def build():
         return activites.ActivityView(ACTI)

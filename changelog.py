@@ -7,9 +7,17 @@ Pour annoncer une nouvelle fonctionnalité : incrémenter VERSION et ajouter
 une entrée en tête de CHANGELOG (ordre du plus récent au plus ancien).
 """
 
-VERSION = "2026.10.16"
+VERSION = "2026.10.19"
 
 CHANGELOG: list[dict] = [
+    {
+        "version": "2026.10.19",
+        "title": "💰 Parts de paie par rôle",
+        "items": [
+            "Sur le site, une compo peut avoir des parts de paie personnalisées : coche la case et règle le nombre de parts de chaque ligne (1 par défaut, 2 = double part, 0,5 = demi-part, 0 = non payé).",
+            "L'embed de l'acti affiche les parts (« 💰 2 parts ») et /finacti partage le butin en conséquence.",
+        ],
+    },
     {
         "version": "2026.10.16",
         "title": "🔀 Fill : le caller choisit ton rôle",

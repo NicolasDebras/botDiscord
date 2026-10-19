@@ -200,6 +200,19 @@ def build_ids_for_role(template_data: dict, role_key: str) -> list[int]:
     return [int(v) for v in (value if isinstance(value, list) else [value])]
 
 
+def role_share(multipliers: dict, role_key: str) -> float:
+    """Parts de paie d'une clé de slot à /finacti (« role_multipliers » du template) :
+    clé exacte (« PF2:TANK », « TANK · Main tank »), puis rôle de base, sinon 1."""
+    return float(multipliers.get(role_key, multipliers.get(base_role(role_key), 1.0)))
+
+
+def share_tag(share: float) -> str:
+    """« 💰 2 parts » / « 💰 0,5 part » pour l'embed ; vide pour 1 part (cas normal)."""
+    if share == 1:
+        return ""
+    return f"💰 {share:g}".replace(".", ",") + (" parts" if share >= 2 else " part")
+
+
 def build_id_for_role(template_data: dict, role_key: str) -> int | None:
     """Premier build proposé pour ce rôle, ou None."""
     ids = build_ids_for_role(template_data, role_key)
@@ -313,6 +326,7 @@ def build_embed(data: dict) -> discord.Embed:
     specs     = get_specs(tdata) if tdata else {}
     specs_pf2 = tdata.get("weapon_pf2", tdata.get("specs_pf2", {})) if tdata else {}
     type_acti = tdata.get("type_acti", "") if tdata else ""
+    multipliers = tdata.get("role_multipliers") or {} if tdata else {}
 
     pf1_keys      = list(pf1.keys()) if pf1 else list(slots.keys())
     pf2_keys      = [f"PF2:{r}" for r in pf2]
@@ -357,18 +371,23 @@ def build_embed(data: dict) -> discord.Embed:
             total   = total + max_r if isinstance(total, int) and isinstance(max_r, int) else "∞"
 
             lines = _slot_lines(members, role_spec, tdata, type_acti, grouped)
+            tag   = share_tag(role_share(multipliers, role_key))
             if grouped:
                 # Sous-titre du créneau (nom du build, même pour la 1re ligne à clé nue « TANK »),
                 # sauf si son arme (déjà en gras) le porte déjà
                 sub = slot_title(tdata, role_key)
                 if not lines[0].startswith("**") or (sub != role_name and sub.lower() not in lines[0].lower()):
                     lines.insert(0, f"**{sub}**")
+                if tag:
+                    lines[0] += f"  ·  {tag}"
             blocks.append("\n".join(lines))
 
         label      = base if grouped else (keys[0][4:] if is_pf2 else keys[0])
         label      = f"{label} PF2" if is_pf2 else label
         count      = f"{filled}/{total}" if isinstance(total, int) else str(filled)
         field_name = f"{ROLES.get(base, '🔹')} {label}  [{count}]"
+        if not grouped and (tag := share_tag(role_share(multipliers, keys[0]))):
+            field_name += f"  ·  {tag}"
         embed.add_field(name=field_name[:256], value="\n".join(blocks)[:1024], inline=False)
 
     fill_members = slots.get("Fill", [])
@@ -1427,8 +1446,7 @@ class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
 
             # Liste des membres payés avec leur multiplicateur (uid, name, role, mult)
             paying = [
-                (entry[0], entry[1], role,
-                 float(self.role_multipliers.get(role, self.role_multipliers.get(base_role(role), 1.0))))
+                (entry[0], entry[1], role, role_share(self.role_multipliers, role))
                 for role, members in data["slots"].items()
                 for entry in members
                 if role != "SCOOT" and role not in self.zero_pay_roles and base_role(role) not in self.zero_pay_roles
@@ -1504,7 +1522,7 @@ class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
             for (role, mult), members in bonus_groups.items():
                 emoji  = ROLES.get(base_role(role), "🔹")
                 pay_r  = int(part_base * mult)
-                summary += f"{emoji} {role} (×{mult}) : **{fmt_silver(pay_r)} silver/joueur** ({len(members)} joueur(s))\n"
+                summary += f"{emoji} {_role_label(role)} ({share_tag(mult)[2:]}) : **{fmt_silver(pay_r)} silver/joueur** ({len(members)} joueur(s))\n"
             if self.has_scoot:
                 summary += (
                     f"👥 Reste ({nb_normal} joueur(s)) : **{fmt_silver(part_indiv)} silver/joueur**\n"

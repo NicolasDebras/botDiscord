@@ -227,6 +227,26 @@ def test_slot_title_uses_build_name_for_bare_first_line_only_when_it_has_a_build
     assert slot_title(tdata, "DPS") == "DPS"          # liste d'armes, pas un nom de build
 
 
+def test_role_share_exact_key_then_base_role_then_one():
+    from Service.activites import role_share
+    mult = {"TANK": 2, "PF2:TANK": 1, "DPS · Arc": 0.5}
+    assert role_share(mult, "TANK") == 2
+    assert role_share(mult, "PF2:TANK") == 1             # clé PF2 exacte, pas la part PF1
+    assert role_share(mult, "TANK · Off") == 2           # rôle de base
+    assert role_share(mult, "DPS · Arc") == 0.5
+    assert role_share(mult, "HEAL") == 1
+    assert role_share({}, "Fill") == 1
+
+
+def test_share_tag_french_format_and_hidden_for_one():
+    from Service.activites import share_tag
+    assert share_tag(1) == ""
+    assert share_tag(1.0) == ""
+    assert share_tag(2) == "💰 2 parts"
+    assert share_tag(1.5) == "💰 1,5 part"
+    assert share_tag(0) == "💰 0 part"
+
+
 def test_available_role_keys_hides_full_roles_and_pf2_until_a_pf1_role_is_full():
     from Service.activites import available_role_keys
     tdata = {"pf_1": {"TANK · Def tank": 1, "DPS · Weeping": 2}, "pf_2": {"DPS · Weeping": 1}}
