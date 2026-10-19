@@ -7,7 +7,7 @@ from discord.ext import commands, tasks
 from discord import app_commands
 
 import db
-from albion_api import fetch_albion_fame, fmt_fame
+from albion_api import fetch_albion_fame, fmt_fame, same_guild, tagged_nick
 from config import ADMIN_ROLE_NAME, RECRUTEUR_ROLE_ID, MEMBRE_ROLE_NAME, GUILD_ID as _MAIN_GUILD_ID
 from Service.utils import fmt_silver, is_membre as has_membre_role, kick_refusal, log_error, split_message
 import contextlib
@@ -16,6 +16,8 @@ _PARIS          = ZoneInfo("Europe/Paris")
 _RAPPEL_HEURE   = datetime.time(hour=22, minute=0, tzinfo=_PARIS)
 _RAPPEL_SALON   = 1505623773708025992
 _ABSENT_ROLE_ID = 1496637644283576452
+# Récap « à valider via /ancien » mis en pause (code conservé, réactivable)
+_RECAP_RECRUTEMENT_ACTIF = False
 
 
 def _is_recruteur_or_admin(member: discord.Member) -> bool:
@@ -42,8 +44,10 @@ class Joueur(commands.Cog):
         if not channel_id and guild.id == _MAIN_GUILD_ID:
             channel_id = _RAPPEL_SALON  # ancien serveur : salon historique par défaut
 
-        channel = self.bot.get_channel(channel_id) if channel_id else None
-        if not channel:
+        channel     = self.bot.get_channel(channel_id) if channel_id else None
+        auto_rename = await db.get_auto_rename(guild.id)
+        # Sans salon, on continue quand même pour l'auto-rename (serveurs communauté)
+        if not channel and not auto_rename:
             return False
 
         if not guild.chunked:
@@ -53,6 +57,16 @@ class Joueur(commands.Cog):
         profiles = await db.get_all_profiles(guild_id=guild_id)
         now      = datetime.datetime.now(datetime.UTC)
         delai    = datetime.timedelta(days=3)
+
+        rec_cfg        = await db.get_recruitment_config(guild_id)
+        membre_role_id = rec_cfg["membre_role_id"] if rec_cfg else None
+        if membre_role_id:
+            membre_role = guild.get_role(membre_role_id)
+        else:
+            membre_role = discord.utils.get(guild.roles, name=MEMBRE_ROLE_NAME)
+
+        albion_guild = await db.get_albion_guild(guild_id)
+        hors_guilde: list[tuple[discord.Member, str, str]] = []  # (membre, pseudo IG, guilde actuelle)
 
         # ── 1. Mise à jour / nettoyage des profils ────────────────────────────
         for p in profiles:
@@ -71,20 +85,58 @@ class Joueur(commands.Cog):
                     if fame:
                         await db.update_player_fame(p["user_id"], fame["name"], fame["pve"], fame["pvp"], guild_id=guild_id)
                 except Exception:
-                    pass
+                    fame = None
+                # API en échec / pseudo introuvable → ni rename ni signalement (pas de faux positif)
+                if fame:
+                    if auto_rename:
+                        nick = tagged_nick(fame["guild"], fame["name"])
+                        if member.display_name != nick:
+                            with contextlib.suppress(discord.Forbidden):
+                                await member.edit(nick=nick, reason="Auto-rename [Guilde]")
+                    if albion_guild and membre_role in member.roles and not same_guild(fame["guild"], albion_guild):
+                        hors_guilde.append((member, fame["name"], fame["guild"]))
                 await asyncio.sleep(0.5)
+
+        if not channel:
+            return False
 
         # Recharger après purge
         profiles = await db.get_all_profiles(guild_id=guild_id)
 
         # ── 1b. Reset hebdo (lundi) ───────────────────────────────────────────
-        rec_cfg      = await db.get_recruitment_config(guild_id)
         now_paris    = now.astimezone(_PARIS)
         if now_paris.weekday() == 0:  # Lundi
             await db.reset_weekly_fame_snapshots(guild_id)
             profiles = await db.get_all_profiles(guild_id=guild_id)
 
-        # ── 2. Récap suivi recrutement ────────────────────────────────────────
+        recruteur_role_id = (rec_cfg["recruitment_role_id"] if rec_cfg else None) or RECRUTEUR_ROLE_ID
+        ping = f"<@&{recruteur_role_id}>"
+        ping_recruteurs = discord.AllowedMentions(roles=[discord.Object(recruteur_role_id)], users=True)
+
+        # ── 2. Vérif guilde Albion ────────────────────────────────────────────
+        if albion_guild:
+            lignes = "\n".join(
+                f"• **{ig}** — {m.mention} — guilde actuelle : {g or '*sans guilde*'}"
+                for m, ig, g in hors_guilde
+            ) or "*Aucun*"
+            verif = (
+                f"{ping}\n"
+                f"🛡️ **Vérif guilde {albion_guild}**\n\n"
+                f"**Membres qui ne sont plus dans la guilde IG :**\n{lignes}"
+            )
+            for part in split_message(verif):
+                await channel.send(part, allowed_mentions=ping_recruteurs)
+
+        # ── 2b. Récap suivi recrutement (/ancien) — en pause ──────────────────
+        if _RECAP_RECRUTEMENT_ACTIF:
+            await self._send_recap_recrutement(guild, channel, profiles, now, ping, ping_recruteurs)
+
+        # ── 3. Stats silver depuis lundi ──────────────────────────────────────
+        await self._send_stats(guild, channel, profiles, now_paris, membre_role)
+        return True
+
+    async def _send_recap_recrutement(self, guild, channel, profiles, now, ping, ping_recruteurs) -> None:
+        """Récap « à valider via /ancien » — en pause (_RECAP_RECRUTEMENT_ACTIF), conservé pour plus tard."""
         nouveaux  = [p for p in profiles if not p["is_membre"] and p["joined_at"]]
 
         moins_1s  = sorted([p for p in nouveaux if (now - p["joined_at"]) < datetime.timedelta(days=7)],  key=lambda p: p["joined_at"])
@@ -101,8 +153,6 @@ class Joueur(commands.Cog):
         def fmt_section(players) -> str:
             return "\n".join(fmt_joueur(p) for p in players) if players else "*Aucun*"
 
-        recruteur_role_id = (rec_cfg["recruitment_role_id"] if rec_cfg else None) or RECRUTEUR_ROLE_ID
-        ping = f"<@&{recruteur_role_id}>"
         recap = (
             f"{ping}\n"
             f"📋 **Récap suivi recrutement**\n\n"
@@ -110,23 +160,17 @@ class Joueur(commands.Cog):
             f"**Joueurs qui ont rejoint la guilde il y a moins de 2 semaines :**\n{fmt_section(moins_2s)}\n\n"
             f"**Joueurs à valider via `/ancien` (plus de 2 semaines dans la guilde) :**\n{fmt_section(a_valider)}"
         )
-        ping_recruteurs = discord.AllowedMentions(roles=[discord.Object(recruteur_role_id)], users=True)
         for part in split_message(recap):  # beaucoup de recrues → plusieurs messages (limite 2000)
             await channel.send(part, allowed_mentions=ping_recruteurs)
 
-        # ── 3. Stats silver depuis lundi ──────────────────────────────────────
+    async def _send_stats(self, guild, channel, profiles, now_paris, membre_role) -> None:
         days_since_monday = max(1, now_paris.weekday() + 1)
         stats = await db.get_silver_stats(days_since_monday, guild_id=guild.id)
         payout_normal = sum(r["total_silver"] for r in stats if r["action"] in ("finacti", "paybal"))
         payout_raid   = sum(r["total_silver"] for r in stats if r["action"] in ("finacti_raid_ava", "paybal_raid_ava"))
 
         # ── 4. Membres inactifs depuis 2 semaines ─────────────────────────────
-        inactive_ids = await db.get_inactive_member_ids(14, guild_id=guild_id)
-        membre_role_id = rec_cfg["membre_role_id"] if rec_cfg else None
-        if membre_role_id:
-            membre_role = guild.get_role(membre_role_id)
-        else:
-            membre_role = discord.utils.get(guild.roles, name=MEMBRE_ROLE_NAME)
+        inactive_ids = await db.get_inactive_member_ids(14, guild_id=guild.id)
         inactifs = []
         if membre_role:
             for m in membre_role.members:
@@ -178,7 +222,6 @@ class Joueur(commands.Cog):
         )
         for part in split_message(stats_msg):
             await channel.send(part)
-        return True
 
     # ── Tâche 22h (tous les serveurs où le bot est installé) ───────────────────
     @tasks.loop(time=_RAPPEL_HEURE)

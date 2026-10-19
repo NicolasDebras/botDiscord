@@ -194,7 +194,7 @@ Système de candidature en libre-service, **configurable indépendamment sur cha
 |---|---|---|
 | `/config` | Officier | Panneau interactif pour configurer le serveur |
 
-`/config` ouvre un panneau éphémère (visible seulement par toi) avec un menu déroulant vers 8 sections :
+`/config` ouvre un panneau éphémère (visible seulement par toi) avec un menu déroulant vers 10 sections :
 
 **🔊 Salons vocaux temporaires**
 - **➕ Ajouter un hub** — choisis un salon vocal existant qui servira de déclencheur, une catégorie optionnelle pour les salons créés, puis renseigne le nom (`{pseudo}` = pseudo du créateur) et la limite de places
@@ -215,12 +215,18 @@ Système de candidature en libre-service, **configurable indépendamment sur cha
 - ⚠️ Le rôle du bot doit être placé **au-dessus** du rôle par défaut dans la liste des rôles du serveur, et le bot doit avoir la permission **Gérer les rôles**, sinon l'attribution échoue silencieusement (visible dans les logs du bot)
 
 **📋 Récap recrutement (22h)**
-- Choisis le salon où sera posté le récap recrutement automatique de 22h (voir plus bas)
+- Choisis le salon où sera posté le récap automatique de 22h (voir plus bas)
 - **🎭 Configurer les rôles** — 3 rôles à sélectionner :
-  - **Rôle Recruteur** — pingé dans le récap de suivi recrutement
+  - **Rôle Recruteur** — pingé dans le récap (vérif guilde)
   - **Rôle Membre** — utilisé pour détecter les membres inactifs (sans activité depuis 2 semaines)
   - **Rôle Absent** — attribué au joueur lors d'un `/kick` (remplace la valeur hardcodée)
 - Bouton **🔕 Désactiver** pour couper le récap sur ce serveur
+
+**🛡️ Vérif guilde Albion**
+- **✏️ Guilde Albion** — saisis le pseudo IG d'un membre de la guilde (pré-rempli avec le tien si tu as un profil) : la guilde est détectée via l'API Albion et enregistrée sous son nom officiel. Active la section « Vérif guilde » du récap 22h
+- **🏷️ Auto-rename : ON/OFF** — pour les serveurs communauté : renomme les joueurs liés en `[Guilde IG] Pseudo` (32 caractères max, le nom de guilde est tronqué, jamais le pseudo), à 22h ainsi qu'à `/register` et à la candidature
+- **🔕 Désactiver la vérif** — retire la guilde configurée
+- Le bot doit avoir **Gérer les pseudos** et être au-dessus des joueurs à renommer (le propriétaire ne peut jamais être renommé)
 
 **✅ Rôle après validation candidature**
 - Choisis le rôle attribué automatiquement au candidat quand le staff clique sur **✅ Valider (Staff)** (voir Candidature externe)
@@ -246,7 +252,7 @@ Système de candidature en libre-service, **configurable indépendamment sur cha
 | Commande | Accès | Description |
 |---|---|---|
 | `/info @joueur` | Membre | Voir le profil d'un joueur : pseudo IG, fame Albion, activités terminées (réponses de candidature visibles seulement par les Recruteurs/Officiers) |
-| `/ancien @joueur` | Recruteur, Officier | Basculer le statut Nouveau joueur ↔ Membre |
+| `/ancien @joueur` | Recruteur, Officier | Basculer le statut Nouveau joueur ↔ Membre (n'apparaît plus dans le récap 22h, en pause) |
 | `/reporter @joueur` | Recruteur, Officier | Repousser le suivi d'un nouveau joueur d'une semaine (vacances, maladie…) |
 | `/kick @joueur` | Recruteur, Officier | Passer un joueur en AFK — retire tous ses rôles, ajoute le rôle Absent, envoie un DM. Impossible sur un Officier, le Maitre de guilde, le propriétaire, un bot ou quelqu'un dont le rôle le plus haut est ≥ au sien |
 | `/recap` | Recruteur, Officier | Relancer manuellement le récap recrutement — purge immédiate des profils des partis |
@@ -261,10 +267,12 @@ L'embed `/info` affiche :
 > Si le joueur n'a jamais été recruté via le bot, seul le compteur d'activités est disponible.
 
 **Rappel automatique 22h** — chaque soir à **22h** (heure de Paris), sur **chaque serveur où le bot est installé et où un salon de récap est configuré** (`/config` → 📋 Salon de récap) :
-- Envoie un récap en 3 sections : < 1 semaine / < 2 semaines / à valider via `/ancien` (ping Recruteur)
+- **🛡️ Vérif guilde** (si une guilde Albion est configurée) : liste les membres (rôle Membre) dont le pseudo IG n'est plus dans la guilde, avec leur guilde actuelle (ping Recruteur). Rien n'est retiré automatiquement ; un joueur introuvable sur l'API n'est pas listé
+- **Auto-rename** (si activé) : renomme chaque joueur lié en `[Guilde IG] Pseudo` — tourne aussi sur les serveurs sans salon de récap
 - Met à jour les fames via l'API Albion Online
 - Supprime les profils des joueurs qui ont quitté le Discord depuis plus de **3 jours**
-- Affiche un **🏆 Top 3** et un **🐌 Flop 3** des joueurs ayant gagné le plus / le moins de fame (PvP + PvE cumulée) depuis leur recrutement
+- Affiche un **🏆 Top 3** et un **🐌 Flop 3** des joueurs ayant gagné le plus / le moins de fame (PvP + PvE cumulée) cette semaine
+- ⏸️ Le récap « suivi recrutement » (< 1 semaine / < 2 semaines / à valider via `/ancien`) est **en pause** (`_RECAP_RECRUTEMENT_ACTIF` dans `Service/joueur.py`)
 
 > Le serveur principal historique (`DISCORD_GUILD_ID`) garde son ancien salon de récap par défaut tant qu'aucun salon n'a été explicitement configuré via `/config` pour lui. Les autres serveurs doivent configurer leur salon de récap via `/config` pour activer le rappel automatique.
 

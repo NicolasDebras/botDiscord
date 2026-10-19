@@ -799,6 +799,24 @@ async def set_recap_channel(guild_id: int, channel_id: int | None) -> None:
     await set_setting(f"recap_channel:{guild_id}", str(channel_id) if channel_id else "")
 
 
+# Vérif guilde : nom de la guilde Albion attendue (vide = désactivée)
+async def get_albion_guild(guild_id: int) -> str | None:
+    return await get_setting(f"albion_guild:{guild_id}", "") or None
+
+
+async def set_albion_guild(guild_id: int, name: str | None) -> None:
+    await set_setting(f"albion_guild:{guild_id}", name or "")
+
+
+# Auto-rename « [Guilde IG] Pseudo »
+async def get_auto_rename(guild_id: int) -> bool:
+    return await get_setting(f"auto_rename:{guild_id}", "") == "1"
+
+
+async def set_auto_rename(guild_id: int, enabled: bool) -> None:
+    await set_setting(f"auto_rename:{guild_id}", "1" if enabled else "")
+
+
 # ── PLAYER PROFILES ───────────────────────────────────────────────────────────
 
 async def get_player_profile(user_id: str, guild_id: int = 0) -> dict | None:

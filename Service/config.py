@@ -4,6 +4,7 @@ from discord import app_commands
 
 import changelog
 import db
+from albion_api import fetch_albion_fame
 from config import ADMIN_ROLE_NAME, CALLER_ROLE_NAME, MEMBRE_ROLE_NAME
 from Service.utils import is_admin, role_grant_refusal, STAFF_ROLE_NAMES
 from Service import vocal_temp, bienvenue, self_roles
@@ -90,7 +91,23 @@ async def _recap_embed(guild: discord.Guild) -> discord.Embed:
     embed.add_field(name="Rôle Recruteur (ping)", value=recru, inline=True)
     embed.add_field(name="Rôle Membre (inactifs)", value=membre, inline=True)
     embed.add_field(name="Rôle Absent (/kick)", value=absent, inline=True)
-    embed.set_footer(text="Récap automatique chaque soir à 22h (heure de Paris) : suivi recrutement, stats silver, membres inactifs, top/flop fame.")
+    embed.set_footer(text="Récap automatique chaque soir à 22h (heure de Paris) : vérif guilde, stats silver, membres inactifs, top/flop fame.")
+    return embed
+
+
+async def _verif_guilde_embed(guild: discord.Guild) -> discord.Embed:
+    albion_guild = await db.get_albion_guild(guild.id)
+    auto_rename  = await db.get_auto_rename(guild.id)
+    embed = discord.Embed(title="🛡️ Vérif guilde Albion", color=0x3498DB)
+    embed.add_field(name="Guilde Albion", value=f"**{albion_guild}**" if albion_guild else "*Non configurée*", inline=True)
+    embed.add_field(name="Auto-rename [Guilde] Pseudo", value="✅ Activé" if auto_rename else "❌ Désactivé", inline=True)
+    embed.description = (
+        "**Guilde** : chaque soir à 22h, le récap liste les membres (rôle Membre) dont le pseudo IG "
+        "n'est plus dans cette guilde.\n"
+        "**Communauté** : l'auto-rename renomme chaque joueur lié en `[Guilde IG] Pseudo` "
+        "(à 22h et à `/register`)."
+    )
+    embed.set_footer(text="Nécessite un pseudo IG enregistré (/register ou candidature). Le récap utilise le salon configuré dans « Salon de récap ».")
     return embed
 
 
@@ -503,6 +520,73 @@ class RecapConfigView(discord.ui.View):
         await interaction.response.edit_message(embed=_main_embed(), view=MainConfigView())
 
 
+# ── VUE : VÉRIF GUILDE ALBION / AUTO-RENAME ────────────────────────────────────
+
+class AlbionGuildModal(discord.ui.Modal, title="Guilde Albion"):
+    pseudo = discord.ui.TextInput(
+        label="Pseudo IG d'un membre de la guilde",
+        placeholder="La guilde est détectée depuis ce joueur",
+        required=True,
+        max_length=32,
+    )
+
+    def __init__(self, guild_id: int, default_pseudo: str | None):
+        super().__init__()
+        self.guild_id = guild_id
+        if default_pseudo:
+            self.pseudo.default = default_pseudo
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        pseudo = self.pseudo.value.strip()
+        try:
+            fame = await fetch_albion_fame(pseudo)
+        except Exception:
+            fame = None
+        if not fame:
+            await interaction.followup.send(f"❌ Joueur **{pseudo}** introuvable sur l'API Albion Online.", ephemeral=True)
+            return
+        if not fame["guild"]:
+            await interaction.followup.send(f"❌ **{fame['name']}** n'a pas de guilde.", ephemeral=True)
+            return
+        await db.set_albion_guild(self.guild_id, fame["guild"])
+        await interaction.followup.send(
+            f"✅ Guilde détectée : **{fame['guild']}** (via {fame['name']}).", ephemeral=True
+        )
+
+
+class VerifGuildeView(discord.ui.View):
+    def __init__(self, guild_id: int, auto_rename: bool):
+        super().__init__(timeout=180)
+        self.guild_id = guild_id
+        self.rename_btn.label = f"🏷️ Auto-rename : {'ON' if auto_rename else 'OFF'}"
+        self.rename_btn.style = discord.ButtonStyle.success if auto_rename else discord.ButtonStyle.secondary
+
+    @discord.ui.button(label="✏️ Guilde Albion", style=discord.ButtonStyle.primary, row=0)
+    async def guild_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        profile = await db.get_player_profile(str(interaction.user.id), guild_id=self.guild_id)
+        await interaction.response.send_modal(AlbionGuildModal(self.guild_id, profile["ig_name"] if profile else None))
+
+    @discord.ui.button(label="🏷️ Auto-rename", row=0)
+    async def rename_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        enabled = not await db.get_auto_rename(self.guild_id)
+        await db.set_auto_rename(self.guild_id, enabled)
+        embed = await _verif_guilde_embed(interaction.guild)
+        await interaction.response.edit_message(embed=embed, view=VerifGuildeView(self.guild_id, enabled))
+
+    @discord.ui.button(label="🔕 Désactiver la vérif", style=discord.ButtonStyle.danger, row=1)
+    async def disable(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await db.set_albion_guild(self.guild_id, None)
+        embed = await _verif_guilde_embed(interaction.guild)
+        await interaction.response.edit_message(
+            embed=embed, view=VerifGuildeView(self.guild_id, await db.get_auto_rename(self.guild_id))
+        )
+
+    @discord.ui.button(label="⬅️ Retour", style=discord.ButtonStyle.gray, row=1)
+    async def back(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.edit_message(embed=_main_embed(), view=MainConfigView())
+
+
 # ── VUE : RÔLE APRÈS VALIDATION DE CANDIDATURE ─────────────────────────────────
 
 class ValidatedRoleView(discord.ui.View):
@@ -726,7 +810,9 @@ class MainConfigSelect(discord.ui.Select):
             discord.SelectOption(label="Rôle par défaut", value="role_defaut", emoji="🎭",
                                   description="Rôle attribué automatiquement à l'arrivée"),
             discord.SelectOption(label="Salon de récap (22h)", value="recap", emoji="📋",
-                                  description="Salon du récap recrutement automatique"),
+                                  description="Salon du récap automatique"),
+            discord.SelectOption(label="Vérif guilde Albion", value="verif_guilde", emoji="🛡️",
+                                  description="Membres hors guilde IG + auto-rename [Guilde] Pseudo"),
             discord.SelectOption(label="Rôle après validation candidature", value="role_validation", emoji="✅",
                                   description="Rôle attribué quand le staff valide une candidature"),
             discord.SelectOption(label="Rôles à la carte (boutons)", value="autoroles", emoji="🏷️",
@@ -756,6 +842,10 @@ class MainConfigSelect(discord.ui.Select):
         elif value == "recap":
             embed = await _recap_embed(interaction.guild)
             await interaction.response.edit_message(embed=embed, view=RecapConfigView(interaction.guild.id))
+        elif value == "verif_guilde":
+            embed = await _verif_guilde_embed(interaction.guild)
+            auto_rename = await db.get_auto_rename(interaction.guild.id)
+            await interaction.response.edit_message(embed=embed, view=VerifGuildeView(interaction.guild.id, auto_rename))
         elif value == "role_validation":
             embed = await _validated_role_embed(interaction.guild)
             await interaction.response.edit_message(embed=embed, view=ValidatedRoleView(interaction.guild.id))

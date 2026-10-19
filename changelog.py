@@ -7,9 +7,19 @@ Pour annoncer une nouvelle fonctionnalité : incrémenter VERSION et ajouter
 une entrée en tête de CHANGELOG (ordre du plus récent au plus ancien).
 """
 
-VERSION = "2026.10.19"
+VERSION = "2026.10.19.1"
 
 CHANGELOG: list[dict] = [
+    {
+        "version": "2026.10.19.1",
+        "title": "🛡️ Vérif guilde Albion & auto-rename",
+        "items": [
+            "Nouvelle section /config → 🛡️ Vérif guilde Albion : indique le pseudo d'un membre de ta guilde, le bot détecte la guilde tout seul.",
+            "Chaque soir à 22h, le récap liste les membres dont le pseudo IG n'est plus dans la guilde (avec leur guilde actuelle) — aucun rôle n'est retiré automatiquement.",
+            "Pour les communautés : option Auto-rename qui renomme chaque joueur en « [Guilde] Pseudo » (à 22h, à /register et à la candidature).",
+            "Le récap « à valider via /ancien » est mis en pause.",
+        ],
+    },
     {
         "version": "2026.10.19",
         "title": "💰 Parts de paie par rôle",

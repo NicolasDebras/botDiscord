@@ -24,8 +24,26 @@ def find_exact_player(players: list[dict], pseudo: str) -> dict | None:
     return next((p for p in players if p.get("Name", "").lower() == wanted), None)
 
 
+def same_guild(a: str | None, b: str | None) -> bool:
+    """Compare deux noms de guilde (casse et espaces de bord ignorés)."""
+    return (a or "").strip().lower() == (b or "").strip().lower()
+
+
+_NICK_MAX = 32  # limite Discord
+
+
+def tagged_nick(guild: str | None, pseudo: str) -> str:
+    """« [Guilde] Pseudo » tenant en 32 caractères : la guilde est tronquée, jamais le pseudo."""
+    pseudo = pseudo[:_NICK_MAX]
+    guild  = (guild or "").strip()
+    room   = _NICK_MAX - len(pseudo) - 3  # « [", "] " autour de la guilde
+    if not guild or room < 1:
+        return pseudo
+    return f"[{guild[:room].rstrip()}] {pseudo}"
+
+
 async def fetch_albion_fame(pseudo: str) -> dict | None:
-    """Retourne {'pve': int, 'pvp': int, 'name': str} ou None si introuvable."""
+    """Retourne {'pve': int, 'pvp': int, 'name': str, 'guild': str} ou None si introuvable."""
     async with aiohttp.ClientSession(timeout=_TIMEOUT) as session:
         # 1. Recherche — endpoint /search (pas /players/search)
         async with session.get(f"{_BASE}/search", params={"q": pseudo}) as resp:
@@ -55,4 +73,5 @@ async def fetch_albion_fame(pseudo: str) -> dict | None:
         "pve":  pve.get("Total", 0),
         "pvp":  player.get("KillFame", 0),
         "name": match["Name"],
+        "guild": player.get("GuildName") or "",  # "" = sans guilde
     }

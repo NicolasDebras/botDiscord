@@ -1,4 +1,4 @@
-from albion_api import find_exact_player, fmt_fame
+from albion_api import find_exact_player, fmt_fame, same_guild, tagged_nick
 
 
 def test_fmt_fame_under_thousand_unchanged():
@@ -32,3 +32,33 @@ def test_find_exact_player_ignores_case():
 
 def test_find_exact_player_no_fallback_on_first_result():
     assert find_exact_player([{"Name": "NaejLeVrai", "Id": "x"}], "Naej") is None
+
+
+def test_same_guild_ignores_case_and_spaces():
+    assert same_guild(" Lilium ", "lilium")
+
+
+def test_same_guild_empty_vs_name():
+    assert not same_guild("", "Lilium")
+    assert not same_guild(None, "Lilium")
+
+
+def test_tagged_nick_normal():
+    assert tagged_nick("Lilium", "Naej") == "[Lilium] Naej"
+
+
+def test_tagged_nick_without_guild_keeps_pseudo():
+    assert tagged_nick("", "Naej") == "Naej"
+    assert tagged_nick(None, "Naej") == "Naej"
+
+
+def test_tagged_nick_truncates_guild_not_pseudo():
+    nick = tagged_nick("A Very Long Guild Name Indeed", "PseudoAssezLong")
+    assert len(nick) == 32
+    assert nick.endswith("] PseudoAssezLong")
+    assert nick.startswith("[A Very")
+
+
+def test_tagged_nick_pseudo_too_long_for_tag():
+    pseudo = "P" * 30
+    assert tagged_nick("Lilium", pseudo) == pseudo
