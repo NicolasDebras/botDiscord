@@ -1,5 +1,6 @@
 import re
 import asyncio
+import unicodedata
 
 import discord
 from discord.ext import commands
@@ -23,10 +24,10 @@ async def _nick_for(guild_id: int, fame: dict) -> str:
 
 
 def _slugify(text: str) -> str:
-    """Nettoie un nom de salon Discord (minuscules, tirets, sans caractères spéciaux)."""
-    text = text.lower().strip()
-    text = re.sub(r"[^a-z0-9\-\s]", "", text)
-    text = re.sub(r"[\s_]+", "-", text).strip("-")
+    """Nettoie un nom de salon Discord (minuscules, tirets, accents convertis : « Élodie » → « elodie »)."""
+    text = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode().lower().strip()
+    text = re.sub(r"[^a-z0-9\-\s_]", "", text)
+    text = re.sub(r"[\s_-]+", "-", text).strip("-")   # « a - b » → « a-b », pas « a---b »
     return text[:90] or "candidature"
 
 
