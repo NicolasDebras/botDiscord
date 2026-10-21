@@ -1,0 +1,3 @@
+# Couverture (pytest --cov, CI) : les tests eux-mêmes ne comptent pas
+[run]
+omit = tests/*

@@ -29,5 +29,6 @@ jobs:
           cache-dependency-path: botDiscord/requirements*.txt
       - run: pip install -r requirements-dev.txt
         working-directory: botDiscord
-      - run: python -m pytest -q
+      # Couverture affichée dans le log (fichiers non couverts à 100 %)
+      - run: python -m pytest -q --cov=. --cov-report=term-missing:skip-covered
         working-directory: botDiscord

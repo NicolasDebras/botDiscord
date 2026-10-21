@@ -69,9 +69,10 @@ Tests unitaires sur la logique pure (parsing armes/rôles, formatage, permission
 ```bash
 pip install -r requirements-dev.txt
 pytest
+pytest --cov=. --cov-report=term-missing:skip-covered   # avec la couverture
 ```
 
-**CI** (`.github/workflows/tests.yml`) : GitHub lance `pytest` à chaque push et pull request (avec le repo du site cloné à côté, pour le test du guide). `main` est protégée : on ne fusionne que si les tests passent.
+**CI** (`.github/workflows/tests.yml`) : GitHub lance `pytest` (avec la couverture affichée dans le log) à chaque push et pull request (avec le repo du site cloné à côté, pour le test du guide). `main` est protégée : on ne fusionne que si les tests passent.
 
 > Ces tests ne couvrent pas les fonctions qui appellent réellement Discord ou la base de données (out of scope pour de l'unitaire pur) — seulement la logique qui peut casser silencieusement lors d'un refactor (ex. le parsing `_parse_weapon_slots`/`_sort_roles`, déjà responsable d'un bug réel corrigé cette session).
 
