@@ -7,9 +7,16 @@ Pour annoncer une nouvelle fonctionnalité : incrémenter VERSION et ajouter
 une entrée en tête de CHANGELOG (ordre du plus récent au plus ancien).
 """
 
-VERSION = "2026.10.16"
+VERSION = "2026.10.21"
 
 CHANGELOG: list[dict] = [
+    {
+        "version": "2026.10.21",
+        "title": "⚠️ Désistement de dernière minute",
+        "items": [
+            "Si un joueur inscrit se retire d'une acti moins de 30 min avant l'heure de départ (ou après), le créateur de l'acti reçoit un MP avec son pseudo, le rôle libéré et le lien de l'acti.",
+        ],
+    },
     {
         "version": "2026.10.16",
         "title": "🔀 Fill : le caller choisit ton rôle",

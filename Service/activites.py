@@ -1213,6 +1213,23 @@ async def _choose_role(interaction: discord.Interaction, activity_id: int, chose
 
 
 # ── BOUTON SE RETIRER ────────────────────────────────────────────────────────
+LATE_LEAVE = timedelta(minutes=30)
+
+
+def is_late_leave(start_at: datetime | None, now: datetime | None = None) -> bool:
+    """Désinscription à moins de 30 min du départ (ou après) : le créateur est prévenu.
+    Sans heure de départ, rien à signaler."""
+    if not start_at:
+        return False
+    return (now or datetime.now(UTC)) >= start_at - LATE_LEAVE
+
+
+def late_leave_message(data: dict, activity_id: int, player: str, role_key: str) -> str:
+    ts = int(data["start_at"].timestamp())
+    return (f"⚠️ **{player}** s'est retiré de **{_acti_label(data)}** ({_role_label(role_key)}) "
+            f"à l'approche du départ (<t:{ts}:R>) — une place est libre : {_activity_link(data, activity_id)}")
+
+
 class LeaveButton(discord.ui.Button):
     def __init__(self, activity_id: int):
         super().__init__(
@@ -1235,11 +1252,13 @@ class LeaveButton(discord.ui.Button):
 
         user_id = interaction.user.id
         removed = False
-        for members in data["slots"].values():
+        left_role = None
+        for role_key, members in data["slots"].items():
             for entry in members[:]:
                 if entry[0] == user_id:
                     members.remove(entry)
                     removed = True
+                    left_role = role_key
                     break
             if removed:
                 break
@@ -1264,6 +1283,9 @@ class LeaveButton(discord.ui.Button):
         await save_activities(only=self.activity_id)
         await interaction.message.edit(embed=build_embed(data), view=build_view(self.activity_id))
         await interaction.followup.send("👋 Tu t'es retiré de l'activité.", ephemeral=True)
+        if left_role and is_late_leave(data.get("start_at")) and data.get("creator_id") not in (None, user_id):
+            await _dm(interaction.client, data["creator_id"], guild_id=data.get("guild_id"),
+                      content=late_leave_message(data, self.activity_id, interaction.user.display_name, left_role))
 
 
 # ── BOUTON FILL ───────────────────────────────────────────────────────────────

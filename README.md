@@ -123,7 +123,7 @@ Une fois l'activité créée :
 - **PVP** : sélection de l'arme puis saisie du niveau de spécialisation (1-1000)
 - **PVE** : inscription directe
 - Bouton 🔀 **Fill** : le joueur passe **en attente d'un rôle** (section « ⏳ En attente » de l'embed, sans occuper de place) et le créateur est prévenu en MP ; un Caller / Officier / GM (ou le créateur) ouvre **« ⏳ En attente (n) »**, choisit le joueur puis le **rôle libre** à lui donner (ex. Main heal) et accepte — le joueur reçoit un **MP** avec son rôle et le lien de l'acti. Refusé si l'activité est pleine
-- Bouton ❌ pour se retirer (slots ou liste d'attente)
+- Bouton ❌ pour se retirer (slots ou liste d'attente) ; si un joueur inscrit se retire **à moins de 30 min du départ** (`heure` de `/acti`), le créateur de l'acti reçoit un **MP** avec le rôle libéré et le lien de l'acti
 - Bouton ⏳ Liste d'attente (sur les templates avec `has_waitlist`)
 - Bouton ✏️ Modifier (créateur ou Officier) → change la description, le tier et le départ
 - Bouton 🏁 Fin d'activité (organisateur ou Officier) → calcul et crédit BAL automatique
