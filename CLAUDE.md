@@ -8,11 +8,13 @@ Règles communes (invariants, workflow git, lecture économe) : `../CLAUDE.md`.
 - `db.py` — schéma (`init_db`) + toutes les requêtes ; tables du site : `builds`, `custom_templates`, `web_staff_config`, `web_admins`, `public_compos`, `activity_log`
 - `Service/utils.py` — permissions (`is_admin`, `is_membre`…, `role_grant_refusal`, `kick_refusal`), `log_error`
 - `Service/activites.py` — /acti, inscriptions, `/finacti` (`FinActiModal`), cache templates (2 min)
-- `Service/bal.py` — commandes BAL ; `Service/massup.py` + `build_image.py` — ping + images de build/compo
+- `Service/bal.py` — commandes BAL ; `Service/massup.py` — ping + images de build ; `Service/build_image.py` — branche la lib d'images
+- `lilium_compo.py` — template de compo → lignes de l'image (`compo_rows`)
 - `Service/config.py` — panneau /config ; `self_roles.py`, `bienvenue.py`, `vocal_temp.py`, `recrutement*.py`, `joueur.py`, `web_admin.py`, `errors.py`
 
 ## À chaque changement
-- `Service/build_image.py`, `roles_templates.py` ou `assets/` modifiés → partagés avec le site : sans import du bot ; après fusion, `python -m scripts.sync_from_bot` dans `lilium-site/api` (sa CI échoue sinon).
+- Rendu des images (dessin, icônes, police) = lib `../AlbionCreateImageBuild` (voir son CLAUDE.md) : la modifier, publier un tag, puis monter ce tag dans `requirements.txt` du bot et de `lilium-site/api`.
+- `roles_templates.py` ou `lilium_compo.py` modifiés → partagés avec le site : sans import du bot ; après push, `python -m scripts.sync_from_bot` dans `lilium-site/api` (sa CI échoue sinon).
 - Commande ajoutée/modifiée → mettre à jour `lilium-site/frontend/src/app/pages/guide/guide-content.ts` (vérifié par `tests/test_guide_sync.py`).
 - README.md mis à jour si visible.
 - `changelog.py` si visible par les joueurs : VERSION `YYYY.MM.DD[.N]`, entrée en tête `{"version", "title": emoji + titre, "items": [...]}`.

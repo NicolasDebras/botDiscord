@@ -1,4 +1,4 @@
-"""Image de la compo postée par /acti : _post_compo_image, compo_image, fetch_icons.
+"""Image de la compo postée par /acti : _post_compo_image, compo_image.
 Aucun appel réseau ni base : Discord, la base et le CDN sont remplacés par des faux."""
 import asyncio
 import io
@@ -43,23 +43,27 @@ def _fake_interaction():
     return inter, sent
 
 
-def _fake_fetch_icons(calls):
-    async def fetch_icons(items, extra_ids=None):
-        calls.append(list(extra_ids or []))
-        return {i: _png() for i in extra_ids or []}
-    return fetch_icons
+class FakeFetcher:
+    """Remplace l'IconFetcher de la lib : aucune requête vers le CDN."""
+    def __init__(self, calls=None):
+        self.calls = [] if calls is None else calls
+
+    async def fetch(self, ids):
+        ids = list(ids)
+        self.calls.append(ids)
+        return {i: _png() for i in ids}
 
 
 # ── compo_image ──────────────────────────────────────────────────────────────
 
 def test_compo_image_none_without_builds(monkeypatch):
-    monkeypatch.setattr(build_image, "fetch_icons", _fake_fetch_icons([]))
+    monkeypatch.setattr(build_image, "fetcher", FakeFetcher())
     assert asyncio.run(build_image.compo_image("X", {"pf_1": {"TANK": 1}}, {})) is None
 
 
 def test_compo_image_ignores_deleted_builds(monkeypatch):
     """Build supprimé côté site : sa ligne est simplement absente de l'image."""
-    monkeypatch.setattr(build_image, "fetch_icons", _fake_fetch_icons([]))
+    monkeypatch.setattr(build_image, "fetcher", FakeFetcher())
     only_tank = {12: BUILDS[12]}
     png = asyncio.run(build_image.compo_image("Traque", TEMPLATE, only_tank))
     full = asyncio.run(build_image.compo_image("Traque", TEMPLATE, BUILDS))
@@ -68,25 +72,10 @@ def test_compo_image_ignores_deleted_builds(monkeypatch):
 
 def test_compo_image_fetches_each_icon_once_across_builds(monkeypatch):
     calls = []
-    monkeypatch.setattr(build_image, "fetch_icons", _fake_fetch_icons(calls))
+    monkeypatch.setattr(build_image, "fetcher", FakeFetcher(calls))
     builds = {**BUILDS, 20: {**BUILDS[20], "items": {"mainhand": ["MAIN_MACE"]}}}  # même arme que le tank
     asyncio.run(build_image.compo_image("Traque", TEMPLATE, builds))
     assert calls == [["MAIN_MACE", "2H_HOLYSTAFF", "MAIN_HOLYSTAFF"]]
-
-
-# ── fetch_icons (fusion des ids, sans réseau) ────────────────────────────────
-
-def test_fetch_icons_merges_items_and_extra_ids(monkeypatch):
-    fetched = []
-
-    async def fake_fetch_icon(session, item_id):
-        fetched.append(item_id)
-        return b"png"
-
-    monkeypatch.setattr(build_image, "fetch_icon", fake_fetch_icon)
-    icons = asyncio.run(build_image.fetch_icons({"mainhand": ["A"], "cape": ["*"]}, ["B", "A"]))
-    assert fetched == ["A", "B"]
-    assert icons == {"A": b"png", "B": b"png"}
 
 
 # ── _post_compo_image (/acti) ────────────────────────────────────────────────
@@ -99,7 +88,7 @@ def test_post_compo_image_sends_png_after_embed(monkeypatch):
         return BUILDS
 
     monkeypatch.setattr(db, "get_builds_by_ids", fake_get_builds)
-    monkeypatch.setattr(build_image, "fetch_icons", _fake_fetch_icons([]))
+    monkeypatch.setattr(build_image, "fetcher", FakeFetcher())
     inter, sent = _fake_interaction()
 
     asyncio.run(activites._post_compo_image(inter, "Traque", TEMPLATE))

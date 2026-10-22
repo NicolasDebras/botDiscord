@@ -10,7 +10,8 @@ from zoneinfo import ZoneInfo
 
 import db
 from config import ROLES, DEFAULT_TEMPLATES, ACTIVITY_COLORS, DEFAULT_COLOR, ADMIN_ROLE_NAME, MEMBRE_ROLE_NAME
-from Service.build_image import ROLE_ORDER, compo_image, compo_rows
+from lilium_compo import compo_rows
+from Service.build_image import ROLE_ORDER, compo_image
 from Service.utils import load_settings, append_bal_log, image_signature, is_membre, is_caller_or_admin, notify_bal_limit, fmt_silver, log_error
 
 # ── STOCKAGE EN MÉMOIRE  {message_id: data} ──────────────────────────────────

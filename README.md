@@ -112,12 +112,9 @@ pytest
 - à l'inscription, le joueur choisit son **rôle**, puis — si la compo propose plusieurs builds pour ce rôle — son **build** dans un second menu (places restantes affichées) ; le build lui est imposé : il est inscrit directement, sans liste d'armes ni saisie du niveau de spé ;
 - `/massup` envoie en plus, en **MP**, à chaque joueur inscrit sur un rôle avec build, une **image de son build** (icônes officielles de l'équipement façon inventaire du jeu, choix multiples, cases « au choix », précisions, et en bas le nom du serveur et du bot). Un objet peut imposer un **tier minimum et un enchantement** (id au format du jeu, ex. `T8_MAIN_SWORD@1`) : icône de ce tier + pastille « 8.1 » colorée selon l'enchantement, et le MP rappelle qu'un équivalent convient (8.1 = 7.2 = 6.3). Le lanceur reçoit un récap éphémère (nombre de MP envoyés, joueurs aux MP fermés).
 
-Les **icônes des objets sont embarquées** dans le repo (`assets/icons/<ID>.png`, ~2 Mo) : les images se génèrent sans réseau. Le CDN d'Albion ne sert que de secours pour un objet absent (téléchargement limité, délais par requête, une icône introuvable s'affiche « ? » sans faire échouer l'image). Quand le catalogue du site est mis à jour (`python -m scripts.update_items` dans `lilium-site/api`), relancer dans ce repo :
+Les images sont dessinées par la lib **[AlbionCreateImageBuild](https://github.com/NicolasDebras/AlbionCreateImageBuild)** (dans `requirements.txt`, version figée par un tag). Elle embarque la police et les icônes des objets : les images se génèrent sans réseau, le CDN d'Albion ne sert que de secours pour un objet absent (une icône introuvable s'affiche « ? » sans faire échouer l'image). `Service/build_image.py` ne fait que brancher la lib sur les données du bot, et `lilium_compo.py` lit les compos du site (lignes par party, triées TANK, HEAL, SUPPORT, DPS).
 
-```bash
-python -m scripts.download_icons              # ajoute les icônes manquantes (lit ../lilium-site/api/app/data/items.json)
-python -m scripts.download_icons --force      # re-télécharge tout
-```
+Modifier le rendu ou ajouter des icônes se fait dans la lib (voir son README) : nouveau tag, puis changer le tag dans `requirements.txt` du bot **et** de `lilium-site/api`. Pour tester une modif de la lib sans la publier : `pip install -e ../AlbionCreateImageBuild`.
 
 Une fois l'activité créée :
 - Les joueurs choisissent leur rôle via le menu déroulant
@@ -346,19 +343,17 @@ LiliumBot/
 ├── bot.py              # Point d'entrée, init DB, chargement des cogs
 ├── config.py           # Token, noms de rôles Discord, couleurs
 ├── roles_templates.py  # ROLES + templates par défaut — copié tel quel par le site (lilium-site)
+├── lilium_compo.py     # Template de compo → lignes de l'image (party, rôle, nombre, build) — copié par le site
 ├── db.py               # Couche d'accès PostgreSQL (asyncpg)
 ├── albion_api.py       # Client API Albion Online (fame, recherche joueur)
 ├── changelog.py        # VERSION + entrées annoncées via /config → 📢 Annonces de mises à jour
 ├── requirements.txt
-├── assets/fonts/      # Police Inter (OFL) pour l'image des builds
-├── assets/icons/      # Icônes des objets Albion (128 px) pour les images de builds/compos
-├── scripts/download_icons.py  # Outil de dev : (re)télécharge assets/icons depuis le catalogue du site
 └── Service/
     ├── activites.py    # Commandes /acti et /templates, UI des activités
     ├── admin.py        # Commandes d'administration
     ├── bal.py          # Commandes BAL
     ├── massup.py       # Commande /massup (ping participants + image du build en MP)
-    ├── build_image.py  # Images PNG build/compo (Pillow) — copié tel quel par le site, avec assets/
+    ├── build_image.py  # Images PNG build/compo : branche la lib AlbionCreateImageBuild sur les données du bot
     ├── moderation.py   # Surveillance format canal acti-flash
     ├── recrutement.py  # Commande /recrutement (fiche de candidature + baseline fame)
     ├── joueur.py                # /info, /ancien, /reporter, /kick + tâche 22h

@@ -258,8 +258,8 @@ def test_available_role_keys_hides_full_roles_and_pf2_until_a_pf1_role_is_full()
 
 
 def test_compo_image_sorts_duplicate_roles_with_their_base_role():
-    from Service.build_image import _role_rank
-    assert _role_rank("TANK · Main tank") == _role_rank("TANK") < _role_rank("HEAL · X") < _role_rank("SUPPORT") < _role_rank("DPS 2")
+    from albion_create_image_build import role_rank
+    assert role_rank("TANK · Main tank") == role_rank("TANK") < role_rank("HEAL · X") < role_rank("SUPPORT") < role_rank("DPS 2")
 
 
 def test_build_line_accepts_as_many_players_as_its_count():

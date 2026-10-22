@@ -32,7 +32,7 @@ async def log_error(
 
 def image_signature(interaction: discord.Interaction) -> str:
     """Signature des images de build/compo : « Serveur · Bot » (pseudo du bot sur ce serveur s'il en a un)."""
-    from Service.build_image import signature_text   # import local : build_image reste sans import du bot
+    from albion_create_image_build import signature_text
     guild = interaction.guild
     bot = (guild.me.display_name if guild and guild.me else None) or getattr(interaction.client.user, "name", "")
     return signature_text(guild.name if guild else "", bot)
