@@ -30,6 +30,45 @@ ACTION_LABELS = {
 # en gros (titre Markdown) et visible de tout le salon.
 BAL_JOKE = "# Connard, c'est /monbal"
 
+# Motif obligatoire de /retirebal : une amende prévient le joueur en MP, un paiement non.
+MOTIF_PAIEMENT = "paiement"
+MOTIF_AMENDE   = "amende"
+
+
+def retrait_label(motif: str, raison: str = "") -> str:
+    """Libellé du retrait dans le journal BAL (colonne template, affichée sur le site) :
+    « Paiement », « Amende : retard au CTA »."""
+    if motif == MOTIF_AMENDE:
+        return f"Amende : {raison}" if raison else "Amende"
+    return "Paiement"
+
+
+def addbal_dm(montant: int, by: str, total: int) -> str:
+    return (
+        f"💰 **{by}** t'a ajouté **{fmt_silver(montant)} silver** de BAL.\n"
+        f"Nouveau solde : **{fmt_silver(total)} silver**."
+    )
+
+
+def amende_dm(montant: int, raison: str, by: str, total: int) -> str:
+    return (
+        f"⚠️ Tu as reçu une **amende de {fmt_silver(montant)} silver** de la part de **{by}**.\n"
+        f"Raison : {raison}\n"
+        f"Nouveau solde : **{fmt_silver(total)} silver**."
+    )
+
+
+async def _dm(member: discord.abc.Messageable, content: str) -> bool:
+    """MP au joueur ; False s'il les a fermés (ou si Discord refuse)."""
+    try:
+        await member.send(content)
+        return True
+    except discord.HTTPException:
+        return False
+
+
+DM_FAILED = "\n⚠️ MP non envoyé (MP fermés)."
+
 
 class Bal(commands.Cog):
     def __init__(self, bot: commands.Bot):
@@ -67,19 +106,44 @@ class Bal(commands.Cog):
             {"uid": key, "name": joueur.display_name, "delta": montant, "total": new_total}
         ], guild_id=interaction.guild.id)
         await notify_bal_limit(interaction.client, joueur.id, new_total, guild_id=interaction.guild.id)
+        sent = await _dm(joueur, addbal_dm(montant, interaction.user.display_name, new_total))
 
         await interaction.followup.send(
-            f"✅ **{joueur.display_name}** : +{fmt_silver(montant)} silver  (total : **{fmt_silver(new_total)} silver**)",
+            f"✅ **{joueur.display_name}** : +{fmt_silver(montant)} silver  (total : **{fmt_silver(new_total)} silver**)"
+            + ("" if sent else DM_FAILED),
             ephemeral=True,
         )
 
     # =========================================================================
     # /retirebal  — retirer des BAL à un joueur
     # =========================================================================
-    @app_commands.command(name="retirebal", description="[ADMIN] Retirer des BAL à un joueur")
-    @app_commands.describe(joueur="Le joueur", montant="Montant à retirer")
-    async def retirebal(self, interaction: discord.Interaction, joueur: discord.Member, montant: app_commands.Range[int, 1]):
+    @app_commands.command(name="retirebal", description="[ADMIN] Retirer des BAL à un joueur (paiement ou amende)")
+    @app_commands.describe(
+        joueur="Le joueur",
+        montant="Montant à retirer",
+        motif="Paiement de sa BAL, ou amende (le joueur est prévenu en MP)",
+        raison="Raison de l'amende (obligatoire pour une amende, envoyée au joueur)",
+    )
+    @app_commands.choices(motif=[
+        app_commands.Choice(name="💸 Paiement", value=MOTIF_PAIEMENT),
+        app_commands.Choice(name="⚖️ Amende",   value=MOTIF_AMENDE),
+    ])
+    async def retirebal(
+        self,
+        interaction: discord.Interaction,
+        joueur: discord.Member,
+        montant: app_commands.Range[int, 1],
+        motif: str,
+        raison: app_commands.Range[str, 1, 200] | None = None,
+    ):
         if not await self.check_admin(interaction):
+            return
+
+        raison = (raison or "").strip()
+        if motif == MOTIF_AMENDE and not raison:
+            await interaction.response.send_message(
+                "❌ Une amende doit avoir une **raison** (elle est envoyée au joueur en MP).", ephemeral=True
+            )
             return
 
         await interaction.response.defer(ephemeral=True)
@@ -92,11 +156,16 @@ class Bal(commands.Cog):
 
         await append_bal_log("retirebal", interaction.user.display_name, [
             {"uid": key, "name": joueur.display_name, "delta": -reel, "total": new_total}
-        ], guild_id=interaction.guild.id)
+        ], template=retrait_label(motif, raison), guild_id=interaction.guild.id)
         await notify_bal_limit(interaction.client, joueur.id, new_total, guild_id=interaction.guild.id)
 
+        note = ""
+        if motif == MOTIF_AMENDE:
+            sent = await _dm(joueur, amende_dm(reel, raison, interaction.user.display_name, new_total))
+            note = f"\n⚖️ Amende : {raison}" + ("" if sent else DM_FAILED)
+
         await interaction.followup.send(
-            f"✅ **{joueur.display_name}** : -{fmt_silver(reel)} silver  (total : **{fmt_silver(new_total)} silver**)",
+            f"✅ **{joueur.display_name}** : -{fmt_silver(reel)} silver  (total : **{fmt_silver(new_total)} silver**)" + note,
             ephemeral=True,
         )
 
@@ -562,6 +631,8 @@ class Bal(commands.Cog):
 
             label   = ACTION_LABELS.get(entry["action"], entry["action"])
             title_f = f"{label}  ·  {date}  ·  par {entry['by']}"
+            if entry["action"] == "retirebal" and entry.get("template"):
+                title_f = f"{label} ({entry['template']})  ·  {date}  ·  par {entry['by']}"[:256]
 
             lines = []
             for e in entry["entries"][:5]:

@@ -674,12 +674,12 @@ async def get_bal_log(action: str | None = None, guild_id: int = 0) -> list:
     async with _pool.acquire() as conn:
         if action:
             rows = await conn.fetch(
-                "SELECT ts, action, by_user, entries FROM bal_log WHERE action = $1 AND guild_id = $2 ORDER BY id DESC LIMIT 1000",
+                "SELECT ts, action, by_user, entries, template FROM bal_log WHERE action = $1 AND guild_id = $2 ORDER BY id DESC LIMIT 1000",
                 action, guild_id,
             )
         else:
             rows = await conn.fetch(
-                "SELECT ts, action, by_user, entries FROM bal_log WHERE guild_id = $1 ORDER BY id DESC LIMIT 1000",
+                "SELECT ts, action, by_user, entries, template FROM bal_log WHERE guild_id = $1 ORDER BY id DESC LIMIT 1000",
                 guild_id,
             )
     return [
@@ -688,6 +688,7 @@ async def get_bal_log(action: str | None = None, guild_id: int = 0) -> list:
             "action":  row["action"],
             "by":      row["by_user"],
             "entries": _jloads(row["entries"]),
+            "template": row["template"] or "",
         }
         for row in rows
     ]
