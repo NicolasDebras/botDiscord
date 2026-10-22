@@ -7,9 +7,27 @@ Pour annoncer une nouvelle fonctionnalité : incrémenter VERSION et ajouter
 une entrée en tête de CHANGELOG (ordre du plus récent au plus ancien).
 """
 
-VERSION = "2026.10.19.2"
+VERSION = "2026.10.22"
 
 CHANGELOG: list[dict] = [
+    {
+        "version": "2026.10.22",
+        "title": "⚖️ Amendes BAL",
+        "items": [
+            "/addbal : le joueur reçoit un MP avec le montant ajouté et son nouveau solde.",
+            "/retirebal : motif obligatoire, 💸 Paiement ou ⚖️ Amende.",
+            "Une amende exige une raison : le joueur reçoit un MP avec la raison et la somme retirée.",
+            "Le motif apparaît dans /ballog et dans l'historique BAL du site.",
+        ],
+    },
+    {
+        "version": "2026.10.21",
+        "title": "📝 Salons de candidature",
+        "items": [
+            "Les accents sont gardés en lettres simples : « Élodie » donne « candidature-elodie » (avant : « lodie »).",
+            "Plus de tirets en rafale : « a - b » donne « a-b » (avant : « a---b »).",
+        ],
+    },
     {
         "version": "2026.10.19.2",
         "title": "🏷️ Auto-rename : tag court",

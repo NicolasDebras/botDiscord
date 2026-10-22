@@ -141,8 +141,8 @@ Une fois l'activité créée :
 | `/monbal` | Membre | Voir son propre solde BAL |
 | `/transferbal @joueur montant` | Membre | Transférer de la BAL à un autre joueur (le receveur reçoit un DM de confirmation) |
 | `/classement` | Membre | Voir le classement BAL du serveur (top 20) |
-| `/addbal @joueur montant` | Officier | Ajouter des BAL à un joueur |
-| `/retirebal @joueur montant` | Officier | Retirer des BAL à un joueur |
+| `/addbal @joueur montant` | Officier | Ajouter des BAL à un joueur (le joueur reçoit un MP avec le montant) |
+| `/retirebal @joueur montant motif [raison]` | Officier | Retirer des BAL à un joueur. Motif obligatoire : **Paiement** ou **Amende** ; une amende exige une raison et le joueur reçoit un MP (raison + montant retiré) |
 | `/paybal montant` | Officier | Distribuer des BAL à tous les participants d'une activité |
 | `/baljoueur @joueur` | Officier | Voir le solde BAL d'un joueur spécifique |
 | `/ballog [page] [joueur] [action]` | Officier | Historique BAL sur 6 mois (paginé, filtrable par joueur et par type d'action) |
