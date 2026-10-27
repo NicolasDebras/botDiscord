@@ -219,8 +219,9 @@ class Joueur(commands.Cog):
     async def _send_stats(self, guild, channel, profiles, now_paris, membre_role) -> None:
         days_since_monday = max(1, now_paris.weekday() + 1)
         stats = await db.get_silver_stats(days_since_monday, guild_id=guild.id)
-        payout_normal = sum(r["total_silver"] for r in stats if r["action"] in ("finacti", "paybal"))
-        payout_raid   = sum(r["total_silver"] for r in stats if r["action"] in ("finacti_raid_ava", "paybal_raid_ava"))
+        payout_normal = sum(r["total_silver"] for r in stats if r["action"] in ("finacti", "paybal", "ajustbal"))
+        payout_raid   = sum(r["total_silver"] for r in stats
+                            if r["action"] in ("finacti_raid_ava", "paybal_raid_ava", "ajustbal_raid_ava"))
 
         # ── 4. Membres inactifs depuis 2 semaines ─────────────────────────────
         inactive_ids = await db.get_inactive_member_ids(14, guild_id=guild.id)

@@ -124,6 +124,19 @@ def test_build_image_uses_the_lib_with_the_bot_signature(monkeypatch):
     assert fake.calls == [["2H_HOLYSTAFF"], ["2H_HOLYSTAFF"]]
 
 
+def test_build_image_draws_spells_from_raw_json_but_not_old_notes(monkeypatch):
+    fake = FakeFetcher()
+    monkeypatch.setattr(build_image, "fetcher", fake)
+    row = {"name": "Arc", "items": '{"mainhand": ["2H_LONGBOW"]}', "notes": "", "weapon": ""}
+    plain = Image.open(io.BytesIO(asyncio.run(build_image.build_image(row))))
+    noted = Image.open(io.BytesIO(asyncio.run(build_image.build_image({**row, "notes": "Ligne\n" * 5}))))
+    spelled = Image.open(io.BytesIO(asyncio.run(build_image.build_image(
+        {**row, "spells": '{"2H_LONGBOW": {"q": "MULTISHOT2"}}'}))))
+    assert noted.height == plain.height                 # notes ignorées
+    assert spelled.height > plain.height                # section « Sorts »
+    assert fake.calls[-1] == ["2H_LONGBOW", "spell:MULTISHOT2"]
+
+
 def test_role_order_is_the_lib_default():
     assert build_image.ROLE_ORDER == ("TANK", "HEAL", "SUPPORT", "DPS")
 

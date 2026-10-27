@@ -17,7 +17,10 @@ fetcher: IconFetcher | None = None
 
 
 async def build_image(build: dict, signature: str = "") -> bytes:
-    """PNG du build (ligne de la table builds), icônes téléchargées, Pillow dans un thread."""
+    """PNG du build (ligne de la table builds), icônes téléchargées, Pillow dans un thread.
+    Les anciennes notes ne sont plus dessinées (champ retiré du site) ; les sorts (colonne
+    `spells`, JSON brut accepté par la lib) le sont."""
+    build = {k: v for k, v in build.items() if k != "notes"}
     return await lib.build_image(build, signature=signature, fetcher=fetcher)
 
 

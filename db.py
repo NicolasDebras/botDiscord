@@ -160,6 +160,9 @@ async def init_db(database_url: str) -> None:
             "ALTER TABLE bal_log ADD COLUMN IF NOT EXISTS guild_id BIGINT NOT NULL DEFAULT 0"
         )
         await conn.execute(f"UPDATE bal_log SET guild_id = {_GUILD_ID} WHERE guild_id = 0")
+        # Ajustement d'un payout depuis le panel admin du site (action « ajustbal ») :
+        # id de la ligne finacti/paybal corrigée (l'original n'est jamais réécrit)
+        await conn.execute("ALTER TABLE bal_log ADD COLUMN IF NOT EXISTS ref_id INTEGER")
 
         # ── Migration guild_id sur player_profiles ────────────────────────────
         await conn.execute(
@@ -373,6 +376,11 @@ async def init_db(database_url: str) -> None:
         # {"mainhand": "2H_HOLYSTAFF", "head": "HEAD_CLOTH_SET2", ...}
         await conn.execute(
             "ALTER TABLE builds ADD COLUMN IF NOT EXISTS items JSONB NOT NULL DEFAULT '{}'::jsonb"
+        )
+        # Sorts imposés, par id d'objet sans tier : {"2H_LONGBOW": {"q": "MULTISHOT2", "p": "…"}},
+        # plus "@shoes" = sort de bottes imposé, bottes au choix (format de la lib d'images)
+        await conn.execute(
+            "ALTER TABLE builds ADD COLUMN IF NOT EXISTS spells JSONB NOT NULL DEFAULT '{}'::jsonb"
         )
 
         # ── Rôle staff du site web (création/modif builds + compos) ────────────
@@ -632,18 +640,19 @@ async def append_bal_log(action: str, by: str, entries: list, template: str = ""
 
 async def get_silver_stats(days: int = 7, guild_id: int = 0) -> list:
     """Retourne le silver distribué (deltas positifs) par type d'action et template.
-    Les actions finacti/paybal RAID AVA sont distinguées des autres.
-    Les autres fins d'activité sont détaillées par template."""
+    Les actions finacti/paybal/ajustbal RAID AVA sont distinguées des autres.
+    Les autres fins d'activité sont détaillées par template. Les ajustements de payout
+    faits depuis le site (ajustbal) comptent avec leur signe (un retrait réduit le payout)."""
     async with _pool.acquire() as conn:
         rows = await conn.fetch("""
             SELECT
                 CASE
-                    WHEN action IN ('finacti', 'paybal') AND template ILIKE '%RAID AVA%'
+                    WHEN action IN ('finacti', 'paybal', 'ajustbal') AND template ILIKE '%RAID AVA%'
                         THEN action || '_raid_ava'
                     ELSE action
                 END                                            AS action_key,
                 CASE
-                    WHEN action IN ('finacti', 'paybal') AND template ILIKE '%RAID AVA%'
+                    WHEN action IN ('finacti', 'paybal', 'ajustbal') AND template ILIKE '%RAID AVA%'
                         THEN ''
                     ELSE template
                 END                                            AS template_label,
@@ -653,7 +662,7 @@ async def get_silver_stats(days: int = 7, guild_id: int = 0) -> list:
             FROM bal_log,
                  jsonb_array_elements(entries) AS elem
             WHERE ts >= NOW() - ($1 * INTERVAL '1 day')
-              AND (elem->>'delta')::bigint > 0
+              AND ((elem->>'delta')::bigint > 0 OR action = 'ajustbal')
               AND guild_id = $2
             GROUP BY action_key, template_label
             ORDER BY total_silver DESC

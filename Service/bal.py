@@ -20,6 +20,8 @@ ACTION_LABELS = {
     "finacti":              "🏁 Fin d'activité",
     "finacti_raid_ava":     "🏁 Fin d'activité RAID AVA",
     "transferbal":          "🔄 Transfert entre joueurs",
+    "ajustbal":             "🛠️ Ajustement payout (site)",
+    "ajustbal_raid_ava":    "🛠️ Ajustement payout RAID AVA (site)",
 }
 
 

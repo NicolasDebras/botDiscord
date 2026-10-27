@@ -7,9 +7,18 @@ Pour annoncer une nouvelle fonctionnalité : incrémenter VERSION et ajouter
 une entrée en tête de CHANGELOG (ordre du plus récent au plus ancien).
 """
 
-VERSION = "2026.10.27"
+VERSION = "2026.10.27.1"
 
 CHANGELOG: list[dict] = [
+    {
+        "version": "2026.10.27.1",
+        "title": "🪄 Sorts et passifs des builds",
+        "items": [
+            "L'image du build envoyée par /massup montre les sorts et passifs choisis sur le site (Q, W, E, passifs, sorts d'armure).",
+            "Bottes au choix avec un sort imposé (ex. Sprint rafraîchissant) : le sort apparaît dans la case Bottes.",
+            "Les admins du site peuvent corriger un payout de la semaine ; chaque joueur concerné reçoit un MP.",
+        ],
+    },
     {
         "version": "2026.10.27",
         "title": "➕ /addacti forcé et récap de paie détaillé",
