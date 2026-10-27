@@ -12,7 +12,7 @@ import db
 from config import ROLES, DEFAULT_TEMPLATES, ACTIVITY_COLORS, DEFAULT_COLOR, ADMIN_ROLE_NAME, MEMBRE_ROLE_NAME
 from lilium_compo import compo_rows
 from Service.build_image import ROLE_ORDER, compo_image
-from Service.utils import load_settings, append_bal_log, image_signature, is_membre, is_caller_or_admin, notify_bal_limit, fmt_silver, log_error
+from Service.utils import load_settings, append_bal_log, image_signature, is_membre, is_caller_or_admin, notify_bal_limit, fmt_silver, log_error, split_message
 
 # ── STOCKAGE EN MÉMOIRE  {message_id: data} ──────────────────────────────────
 activities: dict[int, dict] = {}
@@ -212,6 +212,29 @@ def share_tag(share: float) -> str:
     if share == 1:
         return ""
     return f"💰 {share:g}".replace(".", ",") + (" parts" if share >= 2 else " part")
+
+
+def is_zero_pay(role_key: str, zero_pay_roles: set) -> bool:
+    return role_key in zero_pay_roles or base_role(role_key) in zero_pay_roles
+
+
+def special_pay_lines(slots: dict, multipliers: dict, zero_pay_roles: set, part_base: int) -> list[str]:
+    """Récap /finacti : une ligne par rôle payé autrement qu'une part (multiplicateur ≠ 1 ou
+    rôle non payé), avec les pseudos des joueurs. Scoot à part (montant fixe)."""
+    lines = []
+    for role, members in slots.items():
+        if role == "SCOOT" or not members:
+            continue
+        names = ", ".join(e[1] for e in members)
+        if is_zero_pay(role, zero_pay_roles):
+            lines.append(f"🚫 {_role_label(role)} : **non payé** — {names}")
+            continue
+        mult = role_share(multipliers, role)
+        if mult != 1:
+            emoji = ROLES.get(base_role(role), "🔹")
+            lines.append(f"{emoji} {_role_label(role)} ({share_tag(mult)[2:]}) : "
+                         f"**{fmt_silver(int(part_base * mult))} silver/joueur** — {names}")
+    return lines
 
 
 def build_id_for_role(template_data: dict, role_key: str) -> int | None:
@@ -1450,7 +1473,7 @@ class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
                 (entry[0], entry[1], role, role_share(self.role_multipliers, role))
                 for role, members in data["slots"].items()
                 for entry in members
-                if role != "SCOOT" and role not in self.zero_pay_roles and base_role(role) not in self.zero_pay_roles
+                if role != "SCOOT" and not is_zero_pay(role, self.zero_pay_roles)
             ]
             total_weight = sum(m[3] for m in paying)
             part_base    = int(remaining / total_weight) if total_weight > 0 else 0
@@ -1497,15 +1520,9 @@ class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
             except Exception:
                 pass
 
-            # ── Grouper les membres par multiplicateur pour le récap ─────────────
-            normal_members = [(m[0], m[1]) for m in paying if m[3] == 1.0]
-            bonus_groups: dict[tuple, list] = {}
-            for uid, name, role, mult in paying:
-                if mult != 1.0:
-                    key_g = (role, mult)
-                    bonus_groups.setdefault(key_g, []).append((uid, name))
-
-            nb_normal  = len(normal_members)
+            # ── Récap : rôles payés autrement qu'une part, avec les pseudos ──────
+            nb_normal  = sum(1 for m in paying if m[3] == 1.0)
+            special    = special_pay_lines(data["slots"], self.role_multipliers, self.zero_pay_roles, part_base)
             part_indiv = part_base  # mult=1.0
 
             label_cout = "Carte + réparations" if self.is_pve else "Réparations"
@@ -1519,11 +1536,10 @@ class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
             if sac_pieces:
                 summary += f"🎒 Pièces : **+{fmt_silver(sac_pieces)} silver** → distributable : **{fmt_silver(distributable)} silver**\n"
             if self.has_scoot:
-                summary += f"🏃 Scoot ({nb_scoot} joueur(s)) : **{fmt_silver(scoot_amount)} silver/joueur**\n"
-            for (role, mult), members in bonus_groups.items():
-                emoji  = ROLES.get(base_role(role), "🔹")
-                pay_r  = int(part_base * mult)
-                summary += f"{emoji} {_role_label(role)} ({share_tag(mult)[2:]}) : **{fmt_silver(pay_r)} silver/joueur** ({len(members)} joueur(s))\n"
+                scoot_names = ", ".join(e[1] for e in scoot_members)
+                summary += f"🏃 Scoot : **{fmt_silver(scoot_amount)} silver/joueur** — {scoot_names}\n"
+            for line in special:
+                summary += line + "\n"
             if self.has_scoot:
                 summary += (
                     f"👥 Reste ({nb_normal} joueur(s)) : **{fmt_silver(part_indiv)} silver/joueur**\n"
@@ -1531,11 +1547,12 @@ class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
                 )
             else:
                 summary += (
-                    f"👥 Participants : **{nb_normal}**\n"
+                    f"👥 {'Autres participants' if special else 'Participants'} : **{nb_normal}**\n"
                     f"💵 Part individuelle : **{fmt_silver(part_indiv)} silver**\n"
                     f"📊 BAL crédités : **+{fmt_silver(part_indiv)} BAL / joueur**"
                 )
-            await interaction.followup.send(summary)
+            for part in split_message(summary):   # beaucoup de pseudos → plusieurs messages (limite 2000)
+                await interaction.followup.send(part)
 
         except Exception as e:
             await log_error("activites.FinActiModal", e, guild_id=interaction.guild.id, user_id=interaction.user.id)

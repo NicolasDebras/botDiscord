@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 from Service import activites
-from Service.admin import guild_role_keys, resolve_role, role_autocomplete
+from Service.admin import addacti_overflow, guild_role_keys, resolve_role, role_autocomplete
 
 SLOTS = {"TANK · Def tank": [], "TANK · Main tank": [], "HEAL": [], "DPS": [], "PF2:DPS": [], "PF2:Fill": []}
 
@@ -52,3 +52,17 @@ def test_autocomplete_shows_readable_labels(running):
     assert [(c.name, c.value) for c in choices] == [("DPS", "DPS"), ("DPS PF2", "PF2:DPS")]
     tanks = asyncio.run(role_autocomplete(inter, "main"))
     assert [c.value for c in tanks] == ["TANK · Main tank"]
+
+
+def test_addacti_overflow_reasons():
+    slots = {"TANK": [(1, "A", ""), (2, "B", "")], "HEAL": [(3, "C", "")]}
+    assert addacti_overflow(slots, 10, "HEAL", 2, 9) is None                       # de la place partout
+    assert addacti_overflow(slots, 3, "HEAL", 2, 9) == "Activité complète (3/3)"
+    assert addacti_overflow(slots, 10, "TANK", 2, 9) == "**TANK** plein (2/2)"
+    assert addacti_overflow(slots, 3, "TANK", 2, 9) == "Activité complète (3/3) et **TANK** plein (2/2)"
+
+
+def test_addacti_overflow_move_does_not_count_twice():
+    slots = {"TANK": [(1, "A", "")], "HEAL": [(3, "C", "")]}
+    assert addacti_overflow(slots, 2, "TANK", 2, 3) is None                        # HEAL → TANK : total inchangé
+    assert addacti_overflow(slots, 2, "TANK", 1, 3) == "**TANK** plein (1/1)"     # mais le rôle visé est plein

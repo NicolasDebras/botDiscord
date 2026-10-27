@@ -7,9 +7,17 @@ Pour annoncer une nouvelle fonctionnalité : incrémenter VERSION et ajouter
 une entrée en tête de CHANGELOG (ordre du plus récent au plus ancien).
 """
 
-VERSION = "2026.10.22"
+VERSION = "2026.10.27"
 
 CHANGELOG: list[dict] = [
+    {
+        "version": "2026.10.27",
+        "title": "➕ /addacti forcé et récap de paie détaillé",
+        "items": [
+            "/addacti : si l'activité est complète ou le rôle plein, le bot demande confirmation et permet de forcer l'ajout.",
+            "Fin d'activité : les rôles payés différemment (plusieurs parts, non payés, Scoot) affichent les pseudos des joueurs.",
+        ],
+    },
     {
         "version": "2026.10.22",
         "title": "⚖️ Amendes BAL",

@@ -324,3 +324,28 @@ def test_remove_activity_logs_then_deletes_and_survives_log_errors(monkeypatch):
     activites.activities[5] = {"guild_id": 1, "template": "", "slots": {}}
     asyncio.run(activites.remove_activity(5, "fin"))
     assert calls == [("log", "fin"), ("error",), ("delete", 5)] and 5 not in activites.activities
+
+
+# ── special_pay_lines (récap /finacti) ──────────────────────────────────────
+
+def test_special_pay_lines_names_players_of_roles_paid_differently():
+    from Service.activites import special_pay_lines
+    slots = {
+        "TANK":  [(1, "Alpha", ""), (2, "Bravo", "")],
+        "HEAL":  [(3, "Charlie", "")],
+        "PF2:HEAL": [(4, "Delta", "")],
+        "DPS":   [(5, "Echo", "")],
+        "SCOOT": [(6, "Fox", "")],
+        "SUPPORT": [],
+    }
+    lines = special_pay_lines(slots, {"TANK": 2, "SUPPORT": 3}, {"HEAL"}, 1_000_000)
+    assert len(lines) == 3                                   # TANK ×2, HEAL et PF2:HEAL non payés
+    assert "2 parts" in lines[0] and lines[0].endswith("— Alpha, Bravo")
+    assert lines[1].startswith("🚫") and "Charlie" in lines[1] and "non payé" in lines[1]
+    assert "Delta" in lines[2]                               # zero_pay par rôle de base
+    assert not any("Echo" in l or "Fox" in l for l in lines)  # 1 part / Scoot : pas listés
+
+
+def test_special_pay_lines_empty_when_everyone_has_one_share():
+    from Service.activites import special_pay_lines
+    assert special_pay_lines({"DPS": [(1, "A", "")]}, {}, set(), 500) == []
