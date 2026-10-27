@@ -7,9 +7,16 @@ Pour annoncer une nouvelle fonctionnalité : incrémenter VERSION et ajouter
 une entrée en tête de CHANGELOG (ordre du plus récent au plus ancien).
 """
 
-VERSION = "2026.10.27.1"
+VERSION = "2026.10.27.2"
 
 CHANGELOG: list[dict] = [
+    {
+        "version": "2026.10.27.2",
+        "title": "🥾 Sort de bottes sur l'image de compo",
+        "items": [
+            "Image de compo sous /acti : quand les bottes sont au choix avec un sort imposé, la case Bottes montre ce sort.",
+        ],
+    },
     {
         "version": "2026.10.27.1",
         "title": "🪄 Sorts et passifs des builds",
