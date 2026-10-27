@@ -7,9 +7,18 @@ Pour annoncer une nouvelle fonctionnalité : incrémenter VERSION et ajouter
 une entrée en tête de CHANGELOG (ordre du plus récent au plus ancien).
 """
 
-VERSION = "2026.10.27.2"
+VERSION = "2026.10.27.3"
 
 CHANGELOG: list[dict] = [
+    {
+        "version": "2026.10.27.3",
+        "title": "🔀 Builds au choix dans les compos",
+        "items": [
+            "Une ligne de compo peut proposer plusieurs builds (ex. Ardent ou Aria) qui se partagent les places.",
+            "À l'inscription, le bot te demande lequel tu joues ; une fois la place prise, les autres builds de la ligne ne sont plus disponibles.",
+            "/massup t'envoie l'image du build que tu as choisi.",
+        ],
+    },
     {
         "version": "2026.10.27.2",
         "title": "🥾 Sort de bottes sur l'image de compo",

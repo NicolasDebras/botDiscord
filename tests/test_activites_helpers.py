@@ -349,3 +349,23 @@ def test_special_pay_lines_names_players_of_roles_paid_differently():
 def test_special_pay_lines_empty_when_everyone_has_one_share():
     from Service.activites import special_pay_lines
     assert special_pay_lines({"DPS": [(1, "A", "")]}, {}, set(), 500) == []
+
+
+# ── Ligne à plusieurs builds au choix (« Ardent ou Aria », places partagées) ──
+
+def test_row_build_names_and_slot_title():
+    from Service.activites import row_build_names, slot_title
+    tdata = {"pf_1": {"DPS": 2, "DPS · Ardent": 1}, "builds": {"DPS": 20, "DPS · Ardent": [21, 22]},
+             "weapon": {"DPS": "DPS Arc", "DPS · Ardent": "Ardent / Aria"}}
+    assert row_build_names([21, 22, 99], {21: {"name": "Ardent"}, 22: {"name": "Aria"}}) == ["Ardent", "Aria"]
+    assert slot_title(tdata, "DPS · Ardent") == "Ardent / Aria"
+    assert slot_title(tdata, "DPS") == "DPS Arc"
+
+
+def test_row_builds_share_places():
+    """Les builds au choix sont sur la même clé : une place prise par Aria bloque aussi Ardent."""
+    from Service.activites import registration_error
+    tdata = {"pf_1": {"DPS": 1}, "builds": {"DPS": [21, 22]}, "type_acti": "PVP"}
+    data = {"slots": {"DPS": [(1, "A", "Aria")]}}
+    assert "Plus de place" in registration_error(data, tdata, 2, "DPS", "Ardent")
+    assert registration_error({"slots": {"DPS": []}}, tdata, 2, "DPS", "Ardent") is None

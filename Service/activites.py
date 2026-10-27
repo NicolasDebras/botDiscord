@@ -1089,8 +1089,10 @@ def role_hint(tdata: dict, role_key: str) -> str:
 def slot_title(tdata: dict, role_key: str) -> str:
     """Titre d'un créneau dans l'embed et le menu des builds : nom du build (hint d'une ligne
     à build), sinon suffixe de la clé, sinon la clé (une liste d'armes n'est pas un titre)."""
-    has_build = build_id_for_role(tdata, role_key) is not None
-    return build_label(role_key, role_hint(tdata, role_key) if has_build else "")
+    ids = build_ids_for_role(tdata, role_key)
+    if len(ids) > 1 and role_hint(tdata, role_key):   # builds au choix : « Ardent / Aria »
+        return role_hint(tdata, role_key)
+    return build_label(role_key, role_hint(tdata, role_key) if ids else "")
 
 
 def _activity_tdata(data: dict) -> dict:
@@ -1197,6 +1199,33 @@ class BuildSelectView(discord.ui.View):
             self.add_item(BuildSelect(activity_id, options))
 
 
+# ── SELECT BUILD D'UNE LIGNE (« Ardent ou Aria » : builds au choix, places partagées) ──
+def row_build_names(ids: list[int], builds: dict[int, dict]) -> list[str]:
+    """Noms des builds au choix d'une ligne, dans l'ordre de la compo (builds supprimés ignorés)."""
+    return [builds[i]["name"] for i in ids if i in builds]
+
+
+class RowBuildSelect(discord.ui.Select):
+    def __init__(self, activity_id: int, role_key: str, names: list[str]):
+        self.activity_id = activity_id
+        self.role_key    = role_key
+        options = [discord.SelectOption(label=n[:100], value=n[:100], emoji=ROLES.get(base_role(role_key), "🔹"))
+                   for n in names[:25]]
+        super().__init__(placeholder="🛠️  Choisis ton build...", min_values=1, max_values=1, options=options)
+
+    async def callback(self, interaction: discord.Interaction):
+        if not await _can_register(interaction, self.activity_id):
+            return
+        await interaction.response.defer(ephemeral=True)
+        await _register_player(interaction, self.activity_id, self.role_key, self.values[0])
+
+
+class RowBuildSelectView(discord.ui.View):
+    def __init__(self, activity_id: int, role_key: str, names: list[str]):
+        super().__init__(timeout=120)
+        self.add_item(RowBuildSelect(activity_id, role_key, names))
+
+
 async def _can_register(interaction: discord.Interaction, activity_id: int) -> bool:
     """Contrôles communs avant une inscription ; répond à l'interaction en cas de refus."""
     if not is_membre(interaction.user):
@@ -1219,6 +1248,22 @@ async def _choose_role(interaction: discord.Interaction, activity_id: int, chose
     type_acti = tdata.get("type_acti", "")
 
     hint_spec = role_hint(tdata, chosen_role)
+
+    # Compo du site, ligne à plusieurs builds au choix (« Ardent ou Aria ») : le joueur choisit le sien,
+    # les builds partagent les places de la ligne (même clé de rôle).
+    ids = build_ids_for_role(tdata, chosen_role)
+    if len(ids) > 1:
+        names = row_build_names(ids, await db.get_builds_by_ids(ids, data.get("guild_id", 0)))
+        if len(names) > 1:
+            await interaction.response.send_message(
+                f"{ROLES.get(base_role(chosen_role), '🔹')} **{_role_label(chosen_role)}** — Quel build joues-tu ?",
+                view=RowBuildSelectView(activity_id, chosen_role, names), ephemeral=True,
+            )
+            return
+        if names:
+            await interaction.response.defer(ephemeral=True)
+            await _register_player(interaction, activity_id, chosen_role, names[0])
+            return
 
     # Compo du site : le rôle a un build imposé → inscription directe au
     # choix du rôle (ni liste d'armes ni saisie de spé), le build fait office d'arme.
