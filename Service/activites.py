@@ -1493,14 +1493,17 @@ class FinActiModal(discord.ui.Modal, title="Clôturer l'activité"):
             if all_ids:
                 await db.increment_acti_count(all_ids, guild_id=interaction.guild.id)
 
+            # Rôle et parts de chaque joueur : affichés par le panel Admin du site (correction des payouts)
             log_entries = []
-            for uid, name, _role, mult in paying:
+            for uid, name, role, mult in paying:
                 key = str(uid)
-                log_entries.append({"uid": key, "name": name, "delta": int(part_base * mult), "total": new_totals[key]})
+                log_entries.append({"uid": key, "name": name, "delta": int(part_base * mult), "total": new_totals[key],
+                                    "role": _role_label(role), "share": mult})
             for entry in scoot_members:
                 uid, name = entry[0], entry[1]
                 key = str(uid)
-                log_entries.append({"uid": key, "name": name, "delta": scoot_amount, "total": new_totals[key]})
+                log_entries.append({"uid": key, "name": name, "delta": scoot_amount, "total": new_totals[key],
+                                    "role": "SCOOT"})
 
             await append_bal_log("finacti", interaction.user.display_name, log_entries, template=data.get("template") or "", guild_id=interaction.guild.id)
             await asyncio.gather(*[

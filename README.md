@@ -405,6 +405,7 @@ Ce qu'ils partagent, c'est uniquement **la base PostgreSQL**, dont le bot reste 
 - `custom_templates` — les compos du site y sont écrites au même format que `/addtemplate` (+ `builds` / `builds_pf2`), et utilisées par `/acti` ;
 - `web_staff_config` (`/config` → 🌐 Rôle staff du site web) et `web_admins` (`/webadmin`) — les droits du site, gérés depuis Discord.
 - `activity_log` — une ligne par activité terminée (`/finacti`, fin libre, annulation) : inscrits par rôle, places prévues ; gardée 6 mois, lue par la page Admin du site (stats d'activité).
+- `bal_log.entries` de `/finacti` : `{uid, name, delta, total, role, share}` (rôle et parts de chaque joueur, `role: "SCOOT"` pour les scouts) — affichés par le panel Admin du site.
 - `bal` / `bal_log` — écrits aussi par le panel Admin du site pour **ajuster un payout de la semaine** (ajout, retrait, montant par joueur ou global) : ligne `ajustbal` liée au payout corrigé par `ref_id`, comptée avec son signe dans le payout de la semaine et `/statbal` ; chaque joueur touché reçoit un MP (envoyé par le site avec le token du bot).
 - `public_compos` — modèles de compos publics de la bibliothèque du site (partagés entre tous les serveurs, avec leurs builds figés) ; créée ici, écrite uniquement par le site.
 
