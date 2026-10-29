@@ -104,7 +104,7 @@ class Bal(commands.Cog):
 
         key       = str(joueur.id)
         new_total = await db.increment_bal(key, montant, guild_id=interaction.guild.id)
-        await append_bal_log("addbal", interaction.user.display_name, [
+        await append_bal_log("addbal", interaction.user, [
             {"uid": key, "name": joueur.display_name, "delta": montant, "total": new_total}
         ], guild_id=interaction.guild.id)
         await notify_bal_limit(interaction.client, joueur.id, new_total, guild_id=interaction.guild.id)
@@ -154,7 +154,7 @@ class Bal(commands.Cog):
         # Plancher à 0, atomique : un transfert simultané ne peut pas dupliquer la BAL
         reel, new_total = await db.withdraw_bal(key, montant, guild_id=interaction.guild.id)
 
-        await append_bal_log("retirebal", interaction.user.display_name, [
+        await append_bal_log("retirebal", interaction.user, [
             {"uid": key, "name": joueur.display_name, "delta": -reel, "total": new_total}
         ], template=retrait_label(motif, raison), guild_id=interaction.guild.id)
         await notify_bal_limit(interaction.client, joueur.id, new_total, guild_id=interaction.guild.id)
@@ -434,7 +434,7 @@ class Bal(commands.Cog):
             await interaction.response.send_message("ℹ️ Aucune activité en cours.", ephemeral=True)
             return
 
-        by   = interaction.user.display_name
+        by   = interaction.user
         paid = False  # un /paybal = un seul paiement (la liste reste cliquable 60 s)
 
         async def on_select(inter: discord.Interaction, value: str):
@@ -539,7 +539,7 @@ class Bal(commands.Cog):
             return
         new_sender, new_receiver = result
 
-        await append_bal_log("transferbal", interaction.user.display_name, [
+        await append_bal_log("transferbal", interaction.user, [
             {"uid": sender_key,   "name": interaction.user.display_name, "delta": -montant,  "total": new_sender},
             {"uid": receiver_key, "name": joueur.display_name,           "delta":  montant,  "total": new_receiver},
         ], guild_id=interaction.guild.id)

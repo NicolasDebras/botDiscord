@@ -150,8 +150,9 @@ async def save_settings(data: dict, guild_id: int = 0) -> None:
 
 
 # ── HELPERS : log BAL ─────────────────────────────────────────────────────────
-async def append_bal_log(action: str, by: str, entries: list, template: str = "", guild_id: int = 0) -> None:
-    await db.append_bal_log(action, by, entries, template, guild_id)
+async def append_bal_log(action: str, by, entries: list, template: str = "", guild_id: int = 0) -> None:
+    """`by` = l'auteur (membre Discord) : pseudo affiché + id (stable, pour les stats du site)."""
+    await db.append_bal_log(action, by.display_name, entries, template, guild_id, by_id=by.id)
 
 
 BAL_LIMIT = 20_000_000
