@@ -163,6 +163,9 @@ async def init_db(database_url: str) -> None:
         # Ajustement d'un payout depuis le panel admin du site (action « ajustbal ») :
         # id de la ligne finacti/paybal corrigée (l'original n'est jamais réécrit)
         await conn.execute("ALTER TABLE bal_log ADD COLUMN IF NOT EXISTS ref_id INTEGER")
+        # Id Discord de l'auteur (by_user = pseudo affiché, qui change) : le site regroupe
+        # les « top callers » par id. NULL sur les lignes antérieures.
+        await conn.execute("ALTER TABLE bal_log ADD COLUMN IF NOT EXISTS by_user_id BIGINT")
 
         # ── Migration guild_id sur player_profiles ────────────────────────────
         await conn.execute(
@@ -642,13 +645,15 @@ async def add_activity_log(row: dict) -> None:
 
 # ── BAL LOG ───────────────────────────────────────────────────────────────────
 
-async def append_bal_log(action: str, by: str, entries: list, template: str = "", guild_id: int = 0) -> None:
+async def append_bal_log(action: str, by: str, entries: list, template: str = "", guild_id: int = 0,
+                         by_id: int | None = None) -> None:
     ts           = datetime.now(UTC)
     entries_json = json.dumps(entries, ensure_ascii=False)
     async with _pool.acquire() as conn:
         await conn.execute(
-            "INSERT INTO bal_log (ts, action, by_user, entries, template, guild_id) VALUES ($1, $2, $3, $4::jsonb, $5, $6)",
-            ts, action, by, entries_json, template, guild_id,
+            "INSERT INTO bal_log (ts, action, by_user, entries, template, guild_id, by_user_id)"
+            " VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7)",
+            ts, action, by, entries_json, template, guild_id, by_id,
         )
         await conn.execute(
             "DELETE FROM bal_log WHERE ts < NOW() - INTERVAL '6 months'"

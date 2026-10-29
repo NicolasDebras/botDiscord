@@ -108,3 +108,23 @@ def test_can_manage_web_admins_false_for_officier():
 
 def test_can_manage_web_admins_false_for_simple_membre():
     assert can_manage_web_admins(fake_member(roles=[fake_role("Membre")])) is False
+
+
+# ── append_bal_log : auteur = pseudo affiché + id Discord ───────────────────
+
+def test_append_bal_log_stores_author_name_and_id(monkeypatch):
+    import asyncio
+    from types import SimpleNamespace
+
+    import db
+    from Service import utils
+
+    calls = []
+
+    async def fake_append(action, by, entries, template="", guild_id=0, by_id=None):
+        calls.append((action, by, template, guild_id, by_id))
+
+    monkeypatch.setattr(db, "append_bal_log", fake_append)
+    author = SimpleNamespace(id=123456789012345678, display_name="[VIC] Lilium122")
+    asyncio.run(utils.append_bal_log("finacti", author, [], template="ZvZ", guild_id=42))
+    assert calls == [("finacti", "[VIC] Lilium122", "ZvZ", 42, 123456789012345678)]
