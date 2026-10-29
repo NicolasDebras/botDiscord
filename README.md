@@ -123,6 +123,7 @@ Une fois l'activité créée :
 - **PVE** : inscription directe
 - Bouton 🔀 **Fill** : le joueur passe **en attente d'un rôle** (section « ⏳ En attente » de l'embed, sans occuper de place) et le créateur est prévenu en MP ; un Caller / Officier / GM (ou le créateur) ouvre **« ⏳ En attente (n) »**, choisit le joueur puis le **rôle libre** à lui donner (ex. Main heal) et accepte — le joueur reçoit un **MP** avec son rôle et le lien de l'acti. Refusé si l'activité est pleine
 - Bouton ❌ pour se retirer (slots ou liste d'attente)
+- Les activités survivent à un redémarrage du bot (rechargées depuis la base, boutons toujours actifs). Au démarrage, une activité n'est supprimée que si Discord confirme que son message ou son salon/fil n'existe plus ; une autre erreur (API passagère, droits, fil archivé) la conserve et s'inscrit dans `/errors`
 - Bouton ⏳ Liste d'attente (sur les templates avec `has_waitlist`)
 - Bouton ✏️ Modifier (créateur ou Officier) → change la description, le tier et le départ
 - Bouton 🏁 Fin d'activité (organisateur ou Officier) → calcul et crédit BAL automatique

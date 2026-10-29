@@ -7,9 +7,17 @@ Pour annoncer une nouvelle fonctionnalité : incrémenter VERSION et ajouter
 une entrée en tête de CHANGELOG (ordre du plus récent au plus ancien).
 """
 
-VERSION = "2026.10.29"
+VERSION = "2026.10.29.2"
 
 CHANGELOG: list[dict] = [
+    {
+        "version": "2026.10.29.2",
+        "title": "🩹 « Activité introuvable » après un redémarrage du bot",
+        "items": [
+            "Un souci passager côté Discord au redémarrage du bot ne supprime plus les activités en cours : seule une activité dont le message a été supprimé est retirée.",
+            "Les activités perdues avant ce correctif sont à recréer avec /acti.",
+        ],
+    },
     {
         "version": "2026.10.29",
         "title": "🩹 Inscrits qui disparaissaient de l'activité",

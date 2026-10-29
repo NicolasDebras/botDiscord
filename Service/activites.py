@@ -1967,6 +1967,23 @@ class ActivityView(discord.ui.View):
         self.add_item(CancelButton(activity_id))
 
 
+async def refresh_view_on_startup(bot, msg_id: int, data: dict) -> bool:
+    """Réaffiche la vue d'une activité rechargée au démarrage. False seulement si Discord confirme
+    que son salon/fil ou son message n'existe plus (l'appelant supprime alors l'acti). Toute autre
+    erreur (API passagère, droits…) garde l'acti : la supprimer effaçait la base alors que sa vue
+    restait enregistrée → « Activité introuvable » sur toutes les actis en cours."""
+    try:
+        # Un fil archivé n'est pas dans le cache au démarrage : on le demande à l'API.
+        channel = bot.get_channel(data["channel_id"]) or await bot.fetch_channel(data["channel_id"])
+        msg     = await channel.fetch_message(msg_id)
+        await msg.edit(view=build_view(msg_id))
+    except discord.NotFound:
+        return False
+    except Exception as e:
+        await log_error("activites.on_ready", e, guild_id=data.get("guild_id"))
+    return True
+
+
 # ── AUTOCOMPLÉTION : templates disponibles ───────────────────────────────────
 async def template_autocomplete(
     interaction: discord.Interaction,
@@ -2048,13 +2065,7 @@ class Activites(commands.Cog):
                 self.bot.add_view(build_view(msg_id))
             except Exception as e:
                 await log_error("activites.add_view", e, guild_id=data.get("guild_id"))
-            try:
-                if channel:
-                    msg = await channel.fetch_message(msg_id)
-                    await msg.edit(view=build_view(msg_id))
-                else:
-                    to_delete.append(msg_id)
-            except Exception:
+            if not await refresh_view_on_startup(self.bot, msg_id, data):
                 to_delete.append(msg_id)
 
         for msg_id in to_delete:

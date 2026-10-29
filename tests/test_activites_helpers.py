@@ -326,6 +326,71 @@ def test_remove_activity_logs_then_deletes_and_survives_log_errors(monkeypatch):
     assert calls == [("log", "fin"), ("error",), ("delete", 5)] and 5 not in activites.activities
 
 
+# ── refresh_view_on_startup (on_ready) : seule une suppression confirmée retire l'acti ──
+
+def _http_error(cls, status: int):
+    from types import SimpleNamespace
+    return cls(SimpleNamespace(status=status, reason=""), "")
+
+
+def _startup_bot(fetch_message, cached=True):
+    from types import SimpleNamespace
+    edits = []
+
+    async def edit(**kw):
+        edits.append(kw)
+
+    async def _fetch_message(msg_id):
+        if isinstance(fetch_message, Exception):
+            raise fetch_message
+        return SimpleNamespace(edit=edit)
+
+    channel = SimpleNamespace(fetch_message=_fetch_message)
+
+    async def fetch_channel(channel_id):
+        return channel
+
+    bot = SimpleNamespace(get_channel=lambda cid: channel if cached else None, fetch_channel=fetch_channel)
+    return bot, edits
+
+
+def _run_startup(monkeypatch, bot):
+    import asyncio
+    errors = []
+
+    async def fake_error(source, e, **k):
+        errors.append(source)
+
+    monkeypatch.setattr(activites, "log_error", fake_error)
+    monkeypatch.setattr(activites, "build_view", lambda msg_id: f"view-{msg_id}")
+    return asyncio.run(activites.refresh_view_on_startup(bot, 7, {"channel_id": 1, "guild_id": 2})), errors
+
+
+def test_refresh_view_on_startup_reattaches_view(monkeypatch):
+    bot, edits = _startup_bot(None)
+    assert _run_startup(monkeypatch, bot) == (True, [])
+    assert edits == [{"view": "view-7"}]
+
+
+def test_refresh_view_on_startup_fetches_archived_thread_missing_from_cache(monkeypatch):
+    bot, edits = _startup_bot(None, cached=False)
+    assert _run_startup(monkeypatch, bot) == (True, [])
+    assert edits == [{"view": "view-7"}]
+
+
+def test_refresh_view_on_startup_deleted_message_is_dropped(monkeypatch):
+    import discord
+    bot, _ = _startup_bot(_http_error(discord.NotFound, 404))
+    assert _run_startup(monkeypatch, bot) == (False, [])
+
+
+def test_refresh_view_on_startup_keeps_activity_on_transient_error(monkeypatch):
+    import discord
+    for error in (_http_error(discord.DiscordServerError, 503), _http_error(discord.Forbidden, 403)):
+        bot, _ = _startup_bot(error)
+        assert _run_startup(monkeypatch, bot) == (True, ["activites.on_ready"])
+
+
 # ── special_pay_lines (récap /finacti) ──────────────────────────────────────
 
 def test_special_pay_lines_names_players_of_roles_paid_differently():
