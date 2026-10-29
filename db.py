@@ -601,6 +601,23 @@ async def transfer_bal(sender_id: str, receiver_id: str, amount: int, guild_id: 
     return new_sender, new_receiver
 
 
+async def withdraw_bal(user_id: str, amount: int | None, guild_id: int = 0) -> tuple[int, int]:
+    """Retire min(amount, solde) — tout le solde si amount est None — en UNE requête (ligne verrouillée).
+    Retourne (retiré, nouveau_total). Pas de lecture puis écriture séparées : un /transferbal ou un
+    /finacti simultané n'est ni perdu ni dupliqué."""
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow("""
+            WITH cur AS (
+                SELECT amount FROM bal WHERE user_id = $1 AND guild_id = $2 FOR UPDATE
+            )
+            UPDATE bal SET amount = bal.amount - LEAST(COALESCE($3::bigint, cur.amount), cur.amount)
+            FROM cur
+            WHERE bal.user_id = $1 AND bal.guild_id = $2
+            RETURNING LEAST(COALESCE($3::bigint, cur.amount), cur.amount) AS removed, bal.amount AS total
+        """, user_id, guild_id, amount)
+    return (row["removed"], row["total"]) if row else (0, 0)
+
+
 async def set_bal(user_id: str, amount: int, guild_id: int = 0) -> None:
     async with _pool.acquire() as conn:
         await conn.execute("""

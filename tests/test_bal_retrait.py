@@ -27,8 +27,10 @@ def env(monkeypatch):
     async def get_bal(uid, guild_id):
         return state["bal"]
 
-    async def set_bal(uid, total, guild_id):
-        state["bal"] = total
+    async def withdraw_bal(uid, amount, guild_id):
+        removed = state["bal"] if amount is None else min(amount, state["bal"])
+        state["bal"] -= removed
+        return removed, state["bal"]
 
     async def increment_bal(uid, delta, guild_id):
         state["bal"] += delta
@@ -42,7 +44,7 @@ def env(monkeypatch):
 
     monkeypatch.setattr(bal, "is_admin", lambda user: True)
     monkeypatch.setattr(db, "get_bal", get_bal)
-    monkeypatch.setattr(db, "set_bal", set_bal)
+    monkeypatch.setattr(db, "withdraw_bal", withdraw_bal)
     monkeypatch.setattr(db, "increment_bal", increment_bal)
     monkeypatch.setattr(bal, "append_bal_log", append_bal_log)
     monkeypatch.setattr(bal, "notify_bal_limit", noop)

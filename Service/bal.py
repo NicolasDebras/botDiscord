@@ -150,11 +150,9 @@ class Bal(commands.Cog):
 
         await interaction.response.defer(ephemeral=True)
 
-        key    = str(joueur.id)
-        ancien = await db.get_bal(key, guild_id=interaction.guild.id)
-        reel   = min(montant, ancien)   # plancher à 0
-        new_total = ancien - reel
-        await db.set_bal(key, new_total, guild_id=interaction.guild.id)
+        key = str(joueur.id)
+        # Plancher à 0, atomique : un transfert simultané ne peut pas dupliquer la BAL
+        reel, new_total = await db.withdraw_bal(key, montant, guild_id=interaction.guild.id)
 
         await append_bal_log("retirebal", interaction.user.display_name, [
             {"uid": key, "name": joueur.display_name, "delta": -reel, "total": new_total}

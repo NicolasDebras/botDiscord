@@ -676,9 +676,9 @@ class Admin(commands.Cog):
         if vider:
             log_entries = []
             for user_id_str, name, amount in partis:
-                await db.set_bal(user_id_str, 0, guild_id=interaction.guild.id)
+                removed, _ = await db.withdraw_bal(user_id_str, None, guild_id=interaction.guild.id)
                 await db.set_is_alerted(user_id_str, False, guild_id=interaction.guild.id)
-                log_entries.append({"uid": user_id_str, "name": name, "delta": -amount, "total": 0})
+                log_entries.append({"uid": user_id_str, "name": name, "delta": -removed, "total": 0})
             await append_bal_log("retirebal", interaction.user.display_name, log_entries, guild_id=interaction.guild.id)
 
             lines = "\n".join(f"**{name}** — ~~{fmt_silver(amount)} silver~~ → 0" for _, name, amount in partis)
