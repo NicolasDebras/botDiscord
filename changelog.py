@@ -7,9 +7,16 @@ Pour annoncer une nouvelle fonctionnalité : incrémenter VERSION et ajouter
 une entrée en tête de CHANGELOG (ordre du plus récent au plus ancien).
 """
 
-VERSION = "2026.10.27.3"
+VERSION = "2026.10.29"
 
 CHANGELOG: list[dict] = [
+    {
+        "version": "2026.10.29",
+        "title": "🩹 Inscrits qui disparaissaient de l'activité",
+        "items": [
+            "Quand une compo est modifiée après les inscriptions (lignes fusionnées ou renommées), les joueurs déjà inscrits restent affichés dans leur rôle au lieu de disparaître.",
+        ],
+    },
     {
         "version": "2026.10.27.3",
         "title": "🔀 Builds au choix dans les compos",

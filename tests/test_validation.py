@@ -487,3 +487,19 @@ def test_pending_review_view_offers_role_picker():
     view = asyncio.run(build())
     assert view.select.options[0].label == "Bob — 🔀 Fill"
     assert [o.value for o in view.role_select.options] == ["TANK", "DPS"]
+
+
+def test_embed_still_shows_players_of_a_line_removed_from_the_compo(acti, monkeypatch):
+    """Compo modifiée sur le site après les inscriptions (lignes Crystal Reaper et Weeping fusionnées
+    en une ligne « au choix ») : les inscrits de l'ancienne ligne restent visibles dans leur rôle."""
+    tpl = {"type_acti": "PVP", "pf_1": {"DPS": 1, "DPS · Crystal": 2},
+           "weapon": {"DPS": "SC", "DPS · Crystal": "Crystal / Weeping"},
+           "builds": {"DPS": 1, "DPS · Crystal": [2, 3]}}
+    monkeypatch.setattr(activites, "load_all_templates", lambda gid: {"T": tpl})
+    acti["slots"] = {"DPS": [(PLAYER, "Bob", "SC")], "DPS · Crystal": [],
+                     "DPS · Weeping": [(CALLER, "Cal", "Weeping"), (CREATOR, "Cre", "Weeping")]}
+    fields = [(f.name, f.value) for f in build_embed(acti).fields]
+    name, value = fields[0]
+    assert name == "⚔️ DPS  [3/5]"                          # 2 places prises par l'ancienne ligne
+    assert f"<@{CALLER}>" in value and f"<@{CREATOR}>" in value
+    assert "**Weeping**" in value

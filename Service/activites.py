@@ -354,7 +354,11 @@ def build_embed(data: dict) -> discord.Embed:
 
     pf1_keys      = list(pf1.keys()) if pf1 else list(slots.keys())
     pf2_keys      = [f"PF2:{r}" for r in pf2]
-    roles_to_show = _sort_roles(pf1_keys + pf2_keys)
+    # Joueurs inscrits sous une ligne que la compo n'a plus (compo modifiée sur le site après
+    # les inscriptions : lignes fusionnées, renommées…) : toujours affichés, dans leur rôle.
+    orphans       = [k for k, members in slots.items()
+                     if members and k not in pf1_keys and k not in pf2_keys and k not in ("Fill", "PF2:Fill")]
+    roles_to_show = _sort_roles(pf1_keys + pf2_keys + orphans)
 
     pf1_has_any_full = pf1 and any(
         len(slots.get(role, [])) >= pf1.get(role, 0)
@@ -385,7 +389,9 @@ def build_embed(data: dict) -> discord.Embed:
         for role_key in keys:
             role_name = role_key[4:] if is_pf2 else role_key
             members   = slots.get(role_key, [])
-            if is_pf2:
+            if role_key in orphans:
+                max_r, role_spec = len(members), ""   # places déjà prises, plus de spec à suivre
+            elif is_pf2:
                 max_r     = pf2.get(role_name, "∞")
                 role_spec = specs_pf2.get(role_name, "")
             else:
