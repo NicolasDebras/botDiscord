@@ -16,6 +16,7 @@ CHANGELOG: list[dict] = [
         "items": [
             "Un souci passager côté Discord au redémarrage du bot ne supprime plus les activités en cours : seule une activité dont le message a été supprimé est retirée.",
             "Les activités perdues avant ce correctif sont à recréer avec /acti.",
+            "Si le bot n'a pas accès au salon de l'activité (« Voir le salon » / « Lire l'historique des messages »), l'erreur apparaît maintenant dans /errors au lieu de laisser l'embed figé sans explication.",
         ],
     },
     {

@@ -686,8 +686,10 @@ async def _refresh_activity_message(client: discord.Client, activity_id: int) ->
         channel = client.get_channel(data["channel_id"])
         msg     = await channel.fetch_message(activity_id)
         await msg.edit(embed=build_embed(data), view=build_view(activity_id))
-    except Exception:
-        pass
+    except Exception as e:
+        # Visible dans /errors : sans « Voir le salon » + « Lire l'historique », l'inscription est
+        # enregistrée mais l'embed ne bouge plus (la création, elle, passe par l'interaction).
+        await log_error("activites.refresh", e, guild_id=data.get("guild_id"))
 
 
 # ══════════════════════════════════════════════════════════════════════════════

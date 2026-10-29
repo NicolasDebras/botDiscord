@@ -384,6 +384,21 @@ def test_refresh_view_on_startup_deleted_message_is_dropped(monkeypatch):
     assert _run_startup(monkeypatch, bot) == (False, [])
 
 
+def test_refresh_activity_message_logs_missing_access(monkeypatch):
+    import asyncio
+    import discord
+    bot, _ = _startup_bot(_http_error(discord.Forbidden, 403))
+    errors = []
+
+    async def fake_error(source, e, **k):
+        errors.append((source, type(e).__name__, k.get("guild_id")))
+
+    monkeypatch.setattr(activites, "log_error", fake_error)
+    monkeypatch.setitem(activites.activities, 8, {"channel_id": 1, "guild_id": 2})
+    asyncio.run(activites._refresh_activity_message(bot, 8))
+    assert errors == [("activites.refresh", "Forbidden", 2)]
+
+
 def test_refresh_view_on_startup_keeps_activity_on_transient_error(monkeypatch):
     import discord
     for error in (_http_error(discord.DiscordServerError, 503), _http_error(discord.Forbidden, 403)):
