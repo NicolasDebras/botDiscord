@@ -46,6 +46,8 @@ DISCORD_TOKEN=ton_token_discord
 DISCORD_GUILD_ID=ton_guild_id          # Serveur principal — utilisé pour les migrations DB (legacy)
 DATABASE_URL=postgresql://user:password@host:5432/dbname
 ALLOWED_GUILD_IDS=123,456              # Optionnel : si renseigné, le bot quitte tout autre serveur (bot privé)
+GITHUB_TOKEN=github_pat_...            # Optionnel : issues GitHub des erreurs (voir « Journal d'erreurs »)
+GITHUB_REPO=owner/botDiscord           # Optionnel : dépôt (privé) où ouvrir ces issues
 ```
 
 > Sur **Railway**, `DATABASE_URL` est injecté automatiquement par le plugin PostgreSQL. Pas besoin de le définir manuellement.
@@ -321,7 +323,9 @@ Un `id` unique est attribué à chaque location — visible dans `/recaplocation
 | `/helpliliumbot` | Tous | Afficher la liste de toutes les commandes du bot |
 | `/webadmin add @membre` / `remove @membre` / `list` | Admin serveur, Maitre de guilde | Gérer les **admins du site web** (niveau au-dessus du staff, accès à la page Admin du site `lilium-site`) |
 
-**Journal d'erreurs (`/errors`)** — toute exception inattendue est enregistrée en base (30 jours glissants) : commandes slash (en plus du message éphémère affiché à l'utilisateur), mais aussi les listeners (arrivée/départ de membre, salons vocaux…) et les tâches de fond (récap 22h, locations, annonces de mise à jour), qui ne passent pas par le même flux et étaient auparavant invisibles sans accès aux logs Railway. `/errors` liste les dernières erreurs (paginé, filtrable par commande) ; `/errors id_erreur:<ID>` renvoie la traceback Python complète en pièce jointe.
+**Journal d'erreurs (`/errors`)** — toute exception inattendue est enregistrée en base (30 jours glissants) : commandes slash (en plus du message éphémère affiché à l'utilisateur), mais aussi les listeners (arrivée/départ de membre, salons vocaux…) et les tâches de fond (récap 22h, locations, annonces de mise à jour), qui ne passent pas par le même flux et étaient auparavant invisibles sans accès aux logs Railway. `/errors` liste les dernières erreurs (paginé, filtrable par commande) ; `/errors id_erreur:<ID>` renvoie la traceback Python complète en pièce jointe. Une erreur marquée **corrigée** (`error_log.is_fixed`, depuis la page Admin du site — toutes les erreurs de même commande et même type du serveur d'un coup — ou par la fermeture de son issue) est précédée de ✅ ; une nouvelle occurrence repart en non corrigée.
+
+**Issues GitHub automatiques** (`Service/github_issues.py`, si `GITHUB_TOKEN` et `GITHUB_REPO` sont définis) — à la 1ʳᵉ occurrence d'un bug (même commande + même type d'erreur, tous serveurs confondus), le bot ouvre une issue (label `bot-error`, traceback compris) : GitHub te prévient par mail / appli mobile. Les occurrences suivantes y sont rattachées sans nouvelle issue (`error_log.github_issue`, table `error_issues`). Un commit `Fixes #N` sur `main` ferme l'issue ; au démarrage suivant du bot (le déploiement du correctif) puis toutes les heures, ses erreurs passent en corrigées. Si le bug revient après la fermeture, une nouvelle issue « réapparition » est ouverte. Les erreurs de saisie (paramètre invalide, droits manquants…) restent dans `/errors` sans issue. Token **fine-grained** limité au dépôt du bot, permission *Issues : read and write* ; le dépôt doit être **privé** (les tracebacks contiennent ids Discord et pseudos). Un échec de l'API GitHub est seulement affiché dans les logs, jamais enregistré comme erreur (pas de boucle).
 
 > Les tâches planifiées (`@tasks.loop`) de discord.py s'arrêtent **définitivement** si une exception s'en échappe. Chaque salon/serveur traité par ces tâches (nettoyage des salons vocaux temporaires, annonces de mise à jour…) est donc isolé dans son propre `try/except` pour qu'une erreur sur un élément n'interrompe jamais le reste.
 
@@ -367,6 +371,7 @@ LiliumBot/
     ├── self_roles.py            # Rôles auto-attribuables par boutons (self-service)
     ├── config.py                # Panneau /config (vocaux temp, bienvenue, au revoir, rôles à la carte, staff web)
     ├── errors.py                # Commande /errors — historique des erreurs (voir plus bas)
+    ├── github_issues.py         # Issues GitHub des erreurs + synchro des issues fermées (optionnel)
     ├── web_admin.py             # /webadmin — admins du site web (table web_admins, lue par lilium-site)
     └── utils.py                # Helpers partagés (is_admin, ActivitySelect, settings, log_error)
 ```
@@ -424,7 +429,7 @@ Le bot recharge le cache des templates custom **toutes les 2 minutes** : une com
 1. Push le repo sur GitHub
 2. Créer un projet Railway depuis le repo
 3. Ajouter le plugin **PostgreSQL** → les variables `DATABASE_URL` et `PGXXX` sont injectées automatiquement
-4. Ajouter les variables d'environnement `DISCORD_TOKEN`, `DISCORD_GUILD_ID` (et `ALLOWED_GUILD_IDS` seulement pour un bot privé)
+4. Ajouter les variables d'environnement `DISCORD_TOKEN`, `DISCORD_GUILD_ID` (et `ALLOWED_GUILD_IDS` seulement pour un bot privé ; `GITHUB_TOKEN` + `GITHUB_REPO` pour les issues d'erreurs)
 5. Inviter le bot sur autant de serveurs Discord que nécessaire — aucune configuration supplémentaire n'est requise, la synchronisation des commandes se fait automatiquement au démarrage
 6. Railway build et démarre le bot — les tables sont créées au premier démarrage
 

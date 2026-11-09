@@ -345,6 +345,22 @@ async def init_db(database_url: str) -> None:
                 traceback      TEXT        NOT NULL
             )
         """)
+        # Marquée corrigée depuis le site (toutes les similaires) ou par la fermeture de son issue
+        await conn.execute(
+            "ALTER TABLE error_log ADD COLUMN IF NOT EXISTS is_fixed BOOLEAN NOT NULL DEFAULT FALSE"
+        )
+        await conn.execute("ALTER TABLE error_log ADD COLUMN IF NOT EXISTS github_issue INT")
+        # Issues GitHub ouvertes par le bot : une par bug (commande + type d'erreur), gardée
+        # au-delà de la purge 30 j de error_log pour ne pas rouvrir un doublon.
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS error_issues (
+                issue_number  INT         PRIMARY KEY,
+                command       TEXT        NOT NULL,
+                error_type    TEXT        NOT NULL,
+                created_at    TIMESTAMPTZ NOT NULL,
+                closed_at     TIMESTAMPTZ
+            )
+        """)
 
         # ── Nettoyage ponctuel : suppression de tous les templates custom ──────
         # (les templates par défaut ont été vidés dans config.py — RAID AVA BN
@@ -1304,14 +1320,17 @@ async def delete_update_announce_config(guild_id: int) -> None:
 async def add_error_log(
     command: str, error_type: str, error_message: str, traceback_str: str,
     guild_id: int | None = None, user_id: str | None = None,
-) -> None:
+) -> int:
+    """Enregistre l'erreur et renvoie son id."""
     ts = datetime.now(UTC)
     async with _pool.acquire() as conn:
-        await conn.execute("""
+        error_id = await conn.fetchval("""
             INSERT INTO error_log (ts, guild_id, command, user_id, error_type, error_message, traceback)
             VALUES ($1, $2, $3, $4, $5, $6, $7)
+            RETURNING id
         """, ts, guild_id, command, user_id, error_type, error_message[:2000], traceback_str[:4000])
         await conn.execute("DELETE FROM error_log WHERE ts < NOW() - INTERVAL '30 days'")
+    return error_id
 
 
 async def get_error_log_by_id(error_id: int, guild_id: int | None = None) -> dict | None:
@@ -1332,6 +1351,8 @@ async def get_error_log_by_id(error_id: int, guild_id: int | None = None) -> dic
         "error_type":    row["error_type"],
         "error_message": row["error_message"],
         "traceback":     row["traceback"],
+        "is_fixed":      row["is_fixed"],
+        "github_issue":  row["github_issue"],
     }
 
 
@@ -1361,9 +1382,60 @@ async def get_error_logs(guild_id: int | None = None, command: str | None = None
             "error_type":    r["error_type"],
             "error_message": r["error_message"],
             "traceback":     r["traceback"],
+            "is_fixed":      r["is_fixed"],
+            "github_issue":  r["github_issue"],
         }
         for r in rows
     ]
+
+
+# ── ISSUES GITHUB DES ERREURS (Service/github_issues.py) ─────────────────────────
+# Volontairement sans filtre par serveur : une issue = un bug du code, quel que soit
+# le serveur où il s'est produit (seul le propriétaire du bot voit le dépôt).
+
+async def get_latest_error_issue(command: str, error_type: str) -> dict | None:
+    """Dernière issue de ce bug (commande + type d'erreur), ouverte ou non : {issue_number, closed_at}."""
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow("""
+            SELECT issue_number, closed_at FROM error_issues
+            WHERE command = $1 AND error_type = $2
+            ORDER BY created_at DESC LIMIT 1
+        """, command, error_type)
+    return dict(row) if row else None
+
+
+async def add_error_issue(issue_number: int, command: str, error_type: str, error_id: int) -> None:
+    async with _pool.acquire() as conn:
+        async with conn.transaction():
+            await conn.execute("""
+                INSERT INTO error_issues (issue_number, command, error_type, created_at)
+                VALUES ($1, $2, $3, $4)
+                ON CONFLICT (issue_number) DO NOTHING
+            """, issue_number, command, error_type, datetime.now(UTC))
+            await conn.execute("UPDATE error_log SET github_issue = $1 WHERE id = $2", issue_number, error_id)
+
+
+async def set_error_issue(error_id: int, issue_number: int) -> None:
+    async with _pool.acquire() as conn:
+        await conn.execute("UPDATE error_log SET github_issue = $1 WHERE id = $2", issue_number, error_id)
+
+
+async def get_open_error_issues() -> list[int]:
+    async with _pool.acquire() as conn:
+        rows = await conn.fetch("SELECT issue_number FROM error_issues WHERE closed_at IS NULL")
+    return [r["issue_number"] for r in rows]
+
+
+async def close_error_issue(issue_number: int, closed_at: datetime) -> None:
+    """Issue fermée : ses erreurs antérieures à la fermeture passent en corrigées."""
+    async with _pool.acquire() as conn:
+        async with conn.transaction():
+            await conn.execute(
+                "UPDATE error_issues SET closed_at = $2 WHERE issue_number = $1", issue_number, closed_at
+            )
+            await conn.execute(
+                "UPDATE error_log SET is_fixed = TRUE WHERE github_issue = $1 AND ts <= $2", issue_number, closed_at
+            )
 
 
 # ── MESSAGES BIENVENUE / AU REVOIR ─────────────────────────────────────────────

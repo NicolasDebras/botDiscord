@@ -1,5 +1,4 @@
 import os
-import traceback
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -7,6 +6,7 @@ import asyncio
 
 from config import ALLOWED_GUILD_IDS, TOKEN
 import db
+from Service.utils import log_error
 
 # ── INTENTS ──────────────────────────────────────────────────────────────────
 intents = discord.Intents.default()
@@ -36,6 +36,7 @@ EXTENSIONS = [
     "Service.config",
     "Service.location",
     "Service.errors",
+    "Service.github_issues",
     "Service.web_admin",
 ]
 
@@ -45,21 +46,13 @@ EXTENSIONS = [
 async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
     original = getattr(error, "original", error)
     cmd_name = interaction.command.name if interaction.command else "?"
-    print(f"[slash command error] /{cmd_name} : {type(original).__name__}: {original}")
-    tb_str = "".join(traceback.format_exception(type(original), original, original.__traceback__))
-    print(tb_str)
-
-    try:
-        await db.add_error_log(
-            command=cmd_name,
-            error_type=type(original).__name__,
-            error_message=str(original),
-            traceback_str=tb_str,
-            guild_id=interaction.guild.id if interaction.guild else None,
-            user_id=str(interaction.user.id) if interaction.user else None,
-        )
-    except Exception as e:
-        print(f"[slash command error] Impossible d'enregistrer l'erreur en base : {e}")
+    # Issue GitHub seulement pour un bug (exception dans la commande), pas pour une saisie invalide.
+    await log_error(
+        cmd_name, original,
+        guild_id=interaction.guild.id if interaction.guild else None,
+        user_id=interaction.user.id if interaction.user else None,
+        report_issue=isinstance(error, app_commands.CommandInvokeError),
+    )
 
     # Erreur interne (exception dans la commande) : pas de détail technique aux joueurs, il est dans /errors.
     # Les autres (paramètre invalide, check…) sont des messages discord.py destinés à l'utilisateur.

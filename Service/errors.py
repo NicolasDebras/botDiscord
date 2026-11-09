@@ -9,6 +9,20 @@ from config import ADMIN_ROLE_NAME
 from Service.utils import is_admin
 
 
+def error_field_name(entry: dict) -> str:
+    """« ✅ #42 · /acti · 08/10 11:12 » — ✅ si l'erreur est marquée corrigée (site ou issue fermée)."""
+    name = f"#{entry['id']}  ·  /{entry['command']}  ·  {entry['ts'].strftime('%d/%m %H:%M')}"
+    return f"✅ {name}" if entry["is_fixed"] else name
+
+
+def error_status(entry: dict) -> str:
+    """« · ✅ corrigée · issue #12 » (vide si ni l'un ni l'autre)."""
+    parts = (["✅ corrigée"] if entry["is_fixed"] else []) + (
+        [f"issue #{entry['github_issue']}"] if entry["github_issue"] else []
+    )
+    return "".join(f" · {p}" for p in parts)
+
+
 class Errors(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -46,7 +60,7 @@ class Errors(commands.Cog):
             date = entry["ts"].strftime("%d/%m/%Y %H:%M")
             who  = f"<@{entry['user_id']}>" if entry["user_id"] else "?"
             summary = (
-                f"**#{entry['id']}** · `/{entry['command']}` · {date} · déclenché par {who}\n"
+                f"**#{entry['id']}** · `/{entry['command']}` · {date} · déclenché par {who}{error_status(entry)}\n"
                 f"**{entry['error_type']}** : {entry['error_message']}"
             )
             file = discord.File(io.BytesIO(entry["traceback"].encode("utf-8")), filename=f"error_{entry['id']}.txt")
@@ -71,13 +85,11 @@ class Errors(commands.Cog):
         embed = discord.Embed(title=title, color=0xE74C3C)
 
         for entry in slice_:
-            date  = entry["ts"].strftime("%d/%m %H:%M")
             who   = f"<@{entry['user_id']}>" if entry["user_id"] else "?"
-            name  = f"#{entry['id']}  ·  /{entry['command']}  ·  {date}"
             value = f"**{entry['error_type']}** : {entry['error_message'][:400]}\nDéclenché par {who}"
-            embed.add_field(name=name[:256], value=value[:1024], inline=False)
+            embed.add_field(name=error_field_name(entry)[:256], value=value[:1024], inline=False)
 
-        embed.set_footer(text=f"{len(log)} erreur(s)  •  historique 30 jours  •  /errors id_erreur:<ID> pour la traceback complète")
+        embed.set_footer(text=f"{len(log)} erreur(s)  •  historique 30 jours  •  ✅ = corrigée  •  /errors id_erreur:<ID> pour la traceback complète")
         await interaction.followup.send(embed=embed, ephemeral=True)
 
 

@@ -33,6 +33,13 @@ def parse_guild_ids(raw: str) -> frozenset[int]:
 # se nommer admin du site pour son serveur.
 ALLOWED_GUILD_IDS = parse_guild_ids(os.environ.get("ALLOWED_GUILD_IDS", ""))
 
+# ── ISSUES GITHUB DES ERREURS (optionnel, Service/github_issues.py) ────────────
+# Token fine-grained (dépôt du bot seul, Issues : read/write) + « owner/repo ».
+# Absents → aucune issue. Dépôt PRIVÉ obligatoire : les tracebacks contiennent
+# ids Discord et pseudos.
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
+GITHUB_REPO  = os.environ.get("GITHUB_REPO", "")
+
 # ── RÔLES et TEMPLATES PAR DÉFAUT : roles_templates.py (partagé avec le site) ──
 from roles_templates import DEFAULT_TEMPLATES, ROLES  # noqa: E402,F401
 

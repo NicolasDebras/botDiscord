@@ -1,7 +1,10 @@
 import random
 import traceback
+from datetime import datetime, UTC
+
 import discord
 import db
+from Service import github_issues
 
 from config import ADMIN_ROLE_NAME, GM_ROLE_NAME, MEMBRE_ROLE_NAME, CALLER_ROLE_NAME, DEFAULT_BAL_RATE, GUILD_ID as _MAIN_GUILD_ID
 
@@ -10,24 +13,37 @@ from config import ADMIN_ROLE_NAME, GM_ROLE_NAME, MEMBRE_ROLE_NAME, CALLER_ROLE_
 async def log_error(
     source: str, error: BaseException,
     guild_id: int | None = None, user_id: int | str | None = None,
+    report_issue: bool = True,
 ) -> None:
-    """Enregistre une erreur en base pour /errors — à utiliser dans les listeners,
-    tâches de fond et callbacks de composants, qui ne passent pas par le handler
-    d'erreur global des commandes slash (bot.tree.error)."""
+    """Enregistre une erreur en base pour /errors (et son issue GitHub si configuré et
+    report_issue) — point d'entrée unique : handler des commandes slash (bot.tree.error),
+    listeners, tâches de fond et callbacks de composants."""
     print(f"[{source}] {type(error).__name__}: {error}")
     tb_str = "".join(traceback.format_exception(type(error), error, error.__traceback__))
     print(tb_str)
+    entry = {
+        "ts":            datetime.now(UTC),
+        "guild_id":      guild_id,
+        "command":       source,
+        "user_id":       str(user_id) if user_id is not None else None,
+        "error_type":    type(error).__name__,
+        "error_message": str(error),
+        "traceback":     tb_str,
+    }
     try:
-        await db.add_error_log(
-            command=source,
-            error_type=type(error).__name__,
-            error_message=str(error),
+        entry["id"] = await db.add_error_log(
+            command=entry["command"],
+            error_type=entry["error_type"],
+            error_message=entry["error_message"],
             traceback_str=tb_str,
             guild_id=guild_id,
-            user_id=str(user_id) if user_id is not None else None,
+            user_id=entry["user_id"],
         )
     except Exception as e:
         print(f"[log_error] Impossible d'enregistrer l'erreur en base : {e}")
+        return
+    if report_issue:
+        github_issues.schedule_report(entry)
 
 
 def image_signature(interaction: discord.Interaction) -> str:
