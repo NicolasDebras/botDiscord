@@ -1969,6 +1969,9 @@ class ActivityView(discord.ui.View):
         self.add_item(CancelButton(activity_id))
 
 
+THREAD_ARCHIVED = 50083  # code d'erreur Discord : « Thread is archived »
+
+
 async def refresh_view_on_startup(bot, msg_id: int, data: dict) -> bool:
     """Réaffiche la vue d'une activité rechargée au démarrage. False seulement si Discord confirme
     que son salon/fil ou son message n'existe plus (l'appelant supprime alors l'acti). Toute autre
@@ -1981,6 +1984,11 @@ async def refresh_view_on_startup(bot, msg_id: int, data: dict) -> bool:
         await msg.edit(view=build_view(msg_id))
     except discord.NotFound:
         return False
+    except discord.HTTPException as e:
+        # Fil archivé (50083) : Discord refuse d'éditer le message, mais la vue est déjà
+        # enregistrée (add_view) donc les boutons marchent — rien à signaler dans /errors.
+        if e.code != THREAD_ARCHIVED:
+            await log_error("activites.on_ready", e, guild_id=data.get("guild_id"))
     except Exception as e:
         await log_error("activites.on_ready", e, guild_id=data.get("guild_id"))
     return True

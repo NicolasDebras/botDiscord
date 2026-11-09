@@ -384,6 +384,20 @@ def test_refresh_view_on_startup_deleted_message_is_dropped(monkeypatch):
     assert _run_startup(monkeypatch, bot) == (False, [])
 
 
+def test_refresh_view_on_startup_ignores_archived_thread(monkeypatch):
+    import discord
+    error = _http_error(discord.HTTPException, 400)
+    error.code = activites.THREAD_ARCHIVED
+    bot, _ = _startup_bot(error)
+    assert _run_startup(monkeypatch, bot) == (True, [])
+
+
+def test_refresh_view_on_startup_logs_other_bad_request(monkeypatch):
+    import discord
+    bot, _ = _startup_bot(_http_error(discord.HTTPException, 400))
+    assert _run_startup(monkeypatch, bot) == (True, ["activites.on_ready"])
+
+
 def test_refresh_activity_message_logs_missing_access(monkeypatch):
     import asyncio
     import discord
