@@ -900,15 +900,17 @@ async def save_player_profile(user_id: str, ig_name: str, initial_pve: int, init
 
 
 async def set_player_ig_name(user_id: str, guild_id: int, ig_name: str, pve: int, pvp: int) -> None:
-    """Correction du pseudo IG par le staff (/registeradmin) : nouveau personnage → fame de départ
-    et fame courante remises à celle de ce pseudo ; date d'arrivée, statut et candidature gardés."""
+    """Correction du pseudo IG par le staff (/registeradmin) : nouveau personnage → fame de départ,
+    fame actuelle et référence de la semaine repartent de celle de ce pseudo ; date d'arrivée,
+    statut et candidature gardés. (current_*_fame sont NOT NULL : jamais NULL ici.)"""
     async with _pool.acquire() as conn:
         await conn.execute("""
             UPDATE player_profiles
             SET ig_name = $3, initial_pve_fame = $4, initial_pvp_fame = $5,
-                current_pve_fame = NULL, current_pvp_fame = NULL, fame_updated_at = NULL
+                current_pve_fame = $4, current_pvp_fame = $5, fame_updated_at = $6,
+                weekly_pve_fame = $4, weekly_pvp_fame = $5
             WHERE user_id = $1 AND guild_id = $2
-        """, user_id, guild_id, ig_name, pve, pvp)
+        """, user_id, guild_id, ig_name, pve, pvp, datetime.now(UTC))
 
 
 async def get_pending_new_players(min_days: int = 14, guild_id: int = 0) -> list[dict]:
