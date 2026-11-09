@@ -7,9 +7,17 @@ Pour annoncer une nouvelle fonctionnalité : incrémenter VERSION et ajouter
 une entrée en tête de CHANGELOG (ordre du plus récent au plus ancien).
 """
 
-VERSION = "2026.10.29.2"
+VERSION = "2026.11.09"
 
 CHANGELOG: list[dict] = [
+    {
+        "version": "2026.11.09",
+        "title": "🆕 /registeradmin : le staff enregistre ou corrige un pseudo IG",
+        "items": [
+            "`/registeradmin @joueur pseudo` (recruteurs, Officiers) : enregistre le pseudo Albion d'un joueur ou corrige un pseudo déjà enregistré, et le renomme sur Discord.",
+            "Une correction garde la date d'arrivée et le statut du joueur ; la fame de départ repart de celle du nouveau pseudo.",
+        ],
+    },
     {
         "version": "2026.10.29.2",
         "title": "🩹 « Activité introuvable » après un redémarrage du bot",

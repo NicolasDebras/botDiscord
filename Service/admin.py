@@ -808,6 +808,7 @@ class Admin(commands.Cog):
             value=(
                 "`/recrutement @joueur` — Enregistrer une candidature *(Recruteur)*\n"
                 "`/register pseudo` — Enregistrer/corriger son pseudo IG si l'API ne l'a pas trouvé *(Tous)*\n"
+                "`/registeradmin @joueur pseudo` — Enregistrer/corriger le pseudo IG d'un joueur *(Recruteur)*\n"
                 "`/info @joueur` — Profil, fame Albion, activités *(Tous)*\n"
                 "`/ancien @joueur` — Basculer statut Nouveau ↔ Membre *(Recruteur)*\n"
                 "`/reporter @joueur` — Repousser le suivi d'une semaine *(Recruteur)*\n"

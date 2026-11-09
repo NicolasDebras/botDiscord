@@ -413,7 +413,7 @@ class RecrutementExterne(commands.Cog):
         if existing:
             await interaction.followup.send(
                 f"⚠️ Tu es déjà enregistré en tant que **{existing['ig_name']}**.\n"
-                f"Contacte le staff (rôle recrutement) si tu dois corriger ton pseudo.",
+                f"Contacte le staff (rôle recrutement) pour le corriger avec `/registeradmin`.",
                 ephemeral=True,
             )
             return
@@ -453,6 +453,71 @@ class RecrutementExterne(commands.Cog):
             ephemeral=True,
         )
 
+
+    # =========================================================================
+    # /registeradmin @joueur pseudo  — le staff enregistre / corrige le pseudo IG d'un joueur
+    # =========================================================================
+    @app_commands.command(name="registeradmin", description="[Staff] Enregistrer ou corriger le pseudo in-game d'un joueur")
+    @app_commands.describe(
+        joueur="Joueur à enregistrer",
+        pseudo="Son pseudo exact dans Albion Online (sensible à la casse)",
+    )
+    async def registeradmin(self, interaction: discord.Interaction, joueur: discord.Member, pseudo: str):
+        if not await _is_staff(interaction.user):
+            await interaction.response.send_message("⛔ Réservé au staff (rôle recrutement ou Officier).", ephemeral=True)
+            return
+        if joueur.bot:
+            await interaction.response.send_message("❌ Un bot ne peut pas avoir de pseudo IG.", ephemeral=True)
+            return
+        await interaction.response.defer(ephemeral=True)
+
+        try:
+            fame = await fetch_albion_fame(pseudo)
+        except Exception:  # noqa: BLE001 — API indisponible = traité comme introuvable
+            fame = None
+        if not fame:
+            await interaction.followup.send(
+                f"❌ Joueur **{pseudo}** introuvable sur l'API Albion Online.\n"
+                f"Vérifie l'orthographe exacte (majuscules/minuscules comprises).",
+                ephemeral=True,
+            )
+            return
+
+        existing = await db.get_player_profile(str(joueur.id), guild_id=interaction.guild.id)
+        if existing:
+            await db.set_player_ig_name(str(joueur.id), interaction.guild.id, fame["name"], fame["pve"], fame["pvp"])
+            action = f"corrigé (**{existing['ig_name']}** → **{fame['name']}**)"
+        else:
+            await db.save_player_profile(
+                str(joueur.id), fame["name"], fame["pve"], fame["pvp"],
+                is_membre=False, guild_id=interaction.guild.id,
+            )
+            action = f"enregistré : **{fame['name']}**"
+
+        renamed = True
+        try:
+            await joueur.edit(
+                nick=await _nick_for(interaction.guild.id, fame),
+                reason=f"Pseudo IG enregistré via /registeradmin par {interaction.user}",
+            )
+        except discord.Forbidden:
+            renamed = False
+
+        ticket_channel_id = await db.get_recruitment_ticket(str(joueur.id), interaction.guild.id)
+        if ticket_channel_id:
+            channel = interaction.guild.get_channel(ticket_channel_id)
+            if channel:
+                await channel.send(
+                    f"✅ Pseudo de {joueur.mention} {action} par {interaction.user.mention}\n"
+                    f"PvP : {fmt_fame(fame['pvp'])} · PvE : {fmt_fame(fame['pve'])}"
+                )
+
+        note = "" if renamed else "\n⚠️ Impossible de le renommer (rôle du bot trop bas ou propriétaire du serveur)."
+        await interaction.followup.send(
+            f"✅ Pseudo de {joueur.mention} {action}\n"
+            f"PvP : {fmt_fame(fame['pvp'])} · PvE : {fmt_fame(fame['pve'])}{note}",
+            ephemeral=True,
+        )
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(RecrutementExterne(bot))

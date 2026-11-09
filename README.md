@@ -159,6 +159,7 @@ Une fois l'activité créée :
 | `/recrutement @joueur` | Recruteur, Officier | Enregistrer une candidature de recrutement |
 | `/setup-recrutement` | Admin | Configurer et poster le message de candidature sur ce serveur |
 | `/register pseudo` | Tous | Enregistrer son pseudo IG quand l'API Albion Online ne l'a pas trouvé automatiquement |
+| `/registeradmin @joueur pseudo` | Recruteur, Officier | Enregistrer ou corriger le pseudo IG d'un joueur (garde sa date d'arrivée et son statut, remet sa fame de départ à celle du nouveau pseudo) |
 
 La commande `/recrutement` ouvre une pop-up avec deux champs :
 - **Pseudo IG** — pseudo en jeu du candidat (court)
@@ -182,7 +183,7 @@ Système de candidature en libre-service, **configurable indépendamment sur cha
 4. Le bot crée un **salon privé** dédié à cette candidature (visible uniquement par le candidat, le rôle recrutement et le rôle **Officier**) avec un bouton **✅ Valider (Staff)**, puis ping le candidat pour lui demander une **capture d'écran de son écran d'accueil** (sélection de personnage) et une **capture de ses stats** — si son pseudo n'a pas été trouvé sur l'API, le message lui indique d'utiliser `/register` pour l'enregistrer manuellement
 5. Un membre du staff (rôle recrutement ou Officier) clique sur **✅ Valider (Staff)** → les rôles "en cours" (rôle candidat, rôle par défaut) sont retirés, le rôle configuré via `/config` → ✅ Rôle après validation candidature est attribué au candidat, puis le salon se ferme automatiquement (suppression après quelques secondes)
 
-`/register pseudo` — si l'API Albion Online n'a pas trouvé le candidat au moment de la candidature (nom introuvable, API indisponible…), il peut enregistrer lui-même son pseudo avec cette commande : le bot recherche la fame, renomme le membre, crée son profil, et prévient le salon de candidature en cours s'il y en a un. **Un profil ne peut être enregistré qu'une seule fois** — si le joueur est déjà enregistré, la commande refuse et invite à contacter le staff pour une correction.
+`/register pseudo` — si l'API Albion Online n'a pas trouvé le candidat au moment de la candidature (nom introuvable, API indisponible…), il peut enregistrer lui-même son pseudo avec cette commande : le bot recherche la fame, renomme le membre, crée son profil, et prévient le salon de candidature en cours s'il y en a un. **Un profil ne peut être enregistré qu'une seule fois** — si le joueur est déjà enregistré, la commande refuse et invite à contacter le staff, qui corrige avec `/registeradmin @joueur pseudo`.
 
 > Chaque serveur a sa propre configuration (salon, rôles, catégorie) — un serveur sans configuration ne propose pas la fonctionnalité tant que `/setup-recrutement` n'a pas été exécuté.
 
